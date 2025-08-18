@@ -79,12 +79,11 @@ const HistoricoVerificacoes: React.FC = () => {
         }
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setVerificacoes(data.verificacoes || [])
-        setTotalPages(Math.ceil((data.total || 0) / itemsPerPage))
+      if (response.success) {
+        setVerificacoes(response.data?.verificacoes || [])
+        setTotalPages(Math.ceil((response.data?.total || 0) / itemsPerPage))
       } else {
-        setError('Erro ao carregar histórico')
+        setError(response.error || 'Erro ao carregar histórico')
       }
     } catch (err) {
       setError('Erro ao conectar com o servidor')
@@ -111,10 +110,10 @@ const HistoricoVerificacoes: React.FC = () => {
         }
       })
 
-      if (response.ok) {
+      if (response.success) {
         setVerificacoes(prev => prev.filter(v => v.id !== id))
       } else {
-        alert('Erro ao excluir verificação')
+        alert(response.error || 'Erro ao excluir verificação')
       }
     } catch (err) {
       alert('Erro ao conectar com o servidor')
@@ -392,7 +391,9 @@ const HistoricoVerificacoes: React.FC = () => {
                 
                 <div className="mb-4">
                   <h4 className="font-semibold mb-2">Conteúdo analisado:</h4>
-                  <p className="leading-relaxed bg-white bg-opacity-50 p-3 rounded">{selectedVerificacao.conteudo}</p>
+                  <p className="leading-relaxed bg-white bg-opacity-50 p-3 rounded">
+                    {selectedVerificacao.tipo_input === 'imagem' ? 'Imagem enviada para análise' : selectedVerificacao.conteudo}
+                  </p>
                 </div>
                 
                 <div className="mb-4">

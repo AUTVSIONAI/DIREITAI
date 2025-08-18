@@ -18,7 +18,6 @@ import Surveys from './pages/Surveys'
 import SurveyResults from './pages/SurveyResults'
 import SurveyDetail from './pages/SurveyDetail'
 import VerdadeOuFake from './pages/VerdadeOuFake'
-import HistoricoVerificacoes from './pages/HistoricoVerificacoes'
 import ConstitutionQuiz from './components/user/ConstitutionQuiz'
 
 function App() {
@@ -73,7 +72,6 @@ function App() {
             
             {/* Rota Verdade ou Fake */}
             <Route path="/verdade-ou-fake" element={<PublicRoute requireAuth={true}><VerdadeOuFake /></PublicRoute>} />
-            <Route path="/historico-verificacoes" element={<HistoricoVerificacoes />} />
             
             {/* Quiz da Constituição */}
             <Route path="/quiz-constituicao" element={<ConstitutionQuiz />} />

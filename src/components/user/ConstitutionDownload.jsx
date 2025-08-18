@@ -148,9 +148,7 @@ const ConstitutionDownload = () => {
       } else if (error.message.includes('403')) {
         alert('Erro de autenticação. Faça login novamente.');
       } else {
-        // Para outros erros, ainda permitir o download do arquivo
-        ConstitutionService.downloadPDF();
-        console.log('⚠️ Download do arquivo realizado apesar do erro no registro');
+        alert('Erro ao processar download. Tente novamente mais tarde.');
       }
     } finally {
       setIsDownloading(false);

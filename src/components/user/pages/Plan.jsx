@@ -25,8 +25,10 @@ const Plan = () => {
       color: 'gray',
       popular: false,
       features: [
-        'Acesso basico ao DireitaIA',
-        'Limite de 10 consultas por dia',
+        '1 análise de fake news por dia',
+        '3 mensagens com IA Criativa por dia',
+        '1 conversa com agentes políticos por dia',
+        'Acesso completo à Constituição',
         'Suporte por email'
       ],
       limitations: [
@@ -43,26 +45,58 @@ const Plan = () => {
       color: 'blue',
       popular: true,
       features: [
-        'Acesso completo ao DireitaIA',
-        'Consultas ilimitadas',
-        'Suporte prioritario',
-        'Recursos avancados de IA'
+        '5 análises de fake news por dia',
+        '20 mensagens com IA Criativa por dia',
+        '3 conversas com agentes políticos por dia',
+        'Acesso completo à Constituição',
+        'Histórico completo de análises',
+        'Compartilhamento de resultados',
+        'Sem anúncios',
+        'Badge especial no perfil',
+        'Notificações prioritárias'
       ],
       limitations: []
     },
     {
-      id: 'premium',
-      name: 'Patriota Premium',
+      id: 'lider',
+      name: 'Patriota Líder',
       monthlyPrice: 59.90,
       yearlyPrice: 599.00,
       icon: Crown,
       color: 'yellow',
       popular: false,
       features: [
-        'Todos os recursos do Engajado',
+        '10 análises de fake news por dia',
+        '50 mensagens com IA Criativa por dia',
+        'Conversas ilimitadas com agentes políticos',
+        'Acesso completo à Constituição',
+        'Análises com IA premium (modelos mais avançados)',
+        'Relatórios semanais personalizados',
         'Acesso antecipado a novos recursos',
-        'Consultoria personalizada',
-        'API dedicada'
+        'Suporte prioritário',
+        'API para desenvolvedores (100 calls/dia)'
+      ],
+      limitations: []
+    },
+    {
+      id: 'supremo',
+      name: 'Patriota Supremo',
+      monthlyPrice: 89.90,
+      yearlyPrice: 899.00,
+      icon: Trophy,
+      color: 'purple',
+      popular: false,
+      features: [
+        '20 análises de fake news por dia',
+        'IA Criativa ilimitada',
+        'Todos os agentes políticos ilimitados',
+        'Acesso completo à Constituição',
+        'IA premium com modelos exclusivos',
+        'Consultoria política personalizada (1h/mês)',
+        'Criação de eventos próprios',
+        'Rede de contatos VIP',
+        'API premium (1000 calls/dia)',
+        'White-label para organizações'
       ],
       limitations: []
     }
@@ -70,9 +104,30 @@ const Plan = () => {
 
   // Estatisticas de uso
   const usageStats = {
-    gratuito: { queries: 10, storage: '1GB', support: 'Email' },
-    engajado: { queries: 'Ilimitado', storage: '10GB', support: 'Prioritario' },
-    premium: { queries: 'Ilimitado', storage: '100GB', support: 'Dedicado' }
+    gratuito: { 
+      fakeNews: '1/dia', 
+      aiCreative: '3/dia', 
+      politicalAgents: '1/dia',
+      support: 'Email' 
+    },
+    engajado: { 
+      fakeNews: '5/dia', 
+      aiCreative: '20/dia', 
+      politicalAgents: '3/dia',
+      support: 'Prioritário' 
+    },
+    lider: { 
+      fakeNews: '10/dia', 
+      aiCreative: '50/dia', 
+      politicalAgents: 'Ilimitado',
+      support: 'Prioritário' 
+    },
+    supremo: { 
+      fakeNews: '20/dia', 
+      aiCreative: 'Ilimitado', 
+      politicalAgents: 'Ilimitado',
+      support: 'Dedicado' 
+    }
   }
 
   // Funcao para obter classes de cor
@@ -95,6 +150,12 @@ const Plan = () => {
         secondary: 'bg-yellow-100 text-yellow-800',
         border: 'border-yellow-300',
         text: 'text-yellow-600'
+      },
+      purple: {
+        primary: 'bg-purple-600 text-white',
+        secondary: 'bg-purple-100 text-purple-800',
+        border: 'border-purple-300',
+        text: 'text-purple-600'
       }
     }
 

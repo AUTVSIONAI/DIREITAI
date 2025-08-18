@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Star, Clock, CheckCircle, XCircle, RotateCcw, Award, Target } from 'lucide-react';
+import { Trophy, Star, Clock, CheckCircle, XCircle, RotateCcw, Award, Target, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import GamificationService from '../../services/gamification';
 
 const ConstitutionQuiz = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [score, setScore] = useState(0);
@@ -229,12 +231,15 @@ const ConstitutionQuiz = () => {
     
     // Salvar resultado no sistema de gamificação
     if (user) {
+      console.log('🎯 Iniciando salvamento do resultado do quiz');
+      console.log('🔍 User ID:', user.id);
+      console.log('🔍 User object:', user);
       setLoading(true);
       try {
         const correctAnswers = answers.filter(a => a.correct).length;
         const totalTimeSpent = answers.reduce((sum, a) => sum + a.timeSpent, 0);
         
-        const result = await GamificationService.saveQuizResult(user.id, {
+        const quizData = {
           quizType: 'constitution',
           score: score,
           totalQuestions: questions.length,
@@ -246,14 +251,22 @@ const ConstitutionQuiz = () => {
             isCorrect: answer.correct,
             timeSpent: answer.timeSpent
           }))
-        });
+        };
         
+        console.log('📊 Quiz data to send:', quizData);
+        
+        const result = await GamificationService.saveQuizResult(user.id, quizData);
+        
+        console.log('✅ Quiz result saved successfully:', result);
         setGamificationResult(result);
       } catch (error) {
-        console.error('Erro ao salvar resultado do quiz:', error);
+        console.error('❌ Erro ao salvar resultado do quiz:', error);
+        console.error('❌ Error details:', error.response?.data || error.message);
       } finally {
         setLoading(false);
       }
+    } else {
+      console.log('❌ User not found, cannot save quiz result');
     }
   };
 
@@ -283,6 +296,17 @@ const ConstitutionQuiz = () => {
   if (!quizStarted) {
     return (
       <div className="max-w-4xl mx-auto p-6">
+        {/* Botão de voltar */}
+        <div className="mb-6">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="inline-flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Voltar ao Dashboard
+          </button>
+        </div>
+        
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
             <Trophy className="w-8 h-8 text-blue-600" />
@@ -475,6 +499,13 @@ const ConstitutionQuiz = () => {
           </div>
 
           <div className="flex justify-center gap-4 mt-8">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Voltar ao Dashboard
+            </button>
             <button
               onClick={resetQuiz}
               className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

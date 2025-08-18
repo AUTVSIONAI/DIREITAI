@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react'
 import { User, Edit3, Save, X, Camera, MapPin, Calendar, Mail, Phone, Shield, Award, TrendingUp, Upload } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
-import { apiClient } from '../../../lib/api.ts'
+import { apiRequest } from '../../../utils/apiClient'
 import { supabase } from '../../../lib/supabase'
 
 const Profile = () => {
-  const { userProfile, user } = useAuth()
+  const { userProfile, user, refreshUserProfile } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
     username: userProfile?.username || '',
@@ -16,10 +16,6 @@ const Profile = () => {
     phone: userProfile?.phone || '',
     birth_date: userProfile?.birth_date || ''
   })
-
-  // Debug logs
-  console.log('Profile component - userProfile:', userProfile)
-  console.log('Profile component - formData:', formData)
 
   // Update formData when userProfile changes
   React.useEffect(() => {
@@ -48,19 +44,21 @@ const Profile = () => {
 
   const handleSave = async () => {
     try {
-      console.log('Saving profile data:', formData)
-      const response = await apiClient.put('/users/profile', formData)
+      const response = await apiRequest('users/profile', {
+        method: 'PUT',
+        body: JSON.stringify(formData)
+      })
       
-      if (response.data) {
-        // Atualizar o contexto de autenticação com os novos dados
-        console.log('Profile updated successfully:', response.data)
+      if (response.success && response.data) {
         setIsEditing(false)
-        // Recarregar a página para atualizar os dados
-        window.location.reload()
+        // Atualizar os dados do perfil no contexto
+        await refreshUserProfile()
+        alert('Perfil atualizado com sucesso!')
+      } else {
+        alert(`Erro ao atualizar perfil: ${response.error || 'Erro desconhecido'}`)
       }
     } catch (error) {
-      console.error('Error updating profile:', error)
-      const errorMessage = error.response?.data?.error || error.message || 'Erro desconhecido'
+      const errorMessage = error.message || 'Erro desconhecido'
       alert(`Erro ao atualizar perfil: ${errorMessage}`)
     }
   }
@@ -83,7 +81,9 @@ const Profile = () => {
       setUploading(true)
       const file = event.target.files[0]
       
-      if (!file) return
+      if (!file) {
+        return
+      }
       
       // Validar tipo de arquivo
       if (!file.type.startsWith('image/')) {
@@ -109,8 +109,7 @@ const Profile = () => {
         })
       
       if (uploadError) {
-        console.error('Upload error:', uploadError)
-        alert('Erro ao fazer upload da imagem.')
+        alert(`Erro ao fazer upload da imagem: ${uploadError.message}`)
         return
       }
       
@@ -119,15 +118,24 @@ const Profile = () => {
         .from('avatars')
         .getPublicUrl(fileName)
       
-      // Atualizar perfil com nova URL do avatar
-      const response = await apiClient.put('/users/profile', {
+      // Preparar dados para atualização
+      const updateData = {
         ...formData,
         avatar_url: publicUrl
+      }
+      
+      // Atualizar perfil com nova URL do avatar
+      const response = await apiRequest('users/profile', {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
       })
       
-      if (response.data) {
-        console.log('Avatar updated successfully')
-        window.location.reload()
+      if (response.success && response.data) {
+        alert('Avatar atualizado com sucesso!')
+        // Atualizar os dados do perfil no contexto
+        await refreshUserProfile()
+      } else {
+        alert(`Erro ao atualizar avatar: ${response.error}`)
       }
       
     } catch (error) {

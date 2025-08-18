@@ -10,78 +10,51 @@ const AuthProvider = ({ children }) => {
   // Timeout de segurança para garantir que loading nunca fique infinito
   React.useEffect(() => {
     const timeout = setTimeout(() => {
-      console.log('⚠️ Timeout de segurança ativado - definindo loading como false');
       setLoading(false);
-    }, 5000); // 5 segundos - reduzido para resposta mais rápida
+    }, 5000); // 5 segundos
     
     return () => clearTimeout(timeout);
   }, [])
 
-  const fetchUserProfile = useCallback(async (currentUser) => {
+  const fetchUserProfile = async (currentUser) => {
     try {
-      console.log('🔍 Setting user profile for:', currentUser.email);
-      
-      // Definir perfil básico imediatamente para evitar loading infinito
+      // Usar apenas dados básicos do Supabase Auth para evitar loops infinitos
       const basicProfile = {
-        id: currentUser.id, // Usar auth_id como fallback
+        id: currentUser.id,
         auth_id: currentUser.id,
         full_name: currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.username || 'Usuário',
+        username: currentUser?.user_metadata?.username || '',
         email: currentUser?.email || '',
+        avatar_url: currentUser?.user_metadata?.avatar_url || null,
         is_admin: currentUser?.email === 'admin@direitai.com',
         email_confirmed_at: currentUser?.email === 'admin@direitai.com' ? new Date().toISOString() : currentUser?.email_confirmed_at
       };
-      
-      console.log('✅ Profile set successfully');
       setUserProfile(basicProfile);
       setLoading(false);
-      
     } catch (error) {
-      console.error('❌ Erro na definição do perfil:', error);
+      console.error('❌ Erro ao definir perfil:', error);
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     let mounted = true;
-    console.log('🚀 Inicializando AuthProvider...');
     
     const initializeAuth = async () => {
       try {
-        // Verificar se estamos em uma página pública do blog
-        const isPublicBlogPage = window.location.pathname.startsWith('/blog');
-        
-        if (!isPublicBlogPage) {
-          console.log('🔍 Obtendo usuário atual...');
-        }
-        
         const currentUser = await getCurrentUser();
-        
-        if (!isPublicBlogPage) {
-          console.log('👤 Usuário atual:', currentUser?.email || 'Nenhum usuário');
-        }
         
         if (mounted) {
           if (currentUser) {
-            if (!isPublicBlogPage) {
-              console.log('✅ Usuário encontrado, definindo estado...');
-            }
             setUser(currentUser);
             await fetchUserProfile(currentUser);
           } else {
-            if (!isPublicBlogPage) {
-              console.log('❌ Nenhum usuário encontrado, definindo loading como false');
-            }
             setUser(null);
             setUserProfile(null);
             setLoading(false);
           }
         }
       } catch (error) {
-        // Não mostrar erros de auth em páginas públicas do blog
-        const isPublicBlogPage = window.location.pathname.startsWith('/blog');
-        if (!isPublicBlogPage) {
-          console.error('❌ Erro na inicialização da auth:', error);
-        }
         if (mounted) {
           setUser(null);
           setUserProfile(null);
@@ -96,18 +69,11 @@ const AuthProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
       
-      console.log('🔄 Auth state changed:', event, session?.user?.email);
+      if (event === 'TOKEN_REFRESHED') {
+        return;
+      }
       
       if (session?.user) {
-        // Permitir login do admin sem confirmação de email
-        if (!session.user.email_confirmed_at && session.user.email !== 'admin@direitai.com') {
-          console.log('❌ Email not confirmed for non-admin user');
-          setUser(null);
-          setUserProfile(null);
-          setLoading(false);
-          return;
-        }
-        
         setUser(session.user);
         await fetchUserProfile(session.user);
       } else {
@@ -123,10 +89,28 @@ const AuthProvider = ({ children }) => {
     };
   }, [])
 
+  const refreshUserProfile = useCallback(async () => {
+    if (user) {
+      // Atualizar apenas com dados básicos para evitar loops
+      const basicProfile = {
+        id: user.id,
+        auth_id: user.id,
+        full_name: user?.user_metadata?.full_name || user?.user_metadata?.username || 'Usuário',
+        username: user?.user_metadata?.username || '',
+        email: user?.email || '',
+        avatar_url: user?.user_metadata?.avatar_url || null,
+        is_admin: user?.email === 'admin@direitai.com',
+        email_confirmed_at: user?.email === 'admin@direitai.com' ? new Date().toISOString() : user?.email_confirmed_at
+      };
+      setUserProfile(basicProfile);
+    }
+  }, [user]);
+
   const value = {
     user,
     userProfile,
-    loading
+    loading,
+    refreshUserProfile
   }
 
   return (

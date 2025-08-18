@@ -1,0 +1,42 @@
+# Development files
+.env.local
+.env.development
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output
+test/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Build artifacts
+test-*.js
+test-*.cjs
+test-*.html
+check-current-user.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# Backend (exclude backend directory but keep config files)
+backend/
+
+# Documentation (keep essential files)
+VERCEL_DEPLOYMENT_GUIDE.md
+
+# Git
+.git/
+.gitignore

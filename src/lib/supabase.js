@@ -122,9 +122,11 @@ export const getCurrentUser = async () => {
           return refreshedSession.user;
         } else {
           console.log('❌ Refresh falhou:', refreshError?.message);
+          return null; // Retornar null em vez de lançar erro
         }
       }
-      throw error;
+      console.log('❌ Erro de autenticação:', error.message);
+      return null; // Retornar null para outros erros também
     }
     
     if (user) {

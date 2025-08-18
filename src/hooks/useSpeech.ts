@@ -151,9 +151,7 @@ export const useSpeechRecognition = () => {
         recognitionInstance.maxAlternatives = 1;
         
         // Configurações específicas para mobile
-        if (isMobile) {
-          recognitionInstance.grammars = undefined; // Remover grammars em mobile
-        }
+        // Nota: grammars não precisa ser definido explicitamente
         
         setRecognition(recognitionInstance);
       }
