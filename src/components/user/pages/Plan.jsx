@@ -215,7 +215,7 @@ const Plan = () => {
       
       // Criar sessão de checkout do Stripe
       const response = await apiClient.post('/payments/checkout', {
-        planType: selectedUpgrade.id
+        planId: selectedUpgrade.id
       })
       
       if (response.data.success && response.data.data.url) {
