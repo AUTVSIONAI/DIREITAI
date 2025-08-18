@@ -19,7 +19,8 @@ import {
   Shield,
   History,
   Brain,
-  Map
+  Map,
+  Activity
 } from 'lucide-react'
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
@@ -28,21 +29,20 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const menuItems = [
     { path: '/dashboard', icon: Home, label: 'Visão Geral' },
     { path: '/dashboard/profile', icon: User, label: 'Perfil' },
+    { path: '/dashboard/usage', icon: Activity, label: 'Dashboard de Uso' },
     { path: '/politicians', icon: UserCheck, label: 'Políticos' },
     { path: '/blog', icon: BookOpen, label: 'Blog Patriota' },
     { path: '/quiz-constituicao', icon: Brain, label: 'Quiz da Constituição' },
     { path: '/pesquisas', icon: BarChart3, label: 'Pesquisas DireitaJá' },
     { path: '/resultados', icon: TrendingUp, label: 'Resultados' },
     { path: '/verdade-ou-fake', icon: Shield, label: 'Verdade ou Fake' },
-    { path: '/historico-verificacoes', icon: History, label: 'Histórico Verificações' },
-    { path: '/dashboard/direitagpt', icon: MessageCircle, label: 'DireitaIA' },
+    { path: '/dashboard/direitagpt', icon: MessageCircle, label: 'DireitaIA Unificada' },
     { path: '/dashboard/agents', icon: Bot, label: 'Chat com Agentes' },
     { path: '/dashboard/checkin', icon: MapPin, label: 'Check-in' },
     { path: '/dashboard/events', icon: Map, label: 'Mapa de Eventos' },
     { path: '/dashboard/ranking', icon: Trophy, label: 'Ranking' },
     { path: '/dashboard/store', icon: ShoppingBag, label: 'Loja' },
-    { path: '/dashboard/creative', icon: Sparkles, label: 'IA Criativa' },
-    { path: '/dashboard/achievements', icon: Award, label: 'Conquistas' },
+      { path: '/dashboard/achievements', icon: Award, label: 'Conquistas' },
     { path: '/dashboard/plan', icon: Crown, label: 'Plano' },
   ]
 

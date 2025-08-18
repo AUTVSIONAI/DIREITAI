@@ -3,11 +3,10 @@ import { Routes, Route } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import Profile from './pages/Profile'
-import DireitaGPT from './pages/DireitaGPT.jsx'
+import UnifiedAI from './pages/UnifiedAI.jsx'
 import CheckIn from './pages/CheckIn'
 import Ranking from './pages/Ranking'
 import Store from './pages/Store'
-import CreativeAI from './pages/CreativeAI'
 import Achievements from './pages/Achievements'
 import Plan from './pages/Plan'
 import Overview from './pages/Overview'
@@ -19,6 +18,7 @@ import BlogPost from '../../pages/BlogPost'
 import AgentChat from '../../pages/AgentChat'
 import Agents from './pages/Agents'
 import EventMap from './pages/EventMap'
+import UsageDashboard from './dashboard/UsageDashboard'
 
 const UserDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -38,17 +38,18 @@ const UserDashboard = () => {
           <Routes>
             <Route path="/" element={<Overview />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="/direitagpt" element={<DireitaGPT />} />
+            <Route path="/direitagpt" element={<UnifiedAI />} />
+            <Route path="/creative" element={<UnifiedAI />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/checkin" element={<CheckIn />} />
             <Route path="/ranking" element={<Ranking />} />
             <Route path="/store" element={<Store />} />
             <Route path="/store/success" element={<StoreSuccess />} />
             <Route path="/payment/success" element={<PaymentSuccess />} />
-            <Route path="/creative" element={<CreativeAI />} />
             <Route path="/achievements" element={<Achievements />} />
             <Route path="/plan" element={<Plan />} />
             <Route path="/events" element={<EventMap />} />
+            <Route path="/usage" element={<UsageDashboard />} />
           </Routes>
         </main>
       </div>
