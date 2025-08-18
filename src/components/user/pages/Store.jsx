@@ -1,141 +1,103 @@
 import React, { useState, useEffect } from 'react'
-import { ShoppingCart, Star, Filter, Search, Package, CreditCard, Truck, Shield, Plus, Minus, X } from 'lucide-react'
-import { useAuth } from '../../../hooks/useAuth'
+import { ShoppingCart, Search, Star, Truck, Shield, Loader2, X } from 'lucide-react'
+import { apiClient } from '../../../lib/api'
 import { StoreService } from '../../../services/store'
 
 const Store = () => {
-  const { userProfile } = useAuth()
-  const [selectedCategory, setSelectedCategory] = useState('all')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [cart, setCart] = useState([])
   const [showCart, setShowCart] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('all')
 
-  const categories = [
-    { id: 'all', name: 'Todos', icon: Package },
-    { id: 'clothing', name: 'Roupas', icon: Package },
-    { id: 'accessories', name: 'Acessórios', icon: Package },
-    { id: 'books', name: 'Livros', icon: Package },
-    { id: 'digital', name: 'Digital', icon: Package }
-  ]
-
-  const mockProducts = [
-    {
-      id: 1,
-      name: 'Camiseta Patriota Brasil',
-      description: 'Camiseta 100% algodão com estampa exclusiva',
-      price: 49.90,
-      originalPrice: 69.90,
-      category: 'clothing',
-      image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&h=300&fit=crop&crop=center',
-      rating: 4.8,
-      reviews: 124,
-      inStock: true,
-      badge: 'Mais Vendido'
-    },
-    {
-      id: 2,
-      name: 'Livro: História do Brasil',
-      description: 'Uma visão conservadora da história brasileira',
-      price: 39.90,
-      originalPrice: null,
-      category: 'books',
-      image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=300&h=300&fit=crop&crop=center',
-      rating: 4.9,
-      reviews: 89,
-      inStock: true,
-      badge: null
-    },
-    {
-      id: 3,
-      name: 'Boné Direita Brasileira',
-      description: 'Boné ajustável com bordado exclusivo',
-      price: 29.90,
-      originalPrice: 39.90,
-      category: 'accessories',
-      image: 'https://images.unsplash.com/photo-1588850561407-ed78c282e89b?w=300&h=300&fit=crop&crop=center',
-      rating: 4.6,
-      reviews: 67,
-      inStock: true,
-      badge: 'Promoção'
-    },
-    {
-      id: 4,
-      name: 'Curso Online: Economia Brasileira',
-      description: 'Curso completo sobre economia e política',
-      price: 199.90,
-      originalPrice: 299.90,
-      category: 'digital',
-      image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=300&h=300&fit=crop&crop=center',
-      rating: 4.7,
-      reviews: 156,
-      inStock: true,
-      badge: 'Novo'
-    },
-    {
-      id: 5,
-      name: 'Caneca Conservadora',
-      description: 'Caneca de porcelana com frase motivacional',
-      price: 24.90,
-      originalPrice: null,
-      category: 'accessories',
-      image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=300&fit=crop&crop=center',
-      rating: 4.5,
-      reviews: 43,
-      inStock: false,
-      badge: null
-    },
-    {
-      id: 6,
-      name: 'Moletom Patriota',
-      description: 'Moletom com capuz e estampa exclusiva',
-      price: 89.90,
-      originalPrice: 119.90,
-      category: 'clothing',
-      image: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=300&h=300&fit=crop&crop=center',
-      rating: 4.8,
-      reviews: 92,
-      inStock: true,
-      badge: 'Oferta'
+  // Carregar produtos e categorias da API
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Carregar produtos
+        const productsResponse = await apiClient.get('/store/products')
+        const mappedProducts = productsResponse.data.products.map(mapApiProductToComponent)
+        setProducts(mappedProducts)
+        
+        // Carregar categorias
+        const categoriesResponse = await apiClient.get('/store/categories')
+        const allCategories = [
+          { id: 'all', name: 'Todas' },
+          ...categoriesResponse.data.categories.map(cat => ({ id: cat, name: cat }))
+        ]
+        setCategories(allCategories)
+        
+      } catch (err) {
+        console.error('Erro ao carregar dados da loja:', err)
+        setError('Erro ao carregar produtos. Tente novamente.')
+      } finally {
+        setLoading(false)
+      }
     }
-  ]
 
-  const filteredProducts = mockProducts.filter(product => {
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory
+    loadData()
+  }, [])
+
+  // Função para mapear produtos da API para o formato esperado pelo componente
+  const mapApiProductToComponent = (apiProduct) => {
+    return {
+      id: apiProduct.id,
+      name: apiProduct.name,
+      description: apiProduct.description,
+      price: apiProduct.price,
+      originalPrice: null,
+      category: apiProduct.category,
+      image: apiProduct.image || apiProduct.images?.[0] || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=300&h=300&fit=crop&crop=center',
+      rating: apiProduct.rating || 0,
+      reviews: apiProduct.reviews || 0,
+      inStock: (apiProduct.stock_quantity || 0) > 0 && apiProduct.status === 'active',
+      badge: apiProduct.featured ? 'Destaque' : null,
+      stock: apiProduct.stock_quantity || 0
+    }
+  }
+
+  // Filtrar produtos
+  const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.description.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesCategory && matchesSearch
+    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory
+    return matchesSearch && matchesCategory
   })
 
+  // Funções do carrinho
   const addToCart = (product) => {
-    setCart(prev => {
-      const existingItem = prev.find(item => item.id === product.id)
-      if (existingItem) {
-        return prev.map(item => 
-          item.id === product.id 
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        )
-      }
-      return [...prev, { ...product, quantity: 1 }]
-    })
+    const existingItem = cart.find(item => item.id === product.id)
+    if (existingItem) {
+      setCart(cart.map(item => 
+        item.id === product.id 
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      ))
+    } else {
+      setCart([...cart, { ...product, quantity: 1 }])
+    }
   }
 
   const removeFromCart = (productId) => {
-    setCart(prev => prev.filter(item => item.id !== productId))
+    setCart(cart.filter(item => item.id !== productId))
   }
 
   const updateQuantity = (productId, newQuantity) => {
-    if (newQuantity === 0) {
+    if (newQuantity <= 0) {
       removeFromCart(productId)
-      return
-    }
-    setCart(prev => 
-      prev.map(item => 
+    } else {
+      setCart(cart.map(item => 
         item.id === productId 
           ? { ...item, quantity: newQuantity }
           : item
-      )
-    )
+      ))
+    }
   }
 
   const getTotalPrice = () => {
@@ -143,34 +105,22 @@ const Store = () => {
   }
 
   const handleCheckout = async () => {
-    if (!userProfile) {
-      alert('Você precisa estar logado para finalizar a compra')
-      return
-    }
-
-    if (cart.length === 0) {
-      alert('Seu carrinho está vazio')
-      return
-    }
-
     try {
-      // Preparar itens do carrinho para o checkout
-      const checkoutItems = cart.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        image: item.image
-      }))
-
-      const response = await StoreService.createCheckoutSession(checkoutItems)
-      if (response && response.url) {
-        window.location.href = response.url
-      } else {
-        throw new Error('URL de checkout não recebida')
+      const checkoutData = {
+        items: cart.map(item => ({
+          id: item.id,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        total: getTotalPrice()
+      }
+      
+      const response = await StoreService.createCheckoutSession(checkoutData)
+      if (response.checkout_url) {
+        window.location.href = response.checkout_url
       }
     } catch (error) {
-      console.error('Erro ao criar checkout:', error)
+      console.error('Erro no checkout:', error)
       alert('Erro ao processar checkout. Tente novamente.')
     }
   }
@@ -181,6 +131,7 @@ const Store = () => {
       case 'Promoção': return 'bg-red-100 text-red-800'
       case 'Novo': return 'bg-blue-100 text-blue-800'
       case 'Oferta': return 'bg-orange-100 text-orange-800'
+      case 'Destaque': return 'bg-purple-100 text-purple-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
@@ -207,194 +158,217 @@ const Store = () => {
         </button>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar produtos..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
+          <span className="ml-2 text-gray-600">Carregando produtos...</span>
         </div>
-        <div className="flex space-x-2 overflow-x-auto">
-          {categories.map(category => {
-            const Icon = category.icon
-            return (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg whitespace-nowrap ${
-                  selectedCategory === category.id
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{category.name}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Products Grid */}
-        <div className="lg:col-span-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <X className="h-5 w-5 text-red-400 mr-2" />
+            <span className="text-red-800">{error}</span>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      {/* Search and Filters */}
+      {!loading && !error && (
+        <>
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar produtos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div className="flex gap-2 overflow-x-auto">
+              {categories.map(category => {
+                const isActive = selectedCategory === category.id
+                return (
+                  <button
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id)}
+                    className={`px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+                      isActive 
+                        ? 'bg-primary-600 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {category.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Products Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map(product => (
-              <div key={product.id} className="card hover:shadow-lg transition-shadow">
+              <div key={product.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="relative">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-48 object-cover rounded-lg mb-4"
-                  />
+                  <img src={product.image} alt={product.name} className="w-full h-48 object-cover" />
                   {product.badge && (
-                    <span className={`absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium ${
+                    <span className={`absolute top-2 left-2 px-2 py-1 text-xs font-medium rounded-full ${
                       getBadgeColor(product.badge)
                     }`}>
                       {product.badge}
                     </span>
                   )}
                   {!product.inStock && (
-                    <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                       <span className="text-white font-medium">Esgotado</span>
                     </div>
                   )}
                 </div>
-                
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-gray-900">{product.name}</h3>
-                  <p className="text-sm text-gray-600">{product.description}</p>
+                <div className="p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2">{product.name}</h3>
+                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
                   
-                  <div className="flex items-center space-x-2">
-                    <div className="flex items-center space-x-1">
-                      <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                      <span className="text-sm font-medium">{product.rating}</span>
+                  {product.rating > 0 && (
+                    <div className="flex items-center mb-2">
+                      <div className="flex">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`h-4 w-4 ${
+                              star <= product.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-sm text-gray-600 ml-1">({product.reviews})</span>
                     </div>
-                    <span className="text-sm text-gray-500">({product.reviews} avaliações)</span>
-                  </div>
+                  )}
                   
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg font-bold text-primary-600">
-                      R$ {product.price.toFixed(2).replace('.', ',')}
-                    </span>
-                    {product.originalPrice && (
-                      <span className="text-sm text-gray-500 line-through">
-                        R$ {product.originalPrice.toFixed(2).replace('.', ',')}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-lg font-bold text-primary-600">
+                        R$ {product.price.toFixed(2).replace('.', ',')}
                       </span>
-                    )}
+                      {product.originalPrice && (
+                        <span className="text-sm text-gray-500 line-through ml-2">
+                          R$ {product.originalPrice.toFixed(2).replace('.', ',')}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => addToCart(product)}
+                      disabled={!product.inStock}
+                      className="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      Adicionar ao Carrinho
+                    </button>
                   </div>
-                  
-                  <button
-                    onClick={() => addToCart(product)}
-                    disabled={!product.inStock}
-                    className={`w-full py-2 rounded-lg font-medium ${
-                      product.inStock
-                        ? 'bg-primary-600 text-white hover:bg-primary-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    {product.inStock ? 'Adicionar ao Carrinho' : 'Esgotado'}
-                  </button>
                 </div>
               </div>
             ))}
           </div>
-          
+
           {filteredProducts.length === 0 && (
             <div className="text-center py-12">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum produto encontrado</h3>
-              <p className="text-gray-600">Tente ajustar os filtros ou termo de busca</p>
+              <p className="text-gray-500">Nenhum produto encontrado.</p>
             </div>
           )}
-        </div>
 
-        {/* Cart Sidebar */}
-        {showCart && (
-          <div className="lg:col-span-1">
-            <div className="card sticky top-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Carrinho de Compras</h3>
-              
-              {cart.length === 0 ? (
-                <div className="text-center py-8">
-                  <ShoppingCart className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-600">Carrinho vazio</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {cart.map(item => (
-                    <div key={item.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-12 h-12 object-cover rounded"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-gray-900 truncate">{item.name}</h4>
-                        <p className="text-sm text-primary-600">R$ {item.price.toFixed(2).replace('.', ',')}</p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <button
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                            className="w-6 h-6 bg-gray-200 rounded text-xs hover:bg-gray-300"
-                          >
-                            -
-                          </button>
-                          <span className="text-sm">{item.quantity}</span>
-                          <button
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            className="w-6 h-6 bg-gray-200 rounded text-xs hover:bg-gray-300"
-                          >
-                            +
-                          </button>
+          {/* Cart Sidebar */}
+          {showCart && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end">
+              <div className="bg-white w-full max-w-md h-full overflow-y-auto">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold">Carrinho de Compras</h3>
+                    <button
+                      onClick={() => setShowCart(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-6 w-6" />
+                    </button>
+                  </div>
+                  
+                  {cart.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">Seu carrinho está vazio</p>
+                  ) : (
+                    <>
+                      <div className="space-y-4 mb-6">
+                        {cart.map(item => (
+                          <div key={item.id} className="flex items-center space-x-4 p-4 border rounded-lg">
+                            <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded" />
+                            <div className="flex-1">
+                              <h4 className="font-medium">{item.name}</h4>
+                              <p className="text-sm text-primary-600">R$ {item.price.toFixed(2).replace('.', ',')}</p>
+                              <div className="flex items-center space-x-2 mt-2">
+                                <button
+                                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                  className="w-8 h-8 flex items-center justify-center border rounded"
+                                >
+                                  -
+                                </button>
+                                <span className="w-8 text-center">{item.quantity}</span>
+                                <button
+                                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                  className="w-8 h-8 flex items-center justify-center border rounded"
+                                >
+                                  +
+                                </button>
+                                <button
+                                  onClick={() => removeFromCart(item.id)}
+                                  className="ml-2 text-red-500 hover:text-red-700"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="border-t pt-4">
+                        <div className="flex justify-between items-center mb-4">
+                          <span className="text-lg font-semibold">Total:</span>
+                          <span className="text-lg font-bold text-primary-600">
+                            R$ {getTotalPrice().toFixed(2).replace('.', ',')}
+                          </span>
+                        </div>
+                        <button
+                          onClick={handleCheckout}
+                          className="w-full bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 font-medium"
+                        >
+                          Finalizar Compra
+                        </button>
+                        <div className="text-xs text-gray-500 space-y-1 mt-4">
+                          <div className="flex items-center space-x-1">
+                            <Truck className="h-3 w-3" />
+                            <span>Frete grátis acima de R$ 100</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Shield className="h-3 w-3" />
+                            <span>Compra 100% segura</span>
+                          </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => removeFromCart(item.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  
-                  <div className="border-t pt-4">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="font-semibold">Total:</span>
-                      <span className="text-lg font-bold text-primary-600">
-                        R$ {getTotalPrice().toFixed(2).replace('.', ',')}
-                      </span>
-                    </div>
-                    
-                    <button 
-                      onClick={handleCheckout}
-                      className="w-full bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 mb-2"
-                    >
-                      <CreditCard className="h-4 w-4 inline mr-2" />
-                      Finalizar Compra
-                    </button>
-                    
-                    <div className="text-xs text-gray-500 space-y-1">
-                      <div className="flex items-center space-x-1">
-                        <Truck className="h-3 w-3" />
-                        <span>Frete grátis acima de R$ 100</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Shield className="h-3 w-3" />
-                        <span>Compra 100% segura</span>
-                      </div>
-                    </div>
-                  </div>
+                    </>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

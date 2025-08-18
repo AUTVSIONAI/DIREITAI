@@ -1,6 +1,13 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Mic, MicOff, Volume2, VolumeX, Settings } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, Settings, Smartphone } from 'lucide-react';
 import { useSpeech } from '../../hooks/useSpeech';
+
+// Função para detectar dispositivos móveis
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         (navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && /MacIntel/.test(navigator.platform));
+};
 
 const VoiceControls = forwardRef(({ 
   onTranscript, 
@@ -22,11 +29,12 @@ const VoiceControls = forwardRef(({
     voices
   } = useSpeech();
 
+  const [isMobile] = useState(isMobileDevice());
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [speechRate, setSpeechRate] = useState(isMobile ? 0.8 : 0.9);
+  const [speechVolume, setSpeechVolume] = useState(isMobile ? 0.8 : 1);
   const [selectedVoice, setSelectedVoice] = useState(null);
-  const [speechRate, setSpeechRate] = useState(0.9);
-  const [speechVolume, setSpeechVolume] = useState(1);
 
   // Expor métodos para o componente pai
   useImperativeHandle(ref, () => ({
@@ -260,8 +268,8 @@ const VoiceControls = forwardRef(({
       )}
 
       {/* Indicador de Status */}
-      {(listening || speaking) && (
-        <div className="flex items-center space-x-1 text-xs text-gray-500">
+      {(listening || speaking || isMobile) && (
+        <div className="flex items-center space-x-2 text-xs text-gray-500">
           {listening && (
             <span className="flex items-center">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse mr-1"></div>
@@ -272,6 +280,12 @@ const VoiceControls = forwardRef(({
             <span className="flex items-center">
               <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse mr-1"></div>
               Falando...
+            </span>
+          )}
+          {isMobile && (
+            <span className="flex items-center text-green-600">
+              <Smartphone className="w-3 h-3 mr-1" />
+              Mobile
             </span>
           )}
         </div>

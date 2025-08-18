@@ -92,12 +92,12 @@ const PlansManagement = () => {
   const handleEdit = (plan) => {
     setEditingPlan(plan);
     setFormData({
-      name: plan.name,
-      description: plan.description,
-      price: plan.price.toString(),
-      duration_months: plan.duration_months.toString(),
-      features: Array.isArray(plan.features) ? plan.features.join(', ') : plan.features,
-      is_active: plan.is_active
+      name: plan.name || '',
+      description: plan.description || '',
+      price: (plan.price || 0).toString(),
+      duration_months: (plan.duration_months || 0).toString(),
+      features: Array.isArray(plan.features) ? plan.features.join(', ') : (plan.features || ''),
+      is_active: plan.is_active || false
     });
     setShowForm(true);
   };

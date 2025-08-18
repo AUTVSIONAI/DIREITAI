@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 
+// Função para detectar dispositivos móveis
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         (navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && /MacIntel/.test(navigator.platform));
+};
+
 // Interface para configurações de voz
 interface SpeechConfig {
   voice?: SpeechSynthesisVoice;
@@ -21,6 +28,7 @@ export const useSpeechSynthesis = () => {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [speaking, setSpeaking] = useState(false);
   const [supported, setSupported] = useState(false);
+  const [isMobile] = useState(isMobileDevice());
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -46,7 +54,12 @@ export const useSpeechSynthesis = () => {
     // Parar qualquer fala em andamento
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    // Configurações otimizadas para mobile
+    const mobileOptimizedText = isMobile ? 
+      text.substring(0, 200) : // Limitar texto em dispositivos móveis
+      text;
+
+    const utterance = new SpeechSynthesisUtterance(mobileOptimizedText);
     
     // Configurar voz (preferir português brasileiro)
     if (config.voice) {
@@ -60,17 +73,28 @@ export const useSpeechSynthesis = () => {
       }
     }
 
-    utterance.rate = config.rate || 0.9;
+    // Configurações otimizadas para mobile
+    utterance.rate = config.rate || (isMobile ? 0.8 : 0.9); // Mais lento em mobile
     utterance.pitch = config.pitch || 1;
-    utterance.volume = config.volume || 1;
+    utterance.volume = config.volume || (isMobile ? 0.8 : 1); // Volume menor em mobile
     utterance.lang = config.lang || 'pt-BR';
 
     utterance.onstart = () => setSpeaking(true);
     utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
+    utterance.onerror = (event) => {
+      console.warn('Speech synthesis error:', event);
+      setSpeaking(false);
+    };
 
-    window.speechSynthesis.speak(utterance);
-  }, [supported, voices]);
+    // Para dispositivos móveis, aguardar um pouco antes de falar
+    if (isMobile) {
+      setTimeout(() => {
+        window.speechSynthesis.speak(utterance);
+      }, 100);
+    } else {
+      window.speechSynthesis.speak(utterance);
+    }
+  }, [supported, voices, isMobile]);
 
   const stop = useCallback(() => {
     if (supported) {
@@ -108,6 +132,7 @@ export const useSpeechRecognition = () => {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
+  const [isMobile] = useState(isMobileDevice());
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -118,10 +143,20 @@ export const useSpeechRecognition = () => {
       if (SpeechRecognition) {
         setSupported(true);
         const recognitionInstance = new SpeechRecognition();
+        
+        // Configurações otimizadas para mobile
+        recognitionInstance.continuous = !isMobile; // Desabilitar continuous em mobile
+        recognitionInstance.interimResults = !isMobile; // Desabilitar interim results em mobile
+        recognitionInstance.lang = 'pt-BR';
+        recognitionInstance.maxAlternatives = 1;
+        
+        // Configurações específicas para mobile
+        // Nota: grammars não precisa ser definido explicitamente
+        
         setRecognition(recognitionInstance);
       }
     }
-  }, []);
+  }, [isMobile]);
 
   const startListening = useCallback((config: SpeechRecognitionConfig = {}) => {
     if (!supported || !recognition) return;
@@ -149,8 +184,15 @@ export const useSpeechRecognition = () => {
       }
     };
 
-    recognition.start();
-  }, [supported, recognition]);
+    // Para dispositivos móveis, aguardar um pouco antes de iniciar
+    if (isMobile) {
+      setTimeout(() => {
+        recognition.start();
+      }, 200);
+    } else {
+      recognition.start();
+    }
+  }, [supported, recognition, isMobile]);
 
   const stopListening = useCallback(() => {
     if (recognition) {

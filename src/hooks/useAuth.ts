@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { AuthContext } from '../contexts/AuthProvider';
+import { AuthContext } from '../contexts/AuthContext';
 import type { UserProfile, LoginCredentials, RegisterData, UpdateProfileData } from '../types/auth';
 
 /**

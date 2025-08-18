@@ -1,15 +1,29 @@
 import React, { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
+import { useGamification } from '../../hooks/useGamification'
 import { signOut } from '../../lib/supabase'
 import { Menu, Bell, LogOut, Settings, User } from 'lucide-react'
 
 const Header = ({ setSidebarOpen }) => {
   const { user, userProfile } = useAuth()
+  const { userPoints } = useGamification()
+  
+  // Debug temporário para verificar userPoints
+  console.log('🎯 Header - userPoints:', userPoints)
+  console.log('🎯 Header - userPoints.total:', userPoints?.total)
+  
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
   const handleSignOut = async () => {
-    await signOut()
-    window.location.href = '/login'
+    try {
+      await signOut()
+      // Forçar reload completo da página para limpar todos os estados
+      window.location.replace('/login')
+    } catch (error) {
+      console.error('Erro no logout:', error)
+      // Mesmo com erro, redirecionar para login
+      window.location.replace('/login')
+    }
   }
 
   const getPlanBadge = (plan) => {
@@ -38,7 +52,7 @@ const Header = ({ setSidebarOpen }) => {
               Central do Patriota
             </h1>
             <p className="text-sm text-gray-500">
-              Bem-vindo de volta, {userProfile?.username || user?.email}
+              Bem-vindo de volta, {userProfile?.username || userProfile?.email}
             </p>
           </div>
         </div>
@@ -55,10 +69,10 @@ const Header = ({ setSidebarOpen }) => {
           )}
           
           {/* Points */}
-          {userProfile?.points !== undefined && (
+          {userPoints?.total !== undefined && (
             <div className="flex items-center space-x-1 bg-primary-50 px-3 py-1 rounded-full">
               <span className="text-sm font-medium text-primary-700">
-                {userProfile.points} pts
+                {userPoints.total} pts
               </span>
             </div>
           )}

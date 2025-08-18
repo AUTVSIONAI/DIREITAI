@@ -265,9 +265,9 @@ const LiveMap = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Map Container */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <div className="card">
             {/* Map Controls */}
             <div className="flex items-center justify-between mb-4">
@@ -367,8 +367,8 @@ const LiveMap = () => {
               </div>
             )}
 
-            {/* Mock Map */}
-            <div className="relative bg-gray-100 rounded-lg h-96 overflow-hidden">
+            {/* Expanded Map */}
+            <div className="relative bg-gray-100 rounded-lg h-[600px] lg:h-[700px] overflow-hidden shadow-lg border border-gray-200">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-green-50">
                 {/* Simulated map background */}
                 <div className="absolute inset-0 opacity-20">
@@ -382,38 +382,56 @@ const LiveMap = () => {
                   </svg>
                 </div>
                 
-                {/* Map markers */}
+                {/* User markers - mais visíveis */}
                 {selectedView === 'users' && onlineUsers.map((user, index) => (
                   <div
                     key={user.id}
-                    className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
                     style={{
-                      left: `${20 + index * 15}%`,
-                      top: `${30 + index * 10}%`
+                      left: `${20 + (index % 8) * 10}%`,
+                      top: `${25 + Math.floor(index / 8) * 15}%`
                     }}
+                    title={`${user.username} - ${user.location?.city || 'Localização desconhecida'}`}
                   >
                     <div className="relative">
-                      <div className={`w-3 h-3 rounded-full ${getStatusColor(user.status)} border-2 border-white shadow-lg`}></div>
-                      <div className={`absolute -top-1 -right-1 w-2 h-2 ${getStatusColor(user.status)} rounded-full animate-ping`}></div>
+                      {/* Marcador principal do usuário */}
+                      <div className={`w-4 h-4 rounded-full ${getStatusColor(user.status)} border-2 border-white shadow-lg group-hover:scale-125 transition-transform`}></div>
+                      {/* Pulso animado */}
+                      <div className={`absolute -top-1 -right-1 w-3 h-3 ${getStatusColor(user.status)} rounded-full animate-ping opacity-75`}></div>
+                      {/* Tooltip no hover */}
+                      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        {user.username}<br/>
+                        <span className="text-gray-300">{user.location?.city}, {user.location?.state}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
                 
+                {/* Event markers - apenas eventos */}
                 {selectedView === 'events' && activeEvents.map((event, index) => (
                   <div
                     key={event.id}
-                    className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
                     style={{
-                      left: `${25 + index * 20}%`,
-                      top: `${40 + index * 15}%`
+                      left: `${30 + (index % 6) * 12}%`,
+                      top: `${35 + Math.floor(index / 6) * 20}%`
                     }}
                     onClick={() => setSelectedEvent(event)}
+                    title={`${event.title} - ${event.location?.city || 'Local não informado'}`}
                   >
                     <div className="relative">
-                      <div className="w-6 h-6 bg-red-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center">
-                        <MapPin className="h-3 w-3 text-white" />
+                      {/* Marcador de evento */}
+                      <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-white shadow-lg group-hover:scale-125 transition-transform flex items-center justify-center">
+                        <MapPin className="w-3 h-3 text-white" />
                       </div>
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
+                      {/* Pulso animado */}
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 rounded-full animate-pulse opacity-75"></div>
+                      {/* Tooltip no hover */}
+                      <div className="absolute bottom-7 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        {event.title}<br/>
+                        <span className="text-gray-300">{event.location?.city}, {event.location?.state}</span><br/>
+                        <span className="text-blue-300">{event.participants} participantes</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -531,19 +549,53 @@ const LiveMap = () => {
             </div>
           </div>
 
-          {/* City Statistics */}
+          {/* City Statistics - Melhoradas */}
           <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Estatísticas por Cidade</h3>
-            <div className="space-y-3">
-              {cityStats.map(city => (
-                <div key={city.city} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{city.city}</p>
-                    <p className="text-xs text-gray-500">{city.state}</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              Estatísticas por Cidade
+            </h3>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {cityStats.map((city, index) => (
+                <div key={city.city} className="relative p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="font-semibold text-gray-800 flex items-center gap-2">
+                        <span className={`w-3 h-3 rounded-full ${
+                          index === 0 ? 'bg-yellow-400' : 
+                          index === 1 ? 'bg-gray-400' : 
+                          index === 2 ? 'bg-orange-400' : 'bg-blue-400'
+                        }`}></span>
+                        {city.city}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {city.users} usuários online
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">{city.state}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl font-bold text-blue-600">{city.checkins}</div>
+                      <div className="text-xs text-gray-500 flex items-center gap-1">
+                        <Eye className="w-3 h-3" />
+                        check-ins hoje
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">{city.users} usuários</p>
-                    <p className="text-xs text-gray-500">{city.checkins} check-ins</p>
+                  {/* Barra de progresso visual */}
+                  <div className="mt-3">
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>Atividade</span>
+                      <span>{Math.round((city.users + city.checkins) / 50 * 100)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-gradient-to-r from-blue-400 to-indigo-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min((city.users + city.checkins) / 50 * 100, 100)}%` }}
+                      ></div>
+                    </div>
                   </div>
                 </div>
               ))}

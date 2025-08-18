@@ -40,7 +40,7 @@ export interface Event {
     email?: string;
     phone?: string;
     website?: string;
-    social_media?: Record<string, string>;
+    social_links?: Record<string, string>;
   };
   metadata?: Record<string, any>;
   created_at: string;
@@ -69,7 +69,7 @@ export interface EventSpeaker {
   title?: string;
   company?: string;
   avatar_url?: string;
-  social_media?: Record<string, string>;
+  social_links?: Record<string, string>;
   expertise_areas: string[];
   is_featured: boolean;
 }
@@ -175,7 +175,7 @@ export interface CreateEventData {
     email?: string;
     phone?: string;
     website?: string;
-    social_media?: Record<string, string>;
+    social_links?: Record<string, string>;
   };
 }
 

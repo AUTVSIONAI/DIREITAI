@@ -1,4 +1,4 @@
-import { apiClient } from '../lib/api';
+import { apiClient } from '../lib/api.ts';
 import type {
   UserLevel,
   UserPoints,
@@ -715,6 +715,169 @@ export class GamificationService {
       { type, reason }
     );
     return response.data;
+  }
+
+  // ===== MÉTODOS ESPECÍFICOS PARA QUIZ =====
+
+  /**
+   * Salvar resultado do quiz da Constituição
+   */
+  static async saveQuizResult(
+    userId: string,
+    result: {
+      quizType: 'constitution';
+      score: number;
+      totalQuestions: number;
+      correctAnswers: number;
+      timeSpent: number;
+      answers: Array<{
+        questionId: string;
+        selectedAnswer: string;
+        isCorrect: boolean;
+        timeSpent: number;
+      }>;
+    }
+  ): Promise<{
+    quizResult: any;
+    pointsEarned: number;
+    newAchievements: Achievement[];
+    levelUp: boolean;
+    newLevel?: UserLevel;
+  }> {
+    const response = await apiClient.post(
+      `/gamification/users/${userId}/quiz-result`,
+      result
+    );
+    return response.data;
+  }
+
+  /**
+   * Buscar histórico de quizzes do usuário
+   */
+  static async getQuizHistory(
+    userId: string,
+    page = 1,
+    limit = 10
+  ): Promise<{
+    results: Array<{
+      id: string;
+      quizType: string;
+      score: number;
+      totalQuestions: number;
+      correctAnswers: number;
+      timeSpent: number;
+      completedAt: string;
+      pointsEarned: number;
+    }>;
+    total: number;
+    totalPages: number;
+    currentPage: number;
+  }> {
+    const response = await apiClient.get(
+      `/gamification/users/${userId}/quiz-history?page=${page}&limit=${limit}`
+    );
+    return response.data;
+  }
+
+  /**
+   * Buscar estatísticas de quiz do usuário
+   */
+  static async getQuizStats(userId: string): Promise<{
+    totalQuizzes: number;
+    averageScore: number;
+    bestScore: number;
+    totalTimeSpent: number;
+    constitutionQuizzes: number;
+    averageAccuracy: number;
+    currentStreak: number;
+    longestStreak: number;
+  }> {
+    const response = await apiClient.get(
+      `/gamification/users/${userId}/quiz-stats`
+    );
+    return response.data;
+  }
+
+  /**
+   * Verificar conquistas relacionadas a quiz
+   */
+  static async checkQuizAchievements(
+    userId: string,
+    quizResult: {
+      score: number;
+      correctAnswers: number;
+      totalQuestions: number;
+      timeSpent: number;
+    }
+  ): Promise<Achievement[]> {
+    const response = await apiClient.post(
+      `/gamification/users/${userId}/check-quiz-achievements`,
+      quizResult
+    );
+    return response.data;
+  }
+
+  /**
+   * Calcular pontos baseados no resultado do quiz
+   */
+  static calculateQuizPoints(
+    correctAnswers: number,
+    totalQuestions: number,
+    timeSpent: number,
+    streak = 0
+  ): number {
+    const basePoints = correctAnswers * 10;
+    const accuracyBonus = Math.floor((correctAnswers / totalQuestions) * 50);
+    
+    // Bônus por tempo (menos tempo = mais pontos)
+    const averageTimePerQuestion = timeSpent / totalQuestions;
+    const timeBonus = averageTimePerQuestion < 30 ? 20 : averageTimePerQuestion < 60 ? 10 : 0;
+    
+    // Bônus por sequência
+    const streakBonus = Math.min(streak * 5, 50);
+    
+    return basePoints + accuracyBonus + timeBonus + streakBonus;
+  }
+
+  /**
+   * Formatar tempo em formato legível
+   */
+  static formatTime(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    return `${remainingSeconds}s`;
+  }
+
+  /**
+   * Calcular porcentagem de acerto
+   */
+  static calculateAccuracy(correctAnswers: number, totalQuestions: number): number {
+    return Math.round((correctAnswers / totalQuestions) * 100);
+  }
+
+  /**
+   * Obter classificação baseada na pontuação
+   */
+  static getScoreClassification(accuracy: number): {
+    title: string;
+    color: string;
+    icon: string;
+  } {
+    if (accuracy >= 90) {
+      return { title: 'Excelente', color: 'text-green-600', icon: '🏆' };
+    } else if (accuracy >= 80) {
+      return { title: 'Muito Bom', color: 'text-blue-600', icon: '🎯' };
+    } else if (accuracy >= 70) {
+      return { title: 'Bom', color: 'text-yellow-600', icon: '👍' };
+    } else if (accuracy >= 60) {
+      return { title: 'Regular', color: 'text-orange-600', icon: '📚' };
+    } else {
+      return { title: 'Precisa Melhorar', color: 'text-red-600', icon: '💪' };
+    }
   }
 }
 

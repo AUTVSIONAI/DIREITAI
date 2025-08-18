@@ -135,9 +135,12 @@ class ApiClientImpl implements ApiClient {
           }
           
           // Tentar obter o token de forma mais direta
-          const { data: { session } } = await supabase.auth.getSession();
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
           
           console.log('🔐 Session check:', session ? 'Found' : 'Not found');
+          if (sessionError) {
+            console.log('❌ Session error:', sessionError.message);
+          }
           
           if (session?.access_token) {
             config.headers.Authorization = `Bearer ${session.access_token}`;
@@ -145,11 +148,24 @@ class ApiClientImpl implements ApiClient {
             console.log('🔍 Token preview:', session.access_token.substring(0, 50) + '...');
           } else {
             console.log('❌ No token available for request:', config.url);
-            // Tentar refresh da sessão
-            const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
-            if (refreshedSession?.access_token) {
-              config.headers.Authorization = `Bearer ${refreshedSession.access_token}`;
-              console.log('✅ Refreshed token added to request:', config.url);
+            
+            // Tentar obter usuário diretamente
+            try {
+              const { data: { user }, error: userError } = await supabase.auth.getUser();
+              if (user && !userError) {
+                // Se temos usuário mas não sessão, tentar refresh
+                const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+                if (refreshedSession?.access_token && !refreshError) {
+                  config.headers.Authorization = `Bearer ${refreshedSession.access_token}`;
+                  console.log('✅ Refreshed token added to request:', config.url);
+                } else {
+                  console.log('❌ Refresh failed:', refreshError?.message);
+                }
+              } else {
+                console.log('❌ No user found:', userError?.message);
+              }
+            } catch (userCheckError) {
+              console.log('❌ User check failed:', userCheckError.message);
             }
           }
         } catch (error) {

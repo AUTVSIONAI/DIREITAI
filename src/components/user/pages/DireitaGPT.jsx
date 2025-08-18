@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } f
 import { Send, Bot, User, Trash2, Download, Copy, Wifi, WifiOff } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 import { AIService } from '../../../services/ai'
-import { supabase } from '../../../lib/supabase'
+import { apiClient } from '../../../lib/api'
 import VoiceControls from '../VoiceControls'
 
 const DireitaGPT = () => {
@@ -98,7 +98,7 @@ const DireitaGPT = () => {
             type: 'bot',
             content: conv.aiResponse,
             timestamp: new Date(conv.createdAt),
-            model: conv.model || 'DireitaIA'
+            model: conv.model || 'Patriota IA'
           })
         })
         setMessages(formattedMessages)
@@ -110,7 +110,7 @@ const DireitaGPT = () => {
         type: 'bot',
         content: 'Desculpe, houve um erro ao carregar o histórico. Vamos começar uma nova conversa!',
         timestamp: new Date(),
-        model: 'DireitaIA'
+        model: 'Patriota IA'
       }])
     } finally {
       setIsLoading(false)
@@ -140,64 +140,33 @@ const DireitaGPT = () => {
       
       // Tentar usar o backend real primeiro
       try {
-        // Obter token do Supabase
-        const { data: { session } } = await supabase.auth.getSession()
-        const token = session?.access_token || ''
-        
         const response = await retryWithBackoff(async () => {
-          const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api'}/ai/chat`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              message: messageToSend,
-              conversation_id: conversationId.current
-            })
+          const res = await apiClient.post('/ai/chat', {
+            message: messageToSend,
+            conversation_id: conversationId.current
           })
-          
-          // Verificação robusta para erro 429
-          if (res.status === 429) {
-            const error = new Error(`Rate limit exceeded - status: ${res.status}`)
-            error.status = 429
-            error.response = { status: 429 }
-            console.error('🚫 Erro 429 detectado:', { status: res.status, statusText: res.statusText })
-            throw error
-          }
-          
-          if (!res.ok) {
-            const error = new Error(`HTTP error! status: ${res.status}`)
-            error.status = res.status
-            error.response = { status: res.status }
-            throw error
-          }
           
           return res
         })
 
-        if (response.ok) {
-          const data = await response.json()
-          
-          botMessage = {
-            id: Date.now() + 1,
-            type: 'bot',
-            content: data.response,
-            timestamp: new Date(),
-            model: data.model || 'DireitaIA'
-          }
-          
-          conversationId.current = data.conversation_id
-          setCurrentModel('Patriota IA')
-          setIsConnected(true)
-          setLastBotMessage(data.response)
-          
-          // Auto-falar a resposta da IA
-          if (voiceControlsRef.current) {
-            voiceControlsRef.current.speakMessage(data.response)
-          }
-        } else {
-          throw new Error(`HTTP error! status: ${response.status}`)
+        const data = response.data
+        
+        botMessage = {
+          id: Date.now() + 1,
+          type: 'bot',
+          content: data.response,
+          timestamp: new Date(),
+          model: data.model || 'Patriota IA'
+        }
+        
+        conversationId.current = data.conversation_id
+        setCurrentModel('Patriota IA')
+        setIsConnected(true)
+        setLastBotMessage(data.response)
+        
+        // Auto-falar a resposta da IA
+        if (voiceControlsRef.current) {
+          voiceControlsRef.current.speakMessage(data.response)
         }
       } catch (backendError) {
         console.warn('Backend não disponível, usando respostas locais:', backendError)
@@ -249,7 +218,7 @@ const DireitaGPT = () => {
         type: 'bot',
         content: 'Desculpe, houve um erro ao processar sua mensagem. Tente novamente.',
         timestamp: new Date(),
-        model: 'DireitaIA'
+        model: 'Patriota IA'
       }
       setMessages(prev => [...prev, errorMessage])
     } finally {
@@ -270,7 +239,7 @@ const DireitaGPT = () => {
       type: 'bot',
       content: 'Conversa limpa! Como posso ajudá-lo agora?',
       timestamp: new Date(),
-      model: 'DireitaIA'
+      model: 'Patriota IA'
     }])
     conversationId.current = null
   }
@@ -288,7 +257,7 @@ const DireitaGPT = () => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `conversa-direitaia-${new Date().toISOString().split('T')[0]}.txt`
+    a.download = `conversa-patriotaia-${new Date().toISOString().split('T')[0]}.txt`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -310,7 +279,7 @@ const DireitaGPT = () => {
             <Bot className="h-6 w-6 text-blue-600" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">DireitaIA</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Patriota IA</h2>
             <div className="flex items-center space-x-2">
               {isConnected ? (
                 <Wifi className="h-4 w-4 text-green-500" />
@@ -318,7 +287,7 @@ const DireitaGPT = () => {
                 <WifiOff className="h-4 w-4 text-red-500" />
               )}
               <span className="text-sm text-gray-500">
-                {currentModel || 'DireitaIA'} • {isConnected ? 'Online' : 'Offline'}
+                {currentModel || 'Patriota IA'} • {isConnected ? 'Online' : 'Offline'}
               </span>
             </div>
           </div>

@@ -29,6 +29,7 @@ import FinancialReportsService from './financialReports';
 export { financialReportsService } from './financialReports';
 export { FinancialReportsService };
 export { storeManagementService, StoreManagementService } from './storeManagement';
+export { politiciansService, PoliticiansService } from './politicians';
 
 // Exportar como default também para conveniência
 export {

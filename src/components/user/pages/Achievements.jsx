@@ -1,10 +1,15 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Award, Trophy, Star, Lock, Calendar, Target, Users, Zap, BookOpen, MapPin } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
+import { apiRequest } from '../../../utils/apiClient'
+import { supabase } from '../../../lib/supabase'
 
 const Achievements = () => {
   const { userProfile } = useAuth()
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [achievements, setAchievements] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const categories = [
     { id: 'all', name: 'Todas', icon: Award },
@@ -15,134 +20,135 @@ const Achievements = () => {
     { id: 'special', name: 'Especiais', icon: Star }
   ]
 
-  const mockAchievements = [
+  // Definir conquistas disponíveis com suas configurações
+  const availableAchievements = [
     {
-      id: 1,
-      title: 'Primeiro Passo',
-      description: 'Faça seu primeiro check-in em uma manifestação',
-      category: 'checkin',
-      icon: MapPin,
-      points: 50,
-      unlocked: true,
-      unlockedAt: '2024-01-15T10:30:00Z',
-      rarity: 'common',
-      progress: { current: 1, total: 1 }
-    },
-    {
-      id: 2,
-      title: 'Patriota Dedicado',
-      description: 'Participe de 10 manifestações',
-      category: 'checkin',
-      icon: Target,
-      points: 200,
-      unlocked: true,
-      unlockedAt: '2024-02-20T14:15:00Z',
-      rarity: 'uncommon',
-      progress: { current: 10, total: 10 }
-    },
-    {
-      id: 3,
-      title: 'Guerreiro da Liberdade',
-      description: 'Participe de 50 manifestações',
-      category: 'checkin',
-      icon: Trophy,
-      points: 1000,
-      unlocked: false,
-      unlockedAt: null,
-      rarity: 'rare',
-      progress: { current: 23, total: 50 }
-    },
-    {
-      id: 4,
-      title: 'Conversador IA',
-      description: 'Tenha 25 conversas com o DireitaIA',
-      category: 'ai',
-      icon: Zap,
-      points: 150,
-      unlocked: true,
-      unlockedAt: '2024-03-01T09:45:00Z',
-      rarity: 'uncommon',
-      progress: { current: 25, total: 25 }
-    },
-    {
-      id: 5,
-      title: 'Mentor Digital',
-      description: 'Gere 100 conteúdos com IA Criativa',
-      category: 'ai',
-      icon: Star,
-      points: 500,
-      unlocked: false,
-      unlockedAt: null,
-      rarity: 'epic',
-      progress: { current: 34, total: 100 }
-    },
-    {
-      id: 6,
-      title: 'Influenciador',
-      description: 'Convide 5 amigos para a plataforma',
-      category: 'social',
-      icon: Users,
-      points: 300,
-      unlocked: false,
-      unlockedAt: null,
-      rarity: 'rare',
-      progress: { current: 2, total: 5 }
-    },
-    {
-      id: 7,
-      title: 'Estudioso',
-      description: 'Complete 3 cursos na plataforma',
+      id: 'first_quiz',
+      title: 'Primeiro Quiz',
+      description: 'Completou seu primeiro quiz da Constituição',
       category: 'learning',
       icon: BookOpen,
-      points: 400,
-      unlocked: false,
-      unlockedAt: null,
-      rarity: 'rare',
-      progress: { current: 1, total: 3 }
+      points: 20,
+      rarity: 'common'
     },
     {
-      id: 8,
-      title: 'Sequência de Ferro',
-      description: 'Mantenha uma sequência de 30 dias',
-      category: 'special',
-      icon: Calendar,
-      points: 750,
-      unlocked: false,
-      unlockedAt: null,
-      rarity: 'epic',
-      progress: { current: 7, total: 30 }
-    },
-    {
-      id: 9,
-      title: 'Fundador',
-      description: 'Seja um dos primeiros 1000 usuários',
-      category: 'special',
-      icon: Star,
-      points: 1000,
-      unlocked: true,
-      unlockedAt: '2024-01-10T00:00:00Z',
-      rarity: 'legendary',
-      progress: { current: 1, total: 1 }
-    },
-    {
-      id: 10,
-      title: 'Top Nacional',
-      description: 'Fique entre os 100 primeiros do ranking nacional',
-      category: 'special',
+      id: 'perfect_score',
+      title: 'Pontuação Perfeita',
+      description: 'Acertou todas as questões em um quiz',
+      category: 'learning',
       icon: Trophy,
-      points: 2000,
-      unlocked: false,
-      unlockedAt: null,
-      rarity: 'legendary',
-      progress: { current: 0, total: 1 }
+      points: 50,
+      rarity: 'rare'
+    },
+    {
+      id: 'expert_level',
+      title: 'Nível Expert',
+      description: 'Obteve 90% ou mais de acertos em um quiz',
+      category: 'learning',
+      icon: Target,
+      points: 30,
+      rarity: 'uncommon'
+    },
+    {
+      id: 'quiz_enthusiast',
+      title: 'Entusiasta dos Quizzes',
+      description: 'Completou 5 quizzes da Constituição',
+      category: 'learning',
+      icon: BookOpen,
+      points: 40,
+      rarity: 'uncommon'
+    },
+    {
+      id: 'constitution_scholar',
+      title: 'Estudioso da Constituição',
+      description: 'Completou 10 quizzes da Constituição',
+      category: 'learning',
+      icon: Star,
+      points: 60,
+      rarity: 'epic'
     }
   ]
 
-  const filteredAchievements = mockAchievements.filter(achievement => 
+  // Buscar conquistas reais do usuário
+  useEffect(() => {
+    const fetchAchievements = async () => {
+      if (!userProfile?.id) return
+      
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Usar a nova API de gamificação
+        const response = await apiRequest(`/gamification/users/${userProfile.id}/achievements`)
+        
+        if (!response.success) {
+          console.error('Erro ao buscar conquistas:', response.error)
+          setError('Erro ao carregar conquistas')
+          return
+        }
+        
+        // A API de gamificação já retorna as conquistas formatadas
+        const achievementsData = response.data || []
+        
+        // Mapear para o formato esperado pelo componente
+        const mappedAchievements = achievementsData.map(achievement => {
+          // Mapear ícones baseado na categoria
+          let IconComponent = Award
+          switch (achievement.category) {
+            case 'learning':
+              IconComponent = BookOpen
+              break
+            case 'checkin':
+              IconComponent = MapPin
+              break
+            case 'ai':
+              IconComponent = Zap
+              break
+            case 'social':
+              IconComponent = Users
+              break
+            case 'special':
+              IconComponent = Star
+              break
+            default:
+              IconComponent = Award
+          }
+          
+          return {
+            id: achievement.id,
+            title: achievement.name,
+            description: achievement.description,
+            category: achievement.category,
+            icon: IconComponent,
+            points: achievement.points,
+            rarity: achievement.rarity,
+            unlocked: achievement.unlocked,
+            unlockedAt: achievement.unlockedAt,
+            progress: achievement.progress ? {
+              current: achievement.progress,
+              total: 100
+            } : null
+          }
+        })
+        
+        setAchievements(mappedAchievements)
+        
+      } catch (error) {
+        console.error('Erro ao carregar conquistas:', error)
+        setError('Erro ao carregar conquistas')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchAchievements()
+  }, [userProfile?.id])
+
+  const filteredAchievements = achievements.filter(achievement => 
     selectedCategory === 'all' || achievement.category === selectedCategory
   )
 
-  const unlockedAchievements = mockAchievements.filter(a => a.unlocked)
+  const unlockedAchievements = achievements.filter(a => a.unlocked)
   const totalPoints = unlockedAchievements.reduce((sum, a) => sum + a.points, 0)
 
   const getRarityColor = (rarity) => {
@@ -168,6 +174,10 @@ const Achievements = () => {
   }
 
   const getProgressPercentage = (achievement) => {
+    // Se não há progresso definido, retorna 100% para achievements desbloqueados ou 0% para bloqueados
+    if (!achievement.progress || !achievement.progress.current || !achievement.progress.total) {
+      return achievement.unlocked ? 100 : 0
+    }
     return Math.min((achievement.progress.current / achievement.progress.total) * 100, 100)
   }
 
@@ -204,7 +214,7 @@ const Achievements = () => {
             <Target className="h-6 w-6 text-green-600" />
           </div>
           <h3 className="text-2xl font-bold text-gray-900">
-            {Math.round((unlockedAchievements.length / mockAchievements.length) * 100)}%
+            {achievements.length > 0 ? Math.round((unlockedAchievements.length / achievements.length) * 100) : 0}%
           </h3>
           <p className="text-sm text-gray-600">Progresso Total</p>
         </div>
@@ -241,8 +251,24 @@ const Achievements = () => {
         })}
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <span className="ml-2 text-gray-600">Carregando conquistas...</span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-600">{error}</p>
+        </div>
+      )}
+
       {/* Achievements Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {!loading && !error && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredAchievements.map(achievement => {
           const Icon = achievement.icon
           const isUnlocked = achievement.unlocked
@@ -291,7 +317,7 @@ const Achievements = () => {
                   </p>
                   
                   {/* Progress Bar */}
-                  {!isUnlocked && (
+                  {!isUnlocked && achievement.progress && achievement.progress.current !== undefined && achievement.progress.total !== undefined && (
                     <div className="mb-3">
                       <div className="flex justify-between text-xs text-gray-500 mb-1">
                         <span>Progresso</span>
@@ -331,6 +357,7 @@ const Achievements = () => {
           )
         })}
       </div>
+      )}
 
       {/* Recent Achievements */}
       {unlockedAchievements.length > 0 && (

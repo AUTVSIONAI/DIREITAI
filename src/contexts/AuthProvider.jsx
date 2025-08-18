@@ -1,7 +1,6 @@
-import React, { createContext, useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { supabase, getCurrentUser, resendConfirmation } from '../lib/supabase'
-
-const AuthContext = createContext()
+import { AuthContext } from './AuthContext'
 
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
@@ -11,103 +10,51 @@ const AuthProvider = ({ children }) => {
   // Timeout de segurança para garantir que loading nunca fique infinito
   React.useEffect(() => {
     const timeout = setTimeout(() => {
-      console.log('⚠️ Timeout de segurança ativado - definindo loading como false');
       setLoading(false);
-    }, 10000); // 10 segundos
+    }, 5000); // 5 segundos
     
     return () => clearTimeout(timeout);
   }, [])
 
   const fetchUserProfile = async (currentUser) => {
     try {
-      console.log('🔍 Fetching user profile for:', currentUser.email);
-      
-      // Criar perfil básico imediatamente para evitar carregamento infinito
+      // Usar apenas dados básicos do Supabase Auth para evitar loops infinitos
       const basicProfile = {
         id: currentUser.id,
         auth_id: currentUser.id,
         full_name: currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.username || 'Usuário',
+        username: currentUser?.user_metadata?.username || '',
         email: currentUser?.email || '',
+        avatar_url: currentUser?.user_metadata?.avatar_url || null,
         is_admin: currentUser?.email === 'admin@direitai.com',
         email_confirmed_at: currentUser?.email === 'admin@direitai.com' ? new Date().toISOString() : currentUser?.email_confirmed_at
       };
-      
-      console.log('✅ Setting basic profile and loading to false');
       setUserProfile(basicProfile);
       setLoading(false);
-      
-      // Tentar obter perfil do backend em background (opcional)
-      setTimeout(async () => {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (session?.access_token) {
-            const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-            
-            const response = await fetch(`${API_BASE_URL}/users/profile`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json'
-              },
-              signal: controller.signal
-            });
-            
-            clearTimeout(timeoutId);
-            
-            if (response.ok) {
-              const data = await response.json();
-              console.log('✅ Profile fetched from backend:', data);
-              setUserProfile(prev => ({ ...prev, ...(data.profile || data) }));
-            }
-          }
-        } catch (backendError) {
-          console.log('⚠️ Backend profile fetch failed, using basic profile:', backendError.message);
-          // Continua com o perfil básico, não é um erro crítico
-        }
-      }, 100); // Delay de 100ms para garantir que o estado seja definido primeiro
-      
     } catch (error) {
-      console.error('❌ Erro na busca do perfil:', error);
-      // Fallback para perfil básico em caso de erro crítico
-      const basicProfile = {
-        id: currentUser.id,
-        auth_id: currentUser.id,
-        full_name: currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.username || 'Usuário',
-        email: currentUser?.email || '',
-        is_admin: currentUser?.email === 'admin@direitai.com',
-        email_confirmed_at: currentUser?.email === 'admin@direitai.com' ? new Date().toISOString() : currentUser?.email_confirmed_at
-      };
-      console.log('✅ Setting fallback profile and loading to false');
-      setUserProfile(basicProfile);
+      console.error('❌ Erro ao definir perfil:', error);
       setLoading(false);
     }
   };
 
   useEffect(() => {
     let mounted = true;
-    console.log('🚀 Inicializando AuthProvider...');
     
     const initializeAuth = async () => {
       try {
-        console.log('🔍 Obtendo usuário atual...');
         const currentUser = await getCurrentUser();
-        console.log('👤 Usuário atual:', currentUser?.email || 'Nenhum usuário');
         
         if (mounted) {
           if (currentUser) {
-            console.log('✅ Usuário encontrado, definindo estado...');
             setUser(currentUser);
             await fetchUserProfile(currentUser);
           } else {
-            console.log('❌ Nenhum usuário encontrado, definindo loading como false');
+            setUser(null);
+            setUserProfile(null);
             setLoading(false);
           }
         }
       } catch (error) {
-        console.error('❌ Erro na inicialização da auth:', error);
         if (mounted) {
           setUser(null);
           setUserProfile(null);
@@ -122,18 +69,11 @@ const AuthProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
       
-      console.log('🔄 Auth state changed:', event, session?.user?.email);
+      if (event === 'TOKEN_REFRESHED') {
+        return;
+      }
       
       if (session?.user) {
-        // Permitir login do admin sem confirmação de email
-        if (!session.user.email_confirmed_at && session.user.email !== 'admin@direitai.com') {
-          console.log('❌ Email not confirmed for non-admin user');
-          setUser(null);
-          setUserProfile(null);
-          setLoading(false);
-          return;
-        }
-        
         setUser(session.user);
         await fetchUserProfile(session.user);
       } else {
@@ -149,11 +89,28 @@ const AuthProvider = ({ children }) => {
     };
   }, [])
 
+  const refreshUserProfile = useCallback(async () => {
+    if (user) {
+      // Atualizar apenas com dados básicos para evitar loops
+      const basicProfile = {
+        id: user.id,
+        auth_id: user.id,
+        full_name: user?.user_metadata?.full_name || user?.user_metadata?.username || 'Usuário',
+        username: user?.user_metadata?.username || '',
+        email: user?.email || '',
+        avatar_url: user?.user_metadata?.avatar_url || null,
+        is_admin: user?.email === 'admin@direitai.com',
+        email_confirmed_at: user?.email === 'admin@direitai.com' ? new Date().toISOString() : user?.email_confirmed_at
+      };
+      setUserProfile(basicProfile);
+    }
+  }, [user]);
+
   const value = {
     user,
     userProfile,
     loading,
-    fetchUserProfile
+    refreshUserProfile
   }
 
   return (
@@ -164,4 +121,3 @@ const AuthProvider = ({ children }) => {
 }
 
 export default AuthProvider
-export { AuthContext }

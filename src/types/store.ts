@@ -265,7 +265,7 @@ export interface StoreSettings {
     phone?: string;
     address?: Address;
   };
-  social_media?: Record<string, string>;
+  social_links?: Record<string, string>;
   seo?: {
     meta_title?: string;
     meta_description?: string;

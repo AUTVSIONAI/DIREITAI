@@ -6,12 +6,23 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   
+  // Configurações de assets estáticos
+  publicDir: 'public',
+  assetsInclude: ['**/*.pdf'],
+  
   // Configurações de desenvolvimento
   server: {
     port: 5121,
     host: true,
     open: true,
     cors: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5120',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   
   // Configurações de preview

@@ -132,6 +132,15 @@ class StoreManagementService {
     return response.data;
   }
 
+  async uploadProductImage(formData: FormData): Promise<{ data: { imageUrl: string } }> {
+    const response = await apiClient.post('/upload/product-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return { data: { imageUrl: response.data.data.url } };
+  }
+
   // Orders
   async getOrders(filters?: OrderFilters, page = 1, limit = 20): Promise<{
     orders: Order[];

@@ -14,6 +14,14 @@ import ApiLogs from './pages/ApiLogs'
 import Announcements from './pages/Announcements'
 import PlansManagement from './pages/PlansManagement'
 import PaymentSuccess from './pages/PaymentSuccess'
+import PoliticiansManagement from './pages/PoliticiansManagement'
+import PoliticianApproval from './pages/PoliticianApproval'
+import PoliticianSync from './PoliticianSync'
+import AgentsManagement from './pages/AgentsManagement'
+import BlogManagement from './pages/BlogManagement'
+import RatingsManagement from './pages/RatingsManagement'
+import SurveysManagement from './pages/SurveysManagement'
+
 
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -34,6 +42,14 @@ const AdminDashboard = () => {
             <Route path="/" element={<Overview />} />
             <Route path="/users" element={<UserManagement />} />
             <Route path="/events" element={<EventManagement />} />
+            <Route path="/politicians" element={<PoliticiansManagement />} />
+            <Route path="/politicians/approval" element={<PoliticianApproval />} />
+            <Route path="/politicians/sync" element={<PoliticianSync />} />
+            <Route path="/agents" element={<AgentsManagement />} />
+            <Route path="/blog" element={<BlogManagement />} />
+            <Route path="/ratings" element={<RatingsManagement />} />
+            <Route path="/surveys" element={<SurveysManagement />} />
+
             <Route path="/unified-map" element={<UnifiedLiveMap />} />
             <Route path="/moderation" element={<ContentModeration />} />
             <Route path="/store" element={<StoreManagement />} />

@@ -229,7 +229,7 @@ const PaymentSuccess = () => {
           </button>
           
           <button
-            onClick={() => navigate('/creative-ai')}
+            onClick={() => navigate('/dashboard/direitagpt')}
             className="flex items-center justify-center gap-2 px-8 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
           >
             Explorar IA Criativa

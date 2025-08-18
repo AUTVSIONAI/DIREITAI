@@ -85,6 +85,20 @@ export class AdminService {
   }
 
   /**
+   * Banir usuário
+   */
+  static async banUser(userId: string): Promise<void> {
+    await apiClient.patch(`/admin/users/${userId}/ban`);
+  }
+
+  /**
+   * Excluir usuário
+   */
+  static async deleteUser(userId: string): Promise<void> {
+    await apiClient.delete(`/admin/users/${userId}`);
+  }
+
+  /**
    * Obter análises administrativas
    */
   static async getAnalytics(

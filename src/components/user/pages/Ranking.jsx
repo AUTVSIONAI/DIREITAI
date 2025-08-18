@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react'
 import { Trophy, Medal, Crown, MapPin, TrendingUp, Users, Filter } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 import { apiClient } from '../../../lib/api'
+import { useNavigate } from 'react-router-dom'
 
 const Ranking = () => {
   const { userProfile } = useAuth()
+  const navigate = useNavigate()
   const [selectedScope, setSelectedScope] = useState('city')
   const [selectedPeriod, setSelectedPeriod] = useState('month')
   const [rankings, setRankings] = useState([])
   const [userPosition, setUserPosition] = useState(null)
+  const [platformStats, setPlatformStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -72,6 +75,7 @@ const Ranking = () => {
 
   useEffect(() => {
     fetchRankings()
+    fetchPlatformStats()
   }, [selectedScope, selectedPeriod])
 
   const fetchRankings = async () => {
@@ -79,20 +83,21 @@ const Ranking = () => {
       setLoading(true)
       setError(null)
       
-      // Por enquanto, usar dados mock até a API estar pronta
-      // TODO: Implementar API real de ranking
-      const currentRankings = mockRankings[selectedScope][selectedPeriod]
-      setRankings(currentRankings.filter(user => !user.isCurrentUser))
-      setUserPosition(currentRankings.find(user => user.isCurrentUser))
-      
-      // Código para API real (comentado por enquanto):
-      /*
+      // Usar API real de ranking
       const response = await apiClient.get(`/users/ranking?scope=${selectedScope}&period=${selectedPeriod}`)
-      if (response.data) {
+      console.log('🏆 Ranking API Response:', response)
+      
+      if (response?.data?.rankings) {
         setRankings(response.data.rankings || [])
-        setUserPosition(response.data.userPosition || null)
+        setUserPosition(response.data.user_position || null)
+        console.log('✅ Usando dados reais do ranking:', response.data.rankings.length, 'usuários')
+      } else {
+        // Fallback para dados mock em caso de resposta vazia
+        console.log('⚠️ Caindo no fallback dos dados mock')
+        const currentRankings = mockRankings[selectedScope][selectedPeriod]
+        setRankings(currentRankings.filter(user => !user.isCurrentUser))
+        setUserPosition(currentRankings.find(user => user.isCurrentUser))
       }
-      */
     } catch (err) {
       console.error('Error fetching rankings:', err)
       setError('Erro ao carregar ranking')
@@ -102,6 +107,22 @@ const Ranking = () => {
       setUserPosition(currentRankings.find(user => user.isCurrentUser))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchPlatformStats = async () => {
+    try {
+      const response = await apiClient.get(`/users/platform-stats?scope=${selectedScope}&period=${selectedPeriod}`)
+      console.log('📊 Platform Stats API Response:', response)
+      
+      if (response?.data) {
+        setPlatformStats(response.data)
+        console.log('✅ Usando dados reais das estatísticas:', response.data)
+      }
+    } catch (err) {
+      console.error('Error fetching platform stats:', err)
+      // Manter dados mockados como fallback
+      setPlatformStats(null)
     }
   }
 
@@ -276,11 +297,11 @@ const Ranking = () => {
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
                       <span className="text-sm font-medium text-gray-700">
-                        {user.username.charAt(0).toUpperCase()}
+                        {user.username ? user.username.charAt(0).toUpperCase() : '?'}
                       </span>
                     </div>
                     <div>
-                      <h4 className="font-medium text-gray-900">{user.username}</h4>
+                      <h4 className="font-medium text-gray-900">{user.username || 'Usuário sem nome'}</h4>
                       <div className="flex items-center space-x-2 text-sm text-gray-500">
                         <MapPin className="h-3 w-3" />
                         <span>{user.city}</span>
@@ -311,7 +332,8 @@ const Ranking = () => {
           </div>
           <h4 className="font-semibold text-gray-900">Participantes Ativos</h4>
           <p className="text-2xl font-bold text-blue-600 mt-1">
-            {selectedScope === 'city' ? '1,234' : selectedScope === 'state' ? '12,456' : '156,789'}
+            {platformStats?.activeUsers ? platformStats.activeUsers.toLocaleString() : 
+             (selectedScope === 'city' ? '1,234' : selectedScope === 'state' ? '12,456' : '156,789')}
           </p>
           <p className="text-sm text-gray-500 mt-1">nesta {getPeriodLabel(selectedPeriod).toLowerCase()}</p>
         </div>
@@ -320,9 +342,10 @@ const Ranking = () => {
           <div className="p-3 bg-green-100 rounded-lg w-fit mx-auto mb-3">
             <MapPin className="h-6 w-6 text-green-600" />
           </div>
-          <h4 className="font-semibold text-gray-900">Check-ins Totais</h4>
+          <h4 className="font-semibold text-gray-900">Atividades Totais</h4>
           <p className="text-2xl font-bold text-green-600 mt-1">
-            {selectedScope === 'city' ? '2,567' : selectedScope === 'state' ? '25,678' : '312,456'}
+            {platformStats?.totalActivities ? platformStats.totalActivities.toLocaleString() : 
+             (selectedScope === 'city' ? '2,567' : selectedScope === 'state' ? '25,678' : '312,456')}
           </p>
           <p className="text-sm text-gray-500 mt-1">nesta {getPeriodLabel(selectedPeriod).toLowerCase()}</p>
         </div>
@@ -332,7 +355,11 @@ const Ranking = () => {
             <TrendingUp className="h-6 w-6 text-yellow-600" />
           </div>
           <h4 className="font-semibold text-gray-900">Crescimento</h4>
-          <p className="text-2xl font-bold text-yellow-600 mt-1">+23%</p>
+          <p className="text-2xl font-bold text-yellow-600 mt-1">
+            {platformStats?.growthPercentage !== undefined ? 
+             `${platformStats.growthPercentage > 0 ? '+' : ''}${platformStats.growthPercentage}%` : 
+             '+23%'}
+          </p>
           <p className="text-sm text-gray-500 mt-1">vs. {getPeriodLabel(selectedPeriod).toLowerCase()} anterior</p>
         </div>
       </div>
@@ -344,10 +371,16 @@ const Ranking = () => {
           Participe de mais eventos, converse com o DireitaIA e engaje-se com a comunidade para ganhar pontos e subir no ranking.
         </p>
         <div className="flex space-x-4">
-          <button className="bg-white text-primary-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100">
+          <button 
+            onClick={() => navigate('/dashboard/checkin')}
+            className="bg-white text-primary-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors"
+          >
             Fazer Check-in
           </button>
-          <button className="border border-white text-white px-4 py-2 rounded-lg font-medium hover:bg-white hover:text-primary-600">
+          <button 
+            onClick={() => navigate('/dashboard/direitagpt')}
+            className="border border-white text-white px-4 py-2 rounded-lg font-medium hover:bg-white hover:text-primary-600 transition-colors"
+          >
             Conversar com IA
           </button>
         </div>

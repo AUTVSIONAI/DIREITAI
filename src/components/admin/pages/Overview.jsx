@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { AdminService } from '../../../services/admin'
 import { 
-  Users, 
+  User, 
   Calendar, 
-  TrendingUp, 
   DollarSign, 
   MapPin, 
   MessageSquare, 
@@ -23,6 +22,9 @@ const Overview = () => {
     aiConversations: 0,
     moderatedContent: 0
   });
+  const [recentEvents, setRecentEvents] = useState([]);
+  const [topCities, setTopCities] = useState([]);
+  const [recentActivities, setRecentActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -31,14 +33,18 @@ const Overview = () => {
       try {
         setLoading(true);
         const data = await AdminService.getOverview();
+        const stats = data.statistics || {};
         setStats({
-          activeUsers: data.users?.active || 0,
-          todayCheckins: data.checkins?.today || 0,
-          activeEvents: data.events?.active || 0,
-          monthlyRevenue: data.revenue?.monthly || 0,
-          aiConversations: data.aiConversations?.today || 0,
-          moderatedContent: data.moderation?.pending || 0
+          activeUsers: stats.activeUsers || 0,
+          todayCheckins: stats.checkinsToday || 0,
+          activeEvents: stats.activeEvents || 0,
+          monthlyRevenue: stats.revenue?.thisMonth || 0,
+          aiConversations: stats.aiConversationsToday || 0,
+          moderatedContent: stats.pendingModeration || 0
         });
+        setRecentEvents(data.recentEvents || []);
+        setTopCities(data.topCities || []);
+        setRecentActivities(data.recentActivities || []);
       } catch (err) {
         console.error('Erro ao carregar dados do overview:', err);
         setError('Erro ao carregar dados');
@@ -56,7 +62,7 @@ const Overview = () => {
       value: stats.activeUsers.toLocaleString(),
       change: '+12%',
       changeType: 'increase',
-      icon: Users,
+      icon: User,
       color: 'blue'
     },
     {
@@ -101,71 +107,7 @@ const Overview = () => {
     }
   ]
 
-  const recentEvents = [
-    {
-      id: 1,
-      name: 'Marcha da Família',
-      location: 'São Paulo, SP',
-      checkins: 1247,
-      status: 'active',
-      date: '2024-01-15'
-    },
-    {
-      id: 2,
-      name: 'Encontro Conservador',
-      location: 'Rio de Janeiro, RJ',
-      checkins: 856,
-      status: 'active',
-      date: '2024-01-15'
-    },
-    {
-      id: 3,
-      name: 'Palestra Valores',
-      location: 'Brasília, DF',
-      checkins: 432,
-      status: 'ended',
-      date: '2024-01-14'
-    }
-  ]
-
-  const topCities = [
-    { city: 'São Paulo', state: 'SP', users: 3247, growth: '+15%' },
-    { city: 'Rio de Janeiro', state: 'RJ', users: 2156, growth: '+12%' },
-    { city: 'Brasília', state: 'DF', users: 1834, growth: '+18%' },
-    { city: 'Belo Horizonte', state: 'MG', users: 1456, growth: '+8%' },
-    { city: 'Porto Alegre', state: 'RS', users: 1234, growth: '+22%' }
-  ]
-
-  const recentActivities = [
-    {
-      id: 1,
-      type: 'user_join',
-      message: 'João Silva se registrou na plataforma',
-      time: '2 min atrás',
-      icon: Users
-    },
-    {
-      id: 2,
-      type: 'event_checkin',
-      message: 'Maria Santos fez check-in no evento "Marcha da Família"',
-      time: '5 min atrás',
-      icon: MapPin
-    },
-    {
-      id: 3,
-      type: 'ai_conversation',
-      message: 'Pedro Costa iniciou conversa com DireitaGPT',
-      time: '8 min atrás',
-      icon: MessageSquare
-    },
-    {
-      id: 4,
-      type: 'content_moderated',
-      message: 'Conteúdo reportado foi aprovado após moderação',
-      time: '12 min atrás',
-      icon: Shield
-    }
-  ]
+  // Dados agora vêm da API através dos estados
 
   const getStatColor = (color) => {
     const colors = {
@@ -337,7 +279,7 @@ const Overview = () => {
           </div>
           <div className="space-y-4">
             {recentActivities.map(activity => {
-              const Icon = activity.icon
+              const Icon = activity.icon || Activity
               return (
                 <div key={activity.id} className="flex items-start space-x-3">
                   <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
@@ -362,7 +304,7 @@ const Overview = () => {
               Criar Evento
             </button>
             <button className="w-full btn-secondary">
-              <Users className="h-4 w-4 mr-2" />
+              <User className="h-4 w-4 mr-2" />
               Gerenciar Usuários
             </button>
             <button className="w-full btn-secondary">

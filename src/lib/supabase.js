@@ -21,7 +21,9 @@ try {
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
-      autoRefreshToken: true
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce'
     }
   });
   
@@ -94,11 +96,50 @@ export const isAuthenticated = async () => {
 // Função para obter o usuário atual
 export const getCurrentUser = async () => {
   try {
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (error) throw error
-    return user
+    // Primeiro, verificar se há uma sessão ativa
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.log('❌ Erro ao obter sessão:', sessionError.message);
+    }
+    
+    if (session?.user) {
+      console.log('✅ Usuário obtido da sessão:', session.user.email);
+      return session.user;
+    }
+    
+    // Se não há sessão, tentar getUser()
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error) {
+      // Se o erro é "Auth session missing", tentar refresh
+      if (error.message.includes('Auth session missing')) {
+        console.log('🔄 Tentando refresh da sessão...');
+        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (refreshedSession?.user && !refreshError) {
+          console.log('✅ Usuário obtido após refresh:', refreshedSession.user.email);
+          return refreshedSession.user;
+        } else {
+          console.log('❌ Refresh falhou:', refreshError?.message);
+          return null; // Retornar null em vez de lançar erro
+        }
+      }
+      console.log('❌ Erro de autenticação:', error.message);
+      return null; // Retornar null para outros erros também
+    }
+    
+    if (user) {
+      console.log('✅ Usuário obtido via getUser:', user.email);
+    }
+    
+    return user;
   } catch (error) {
-    console.error('Erro ao obter usuário atual:', error)
+    // Não mostrar erros de auth em páginas públicas do blog
+    const isPublicBlogPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/blog');
+    if (!isPublicBlogPage) {
+      console.error('Erro ao obter usuário atual:', error)
+    }
     return null
   }
 }

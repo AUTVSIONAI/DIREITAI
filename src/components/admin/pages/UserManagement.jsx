@@ -160,14 +160,52 @@ const UserManagement = () => {
     }))
   }
 
-  const handleBanUser = (user) => {
-    // Implementar banimento de usuário
-    console.log('Banir usuário:', user)
+  const handleBanUser = async (user) => {
+    if (window.confirm(`Tem certeza que deseja banir o usuário ${user.full_name || user.email}?`)) {
+      try {
+        setShowActions(null) // Fechar menu imediatamente
+        await AdminService.banUser(user.id)
+        
+        // Atualizar o usuário localmente primeiro para feedback imediato
+        setUsers(prevUsers => 
+          prevUsers.map(u => 
+            u.id === user.id 
+              ? { ...u, status: 'banned', banned: true }
+              : u
+          )
+        )
+        
+        // Recarregar lista completa
+        await loadUsers()
+        alert('Usuário banido com sucesso!')
+      } catch (error) {
+        console.error('Erro ao banir usuário:', error)
+        alert('Erro ao banir usuário. Tente novamente.')
+        // Recarregar lista em caso de erro para garantir consistência
+        await loadUsers()
+      }
+    }
   }
 
-  const handleDeleteUser = (user) => {
-    // Implementar exclusão de usuário
-    console.log('Excluir usuário:', user)
+  const handleDeleteUser = async (user) => {
+    if (window.confirm(`Tem certeza que deseja excluir permanentemente o usuário ${user.full_name || user.email}? Esta ação não pode ser desfeita.`)) {
+      try {
+        setShowActions(null) // Fechar menu imediatamente
+        await AdminService.deleteUser(user.id)
+        
+        // Remover usuário localmente primeiro para feedback imediato
+        setUsers(prevUsers => prevUsers.filter(u => u.id !== user.id))
+        
+        // Recarregar lista completa
+        await loadUsers()
+        alert('Usuário excluído com sucesso!')
+      } catch (error) {
+        console.error('Erro ao excluir usuário:', error)
+        alert('Erro ao excluir usuário. Tente novamente.')
+        // Recarregar lista em caso de erro para garantir consistência
+        await loadUsers()
+      }
+    }
   }
 
   return (

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signIn, signUp } from '../../lib/supabase'
-import { Flag, Shield, Users } from 'lucide-react'
+import { Flag, Shield, Users, ArrowLeft } from 'lucide-react'
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true)
@@ -51,9 +51,19 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-conservative-50">
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
-          <div className="flex justify-center items-center space-x-2 mb-4">
-            <Flag className="h-8 w-8 text-primary-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Direitai.com</h1>
+          <div className="flex justify-between items-center mb-4">
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center space-x-2 text-gray-600 hover:text-primary-600 transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              <span className="text-sm">Voltar para Site</span>
+            </button>
+            <div className="flex items-center space-x-2">
+              <Flag className="h-8 w-8 text-primary-600" />
+              <h1 className="text-3xl font-bold text-gray-900">Direitai.com</h1>
+            </div>
+            <div className="w-24"></div> {/* Spacer for centering */}
           </div>
           <h2 className="text-xl text-gray-600">
             {isLogin ? 'Entre na Central do Patriota' : 'Junte-se ao Movimento'}

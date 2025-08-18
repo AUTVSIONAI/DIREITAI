@@ -61,6 +61,19 @@ const StoreManagement = () => {
   
   // Estados para modais e abas
   const [activeTab, setActiveTab] = useState('products')
+  const [editingProduct, setEditingProduct] = useState(null)
+  const [productForm, setProductForm] = useState({
+    name: '',
+    description: '',
+    price: '',
+    stock_quantity: '',
+    category: '',
+    status: 'active',
+    featured: false
+  })
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
 
   // Função para carregar dados da API
   const loadData = async () => {
@@ -93,22 +106,157 @@ const StoreManagement = () => {
     await loadData()
   }
 
+  // Funções para gerenciar produtos
+  const handleEditProduct = (product) => {
+    setEditingProduct(product)
+    setProductForm({
+      name: product.name || '',
+      description: product.description || '',
+      price: product.price?.toString() || '',
+      stock_quantity: product.stock_quantity?.toString() || '',
+      category: product.category || '',
+      status: product.status || 'active',
+      featured: product.featured || false,
+      warehouse_location: product.warehouse_location || 'Estoque Principal'
+    })
+    setImagePreview(product.image || null)
+    setShowProductModal(true)
+  }
+
+  const handleDeleteProduct = async (product) => {
+    if (window.confirm(`Tem certeza que deseja excluir o produto "${product.name}"? Esta ação não pode ser desfeita.`)) {
+      try {
+        await storeManagementService.deleteProduct(product.id)
+        await loadData() // Recarregar dados
+        alert('Produto excluído com sucesso!')
+      } catch (error) {
+        console.error('Erro ao excluir produto:', error)
+        alert('Erro ao excluir produto. Tente novamente.')
+      }
+    }
+  }
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      if (file.type.startsWith('image/')) {
+        setImageFile(file)
+        const reader = new FileReader()
+        reader.onload = (e) => setImagePreview(e.target.result)
+        reader.readAsDataURL(file)
+      } else {
+        alert('Por favor, selecione apenas arquivos de imagem (JPG, PNG, etc.)')
+      }
+    }
+  }
+
+  const uploadProductImage = async () => {
+    if (!imageFile) return null
+    
+    try {
+      setUploadingImage(true)
+      const formData = new FormData()
+      formData.append('image', imageFile)
+      
+      const response = await storeManagementService.uploadProductImage(formData)
+      return response.data.imageUrl
+    } catch (error) {
+      console.error('Erro ao fazer upload da imagem:', error)
+      throw new Error('Falha no upload da imagem')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  const handleSubmitProduct = async (e) => {
+    e.preventDefault()
+    
+    try {
+      let imageUrl = null
+      
+      // Upload da imagem se houver uma nova
+      if (imageFile) {
+        imageUrl = await uploadProductImage()
+      } else if (editingProduct && editingProduct.image) {
+        // Manter a imagem existente se estiver editando e não houver nova imagem
+        imageUrl = editingProduct.image
+      } else if (imagePreview && !imageFile) {
+        // Usar o preview se não houver arquivo mas houver preview (caso de edição)
+        imageUrl = imagePreview
+      }
+      
+      const productData = {
+        ...productForm,
+        price: parseFloat(productForm.price),
+        stock_quantity: parseInt(productForm.stock_quantity),
+        image: imageUrl
+      }
+      
+      if (editingProduct) {
+        await storeManagementService.updateProduct(editingProduct.id, productData)
+        alert('Produto atualizado com sucesso!')
+      } else {
+        await storeManagementService.createProduct(productData)
+        alert('Produto criado com sucesso!')
+      }
+      
+      // Resetar formulário e fechar modal
+      setShowProductModal(false)
+      setEditingProduct(null)
+      setProductForm({
+        name: '',
+        description: '',
+        price: '',
+        stock_quantity: '',
+        category: '',
+        status: 'active',
+        featured: false,
+        warehouse_location: 'Estoque Principal'
+      })
+      setImageFile(null)
+      setImagePreview(null)
+      
+      // Recarregar dados
+      await loadData()
+    } catch (error) {
+      console.error('Erro ao salvar produto:', error)
+      alert('Erro ao salvar produto. Tente novamente.')
+    }
+  }
+
+  const resetProductForm = () => {
+    setEditingProduct(null)
+    setProductForm({
+      name: '',
+      description: '',
+      price: '',
+      stock_quantity: '',
+      category: '',
+      status: 'active',
+      featured: false,
+      warehouse_location: 'Estoque Principal'
+    })
+    setImageFile(null)
+    setImagePreview(null)
+    setShowProductModal(false)
+  }
+
   // Carregar dados ao montar o componente
   useEffect(() => {
     loadData()
   }, [])
 
   // Funções de filtragem
-  const filteredProducts = products.filter(product => {
+  const filteredProducts = Array.isArray(products) ? products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(productFilters.search.toLowerCase()) ||
                          product.description.toLowerCase().includes(productFilters.search.toLowerCase())
     const matchesCategory = productFilters.category === 'all' || product.category === productFilters.category
     const matchesStatus = productFilters.status === 'all' || product.status === productFilters.status
     
     return matchesSearch && matchesCategory && matchesStatus
-  })
+  }) : []
 
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = Array.isArray(orders) ? orders.filter(order => {
     const matchesSearch = order.id.toString().includes(orderFilters.search) ||
                          order.customer?.name?.toLowerCase().includes(orderFilters.search.toLowerCase()) ||
                          order.customer?.email?.toLowerCase().includes(orderFilters.search.toLowerCase())
@@ -116,7 +264,7 @@ const StoreManagement = () => {
     const matchesPaymentStatus = orderFilters.paymentStatus === 'all' || order.paymentStatus === orderFilters.paymentStatus
     
     return matchesSearch && matchesStatus && matchesPaymentStatus
-  })
+  }) : []
 
   const getStatusColor = (status, type = 'product') => {
     if (type === 'product') {
@@ -230,7 +378,7 @@ const StoreManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total de Produtos</p>
-              <p className="text-2xl font-bold text-gray-900">{storeStats.totalProducts}</p>
+              <p className="text-2xl font-bold text-gray-900">{storeStats?.totalProducts || 0}</p>
             </div>
             <Package className="h-8 w-8 text-blue-500" />
           </div>
@@ -240,7 +388,7 @@ const StoreManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Produtos Ativos</p>
-              <p className="text-2xl font-bold text-green-600">{storeStats.activeProducts}</p>
+              <p className="text-2xl font-bold text-green-600">{storeStats?.activeProducts || 0}</p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-500" />
           </div>
@@ -250,7 +398,7 @@ const StoreManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Sem Estoque</p>
-              <p className="text-2xl font-bold text-red-600">{storeStats.outOfStock}</p>
+              <p className="text-2xl font-bold text-red-600">{storeStats?.outOfStock || 0}</p>
             </div>
             <AlertTriangle className="h-8 w-8 text-red-500" />
           </div>
@@ -260,7 +408,7 @@ const StoreManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Receita Total</p>
-              <p className="text-2xl font-bold text-gray-900">R$ {storeStats.totalRevenue.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-gray-900">R$ {(storeStats?.totalRevenue || 0).toFixed(2)}</p>
             </div>
             <DollarSign className="h-8 w-8 text-purple-500" />
           </div>
@@ -329,7 +477,7 @@ const StoreManagement = () => {
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="all">Todas as Categorias</option>
-                  {categories.map(category => (
+                  {Array.isArray(categories) && categories.map(category => (
                     <option key={category} value={category}>{category}</option>
                   ))}
                 </select>
@@ -404,8 +552,19 @@ const StoreManagement = () => {
               <div key={product.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
                 <div className="flex items-start justify-between">
                   <div className="flex space-x-4">
-                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                      <Package className="h-8 w-8 text-gray-400" />
+                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                      {product.image && product.image !== 'https://example.com/camiseta.jpg' && product.image !== 'https://example.com/caneca.jpg' && product.image !== 'https://example.com/livro1.jpg' && product.image !== 'https://example.com/bone.jpg' ? (
+                        <img 
+                          src={product.image} 
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <Package className="h-8 w-8 text-gray-400" style={{display: product.image && product.image !== 'https://example.com/camiseta.jpg' && product.image !== 'https://example.com/caneca.jpg' && product.image !== 'https://example.com/livro1.jpg' && product.image !== 'https://example.com/bone.jpg' ? 'none' : 'block'}} />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
@@ -423,12 +582,10 @@ const StoreManagement = () => {
                       <p className="text-gray-600 mb-2">{product.description}</p>
                       <div className="flex items-center space-x-4 text-sm text-gray-500">
                         <span className="font-semibold text-lg text-gray-900">R$ {product.price.toFixed(2)}</span>
-                        <span>Estoque: {product.stock}</span>
-                        <span>Vendidos: {product.sold}</span>
-                        <div className="flex items-center space-x-1">
-                          <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                          <span>{product.rating} ({product.reviews} avaliações)</span>
-                        </div>
+                        <span>Estoque: {product.stock_quantity || 0}</span>
+                        <span>Local: {product.warehouse_location || 'Estoque Principal'}</span>
+                        <span>Categoria: {product.category}</span>
+                        <span>Status: {product.active ? 'Ativo' : 'Inativo'}</span>
                       </div>
                     </div>
                   </div>
@@ -441,10 +598,18 @@ const StoreManagement = () => {
                     >
                       <Eye className="h-4 w-4" />
                     </button>
-                    <button className="p-2 text-gray-400 hover:text-gray-600" title="Editar">
+                    <button 
+                      onClick={() => handleEditProduct(product)}
+                      className="p-2 text-blue-400 hover:text-blue-600" 
+                      title="Editar"
+                    >
                       <Edit className="h-4 w-4" />
                     </button>
-                    <button className="p-2 text-red-400 hover:text-red-600" title="Excluir">
+                    <button 
+                      onClick={() => handleDeleteProduct(product)}
+                      className="p-2 text-red-400 hover:text-red-600" 
+                      title="Excluir"
+                    >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -596,7 +761,7 @@ const StoreManagement = () => {
                 <div className="space-y-4">
                   <div>
                     <p className="text-sm text-gray-600">Ticket Médio</p>
-                    <p className="text-2xl font-bold text-gray-900">R$ {storeStats.avgOrderValue.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-gray-900">R$ {(storeStats?.avgOrderValue || 0).toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Taxa de Conversão</p>
@@ -604,7 +769,7 @@ const StoreManagement = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Pedidos Pendentes</p>
-                    <p className="text-2xl font-bold text-orange-600">{storeStats.pendingOrders}</p>
+                    <p className="text-2xl font-bold text-orange-600">{storeStats?.pendingOrders || 0}</p>
                   </div>
                 </div>
               </div>
@@ -760,27 +925,63 @@ const StoreManagement = () => {
         </div>
       )}
 
-      {/* New Product Modal */}
+      {/* Product Modal */}
       {showProductModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-2/3 lg:w-1/2 shadow-lg rounded-md bg-white">
+          <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-2/3 lg:w-1/2 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Novo Produto</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {editingProduct ? 'Editar Produto' : 'Novo Produto'}
+              </h3>
               <button
-                onClick={() => setShowProductModal(false)}
+                onClick={resetProductForm}
                 className="text-gray-400 hover:text-gray-600"
               >
                 ×
               </button>
             </div>
             
-            <form className="space-y-4">
+            <form onSubmit={handleSubmitProduct} className="space-y-4">
+              {/* Upload de Imagem */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Imagem do Produto</label>
+                <div className="flex items-center space-x-4">
+                  <div className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden">
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <Package className="w-8 h-8 text-gray-400" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                      id="product-image"
+                    />
+                    <label
+                      htmlFor="product-image"
+                      className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {imagePreview ? 'Trocar Imagem' : 'Selecionar Imagem'}
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">JPG, PNG, GIF até 5MB</p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Produto</label>
                 <input
                   type="text"
+                  value={productForm.name}
+                  onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Digite o nome do produto"
+                  required
                 />
               </div>
               
@@ -788,51 +989,111 @@ const StoreManagement = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
                 <textarea
                   rows={3}
+                  value={productForm.description}
+                  onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Descreva o produto"
+                  required
                 ></textarea>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Preço</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preço (R$)</label>
                   <input
                     type="number"
                     step="0.01"
+                    value={productForm.price}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, price: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     placeholder="0.00"
+                    required
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Estoque</label>
                   <input
                     type="number"
+                    value={productForm.stock_quantity}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, stock_quantity: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     placeholder="0"
+                    required
                   />
                 </div>
               </div>
               
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                  <select 
+                    value={productForm.category}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    required
+                  >
+                    <option value="">Selecione uma categoria</option>
+                    {Array.isArray(categories) && categories.map(category => (
+                      <option key={category.id || category} value={category.id || category}>
+                        {category.name || category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select 
+                    value={productForm.status}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, status: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="active">Ativo</option>
+                    <option value="inactive">Inativo</option>
+                    <option value="draft">Rascunho</option>
+                  </select>
+                </div>
+              </div>
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                  <option value="">Selecione uma categoria</option>
-                  {categories.map(category => (
-                    <option key={category.id} value={category.id}>{category.name}</option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Localização do Estoque</label>
+                <input
+                  type="text"
+                  value={productForm.warehouse_location || ''}
+                  onChange={(e) => setProductForm(prev => ({ ...prev, warehouse_location: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Ex: Estoque Principal, Depósito A, Prateleira 1-A"
+                />
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="featured"
+                  checked={productForm.featured}
+                  onChange={(e) => setProductForm(prev => ({ ...prev, featured: e.target.checked }))}
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                />
+                <label htmlFor="featured" className="ml-2 block text-sm text-gray-900">
+                  Produto em destaque
+                </label>
               </div>
             </form>
             
             <div className="mt-6 flex justify-end space-x-3">
               <button
-                onClick={() => setShowProductModal(false)}
+                onClick={resetProductForm}
                 className="btn-secondary"
+                type="button"
               >
                 Cancelar
               </button>
-              <button className="btn-primary">
-                Criar Produto
+              <button 
+                onClick={handleSubmitProduct}
+                disabled={uploadingImage}
+                className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {uploadingImage && <Upload className="w-4 h-4 animate-spin" />}
+                {uploadingImage ? 'Enviando...' : (editingProduct ? 'Atualizar Produto' : 'Criar Produto')}
               </button>
             </div>
           </div>

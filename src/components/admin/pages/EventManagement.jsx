@@ -20,17 +20,24 @@ import {
   Loader2
 } from 'lucide-react'
 import { EventsService } from '../../../services/events'
+import { apiClient } from '../../../lib/api'
+import RSVPButton from '../../common/RSVPButton'
+import RSVPParticipantsList from '../../common/RSVPParticipantsList'
 
-const EventManagement = () => {
+const EventManagement = () => {// Estados
   const [events, setEvents] = useState([])
+  const [manifestations, setManifestations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showType, setShowType] = useState('all') // 'all', 'events', 'manifestations'
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [selectedCity, setSelectedCity] = useState('all')
   const [showEventModal, setShowEventModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
+  const [editingEvent, setEditingEvent] = useState(null)
   const [showActions, setShowActions] = useState(null)
   
   // Estados para o formulário de criação de evento
@@ -46,6 +53,7 @@ const EventManagement = () => {
     maxCapacity: ''
   })
   const [isCreating, setIsCreating] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
 
   // Função para carregar eventos
   const loadEvents = async () => {
@@ -67,22 +75,71 @@ const EventManagement = () => {
     }
   }
 
-  // Carregar eventos ao montar o componente
+  // Função para carregar manifestações
+  const loadManifestations = async () => {
+    try {
+      const response = await apiClient.get('/manifestations')
+      if (response.data && response.data.data) {
+        setManifestations(Array.isArray(response.data.data) ? response.data.data : [])
+      }
+    } catch (err) {
+      console.error('Erro ao carregar manifestações:', err)
+    }
+  }
+
+  // Função para carregar todos os dados
+  const loadAllData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      await Promise.all([loadEvents(), loadManifestations()])
+    } catch (err) {
+      console.error('Erro ao carregar dados:', err)
+      setError('Erro ao carregar dados. Tente novamente.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Carregar dados ao montar o componente
   useEffect(() => {
-    loadEvents()
+    loadAllData()
   }, [])
 
   // Recarregar quando filtros mudarem
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      loadEvents()
+      loadAllData()
     }, 500)
     
     return () => clearTimeout(timeoutId)
   }, [selectedStatus, selectedCity])
 
-  // Use real events data from API instead of mock data
-  const displayEvents = events.length > 0 ? events : []
+  // Combinar eventos e manifestações para exibição
+  const getAllItems = () => {
+    let items = []
+    
+    if (showType === 'all' || showType === 'events') {
+      items = [...items, ...events.map(event => ({ ...event, type: 'event' }))]
+    }
+    
+    if (showType === 'all' || showType === 'manifestations') {
+      items = [...items, ...manifestations.map(manifestation => ({ 
+        ...manifestation, 
+        type: 'manifestation',
+        title: manifestation.name,
+        location: { city: manifestation.city, state: manifestation.state, address: manifestation.address },
+        date: manifestation.start_date,
+        endDate: manifestation.end_date,
+        maxCapacity: manifestation.max_participants,
+        checkins: manifestation.current_participants || 0
+      }))]
+    }
+    
+    return items
+  }
+  
+  const displayItems = getAllItems()
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -94,17 +151,17 @@ const EventManagement = () => {
     return badges[status] || badges.draft
   }
 
-  const filteredEvents = events.filter(event => {
+  const filteredItems = displayItems.filter(item => {
     const matchesSearch = searchTerm === '' || 
-                         event.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         event.location?.city?.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = selectedStatus === 'all' || event.status === selectedStatus
-    const matchesCity = selectedCity === 'all' || event.location?.city === selectedCity
+                         item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         item.location?.city?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesStatus = selectedStatus === 'all' || item.status === selectedStatus
+    const matchesCity = selectedCity === 'all' || item.location?.city === selectedCity
     
     return matchesSearch && matchesStatus && matchesCity
   })
 
-  const cities = [...new Set(events.map(event => event.location?.city).filter(Boolean))]
+  const cities = [...new Set(displayItems.map(item => item.location?.city).filter(Boolean))]
 
   const handleViewEvent = (event) => {
     setSelectedEvent(event)
@@ -112,13 +169,34 @@ const EventManagement = () => {
   }
 
   const handleEditEvent = (event) => {
-    // Implementar edição de evento
-    console.log('Editar evento:', event)
+    setEditingEvent({
+      id: event.id,
+      title: event.title || '',
+      description: event.description || '',
+      city: event.city || '',
+      state: event.state || '',
+      address: event.address || event.location || '',
+      startDate: event.start_date ? new Date(event.start_date).toISOString().slice(0, 16) : '',
+      endDate: event.end_date ? new Date(event.end_date).toISOString().slice(0, 16) : '',
+      secretCode: event.secret_code || '',
+      maxCapacity: event.max_participants?.toString() || ''
+    })
+    setShowEditModal(true)
+    setShowActions(null)
   }
 
-  const handleDeleteEvent = (event) => {
-    // Implementar exclusão de evento
-    console.log('Excluir evento:', event)
+  const handleDeleteEvent = async (event) => {
+    if (window.confirm(`Tem certeza que deseja excluir o evento "${event.title}"? Esta ação não pode ser desfeita.`)) {
+      try {
+        await EventsService.deleteEvent(event.id)
+        await loadEvents()
+        alert('Evento excluído com sucesso!')
+      } catch (error) {
+        console.error('Erro ao excluir evento:', error)
+        alert('Erro ao excluir evento. Tente novamente.')
+      }
+    }
+    setShowActions(null)
   }
 
   // Função para gerar código secreto aleatório
@@ -192,8 +270,8 @@ const EventManagement = () => {
       console.log('✅ Resposta do servidor:', newEventResponse);
       
       if (newEventResponse) {
-        // Recarregar a lista de eventos
-        await loadEvents()
+        // Recarregar a lista de eventos e manifestações
+        await loadAllData()
         
         // Fechar modal e resetar formulário
         setShowCreateModal(false)
@@ -225,6 +303,57 @@ const EventManagement = () => {
     }))
   }
 
+  // Função para atualizar campos do formulário de edição
+  const handleEditInputChange = (field, value) => {
+    setEditingEvent(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  // Função para atualizar evento existente
+  const handleUpdateEvent = async (e) => {
+    e.preventDefault()
+    
+    if (!editingEvent.title || !editingEvent.city || !editingEvent.startDate || !editingEvent.endDate) {
+      alert('Por favor, preencha todos os campos obrigatórios')
+      return
+    }
+
+    if (new Date(editingEvent.startDate) >= new Date(editingEvent.endDate)) {
+      alert('A data de término deve ser posterior à data de início')
+      return
+    }
+
+    try {
+      setIsUpdating(true)
+      
+      const eventData = {
+        title: editingEvent.title,
+        description: editingEvent.description,
+        start_date: editingEvent.startDate,
+        end_date: editingEvent.endDate,
+        location: editingEvent.address,
+        address: editingEvent.address,
+        city: editingEvent.city,
+        state: editingEvent.state,
+        max_participants: parseInt(editingEvent.maxCapacity) || 100,
+        secret_code: editingEvent.secretCode
+      }
+
+      await EventsService.updateEvent(editingEvent.id, eventData)
+      await loadEvents()
+      setShowEditModal(false)
+      setEditingEvent(null)
+      alert('Evento atualizado com sucesso!')
+    } catch (err) {
+      console.error('Erro ao atualizar evento:', err)
+      alert(`Erro ao atualizar evento: ${err.response?.data?.error || err.message || 'Erro desconhecido'}`)
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const handleCopyCode = (code) => {
     navigator.clipboard.writeText(code)
     // Mostrar toast de sucesso
@@ -245,7 +374,7 @@ const EventManagement = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Gerenciamento de Eventos</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Gerenciamento de Eventos e Manifestações</h2>
           <p className="text-gray-600">Gerencie todos os eventos e manifestações</p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
@@ -268,8 +397,8 @@ const EventManagement = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total de Eventos</p>
-              <p className="text-2xl font-bold text-gray-900">{events.length}</p>
+              <p className="text-sm font-medium text-gray-600">Total de Itens</p>
+              <p className="text-2xl font-bold text-gray-900">{displayItems.length}</p>
             </div>
             <Calendar className="h-8 w-8 text-blue-500" />
           </div>
@@ -277,9 +406,9 @@ const EventManagement = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Eventos Ativos</p>
+              <p className="text-sm font-medium text-gray-600">Itens Ativos</p>
               <p className="text-2xl font-bold text-gray-900">
-                {events.filter(e => e.status === 'active').length}
+                {displayItems?.filter(e => e.status === 'active').length || 0}
               </p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-500" />
@@ -290,7 +419,7 @@ const EventManagement = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Total Check-ins</p>
               <p className="text-2xl font-bold text-gray-900">
-                {events.reduce((sum, e) => sum + e.checkins, 0)}
+                {displayItems?.reduce((sum, e) => sum + (e.checkins || 0), 0) || 0}
               </p>
             </div>
             <Users className="h-8 w-8 text-purple-500" />
@@ -300,7 +429,7 @@ const EventManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Cidades Ativas</p>
-              <p className="text-2xl font-bold text-gray-900">{cities.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{cities?.length || 0}</p>
             </div>
             <MapPin className="h-8 w-8 text-red-500" />
           </div>
@@ -326,6 +455,16 @@ const EventManagement = () => {
 
           {/* Filters */}
           <div className="flex space-x-4">
+            <select
+              value={showType}
+              onChange={(e) => setShowType(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="all">Todos os Tipos</option>
+              <option value="events">Apenas Eventos</option>
+              <option value="manifestations">Apenas Manifestações</option>
+            </select>
+
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -359,7 +498,7 @@ const EventManagement = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Evento
+                  Item
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Localização
@@ -397,7 +536,7 @@ const EventManagement = () => {
                   <td colSpan="6" className="px-6 py-12 text-center">
                     <div className="text-red-600 mb-4">{error}</div>
                     <button
-                      onClick={loadEvents}
+                      onClick={loadAllData}
                       className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
                     >
                       Tentar Novamente
@@ -405,23 +544,30 @@ const EventManagement = () => {
                   </td>
                 </tr>
               )}
-              {!loading && !error && filteredEvents.length === 0 && (
+              {!loading && !error && filteredItems.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                    Nenhum evento encontrado
+                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
+                    Nenhum item encontrado
                   </td>
                 </tr>
               )}
-              {!loading && !error && filteredEvents.length > 0 && filteredEvents.map((event) => {
+              {!loading && !error && filteredItems.length > 0 && filteredItems.map((event) => {
                 const statusBadge = getStatusBadge(event.status)
                 const StatusIcon = statusBadge.icon
-                const participationRate = (event.checkins / event.maxCapacity) * 100
+                const participationRate = event.maxCapacity > 0 ? ((event.checkins || 0) / event.maxCapacity) * 100 : 0
 
                 return (
-                  <tr key={event.id} className="hover:bg-gray-50">
+                  <tr key={`${event.type}-${event.id}`} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{event.title}</div>
+                        <div className="flex items-center space-x-2">
+                          <div className="text-sm font-medium text-gray-900">{event.title}</div>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            event.type === 'event' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                          }`}>
+                            {event.type === 'event' ? 'Evento' : 'Manifestação'}
+                          </span>
+                        </div>
                         <div className="text-sm text-gray-500 max-w-xs truncate">{event.description}</div>
                       </div>
                     </td>
@@ -575,6 +721,29 @@ const EventManagement = () => {
                     {selectedEvent.checkins} de {selectedEvent.maxCapacity} pessoas
                   </p>
                 </div>
+              </div>
+              
+              {/* RSVP Section */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h5 className="text-lg font-medium text-gray-900">Confirmação de Presença</h5>
+                  <RSVPButton 
+                    type={selectedEvent.type || "event"} 
+                    itemId={selectedEvent.id} 
+                    itemTitle={selectedEvent.title}
+                    showStats={true}
+                    size="md"
+                  />
+                </div>
+                
+                {/* Lista de Participantes RSVP */}
+                <RSVPParticipantsList 
+                  type={selectedEvent.type || "event"} 
+                  itemId={selectedEvent.id} 
+                  itemTitle={selectedEvent.title}
+                  maxVisible={5}
+                  className="mt-4"
+                />
               </div>
             </div>
             
@@ -748,6 +917,148 @@ const EventManagement = () => {
                   ) : (
                     'Criar Evento'
                   )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Event Modal */}
+      {showEditModal && editingEvent && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Editar Evento</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ×
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateEvent} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Título do Evento</label>
+                <input
+                  type="text"
+                  value={editingEvent.title}
+                  onChange={(e) => handleEditInputChange('title', e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Digite o título do evento"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Descrição</label>
+                <textarea
+                  rows={3}
+                  value={editingEvent.description}
+                  onChange={(e) => handleEditInputChange('description', e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Descreva o evento"
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Cidade</label>
+                  <input
+                    type="text"
+                    value={editingEvent.city}
+                    onChange={(e) => handleEditInputChange('city', e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Cidade"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Estado</label>
+                  <input
+                    type="text"
+                    value={editingEvent.state}
+                    onChange={(e) => handleEditInputChange('state', e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Estado"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Endereço</label>
+                <input
+                  type="text"
+                  value={editingEvent.address}
+                  onChange={(e) => handleEditInputChange('address', e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Endereço completo"
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Data de Início</label>
+                  <input
+                    type="datetime-local"
+                    value={editingEvent.startDate}
+                    onChange={(e) => handleEditInputChange('startDate', e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Data de Término</label>
+                  <input
+                    type="datetime-local"
+                    value={editingEvent.endDate}
+                    onChange={(e) => handleEditInputChange('endDate', e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Código Secreto</label>
+                  <input
+                    type="text"
+                    value={editingEvent.secretCode}
+                    onChange={(e) => handleEditInputChange('secretCode', e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Código para check-in"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Capacidade Máxima</label>
+                  <input
+                    type="number"
+                    value={editingEvent.maxCapacity}
+                    onChange={(e) => handleEditInputChange('maxCapacity', e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Número máximo de participantes"
+                    min="1"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="btn-secondary"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdating}
+                  className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUpdating && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isUpdating ? 'Atualizando...' : 'Atualizar Evento'}
                 </button>
               </div>
             </form>

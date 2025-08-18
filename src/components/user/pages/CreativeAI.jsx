@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Sparkles, Image, Video, MessageSquare, Quote, Download, Copy, Share2, Wand2, RefreshCw, Save, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
+import { apiClient } from '../../../lib/api'
 
 const CreativeAI = () => {
   const { userProfile } = useAuth()
@@ -21,16 +22,8 @@ const CreativeAI = () => {
   useEffect(() => {
     const loadUsageStats = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5120'}/api/creative-ai/usage`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          setUsageStats(data.usage)
-        }
+        const response = await apiClient.get('/creative-ai/usage')
+        setUsageStats(response.data.usage)
       } catch (error) {
         console.error('Erro ao carregar estatísticas:', error)
       }
@@ -127,52 +120,46 @@ const CreativeAI = () => {
     setIsGenerating(true)
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5120'}/api/creative-ai/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          prompt,
-          template: selectedTemplate,
-          tone: selectedTone,
-          length: selectedLength
-        })
+      const response = await apiClient.post('/creative-ai/generate', {
+        prompt,
+        template: selectedTemplate,
+        tone: selectedTone,
+        length: selectedLength
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setGeneratedContent(data.content)
-        setUsageStats(data.usage)
-        setLimitError('')
+      const data = response.data
+      setGeneratedContent(data.content)
+      setUsageStats(data.usage)
+      setLimitError('')
         
-        // Adicionar ao histórico
-        const newItem = {
-          id: Date.now(),
-          template: selectedTemplate,
-          prompt,
-          content: data.content,
-          createdAt: new Date().toISOString(),
-          tone: selectedTone,
-          length: selectedLength
-        }
-        setHistory(prev => [newItem, ...prev])
-      } else {
-        // Verificar se é erro de limite
-        if (response.status === 429) {
-          const errorData = await response.json()
-          setLimitError(errorData.message || 'Limite diário atingido')
-          setUsageStats({
-            today: errorData.usage || 0,
-            limit: errorData.limit || 2,
-            remaining: 0,
-            plan: errorData.plan || 'gratuito'
-          })
-          return
-        }
-        
-        // Fallback para conteúdo simulado se a API falhar
+      // Adicionar ao histórico
+      const newItem = {
+        id: Date.now(),
+        template: selectedTemplate,
+        prompt,
+        content: data.content,
+        createdAt: new Date().toISOString(),
+        tone: selectedTone,
+        length: selectedLength
+      }
+      setHistory(prev => [newItem, ...prev])
+    } catch (error) {
+      console.error('Erro ao gerar conteúdo:', error)
+      
+      // Verificar se é erro de limite
+      if (error.response?.status === 429) {
+        const errorData = error.response.data
+        setLimitError(errorData.message || 'Limite diário atingido')
+        setUsageStats({
+          today: errorData.usage || 0,
+          limit: errorData.limit || 2,
+          remaining: 0,
+          plan: errorData.plan || 'gratuito'
+        })
+        return
+      }
+      
+      // Fallback para conteúdo simulado se a API falhar
         const template = templates.find(t => t.id === selectedTemplate)
         let mockContent = ''
         
@@ -204,12 +191,8 @@ const CreativeAI = () => {
           createdAt: new Date().toISOString(),
           tone: selectedTone,
           length: selectedLength
-        }
+        }        
         setHistory(prev => [newItem, ...prev])
-      }
-    } catch (error) {
-      console.error('Erro ao gerar conteúdo:', error)
-      alert('Erro ao gerar conteúdo. Tente novamente.')
     } finally {
       setIsGenerating(false)
     }
@@ -262,34 +245,34 @@ const CreativeAI = () => {
       </div>
 
       {/* Usage Stats */}
-      <div className={`card ${limitError ? 'bg-red-50 border-red-200' : usageStats.plan === 'gratuito' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
+      <div className={`card ${limitError ? 'bg-red-50 border-red-200' : (usageStats?.plan === 'gratuito') ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
         <div className="flex items-center space-x-3">
           <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${
-            limitError ? 'bg-red-100' : usageStats.plan === 'gratuito' ? 'bg-blue-100' : 'bg-green-100'
+            limitError ? 'bg-red-100' : (usageStats?.plan === 'gratuito') ? 'bg-blue-100' : 'bg-green-100'
           }`}>
             <Sparkles className={`h-5 w-5 ${
-              limitError ? 'text-red-600' : usageStats.plan === 'gratuito' ? 'text-blue-600' : 'text-green-600'
+              limitError ? 'text-red-600' : (usageStats?.plan === 'gratuito') ? 'text-blue-600' : 'text-green-600'
             }`} />
           </div>
           <div className="flex-1">
             <h3 className={`font-medium ${
-              limitError ? 'text-red-900' : usageStats.plan === 'gratuito' ? 'text-blue-900' : 'text-green-900'
+              limitError ? 'text-red-900' : (usageStats?.plan === 'gratuito') ? 'text-blue-900' : 'text-green-900'
             }`}>
               {limitError ? 'Limite Atingido' : 
-               usageStats.plan === 'gratuito' ? 'Plano Patriota Gratuito' :
-               usageStats.plan === 'engajado' ? 'Plano Patriota Engajado' :
-               usageStats.plan === 'premium' ? 'Plano Patriota Premium' :
-               usageStats.plan === 'lider' ? 'Plano Patriota Líder' : 'Seu Plano'}
+                (usageStats?.plan === 'gratuito') ? 'Plano Patriota Gratuito' :
+                (usageStats?.plan === 'engajado') ? 'Plano Patriota Engajado' :
+                (usageStats?.plan === 'premium') ? 'Plano Patriota Premium' :
+                (usageStats?.plan === 'lider') ? 'Plano Patriota Líder' : 'Seu Plano'}
             </h3>
             <p className={`text-sm ${
-              limitError ? 'text-red-800' : usageStats.plan === 'gratuito' ? 'text-blue-800' : 'text-green-800'
+              limitError ? 'text-red-800' : (usageStats?.plan === 'gratuito') ? 'text-blue-800' : 'text-green-800'
             }`}>
               {limitError ? limitError :
-               usageStats.limit === -1 ? 'Gerações ilimitadas' :
-               `Você usou ${usageStats.today} de ${usageStats.limit} gerações hoje (${usageStats.remaining} restantes)`}
+               (usageStats?.limits?.generations === -1) ? 'Gerações ilimitadas' :
+               `Você usou ${usageStats?.today?.generations || 0} de ${usageStats?.limits?.generations || 0} gerações hoje (${usageStats?.remaining || 0} restantes)`}
             </p>
           </div>
-          {(limitError || (usageStats.plan === 'gratuito' && usageStats.remaining === 0)) && (
+          {(limitError || ((usageStats?.plan === 'gratuito') && (usageStats?.remaining === 0))) && (
             <button
               onClick={() => navigate('/plan')}
               className="btn-primary"
@@ -402,7 +385,7 @@ const CreativeAI = () => {
                 )}
                 <button
                   onClick={generateContent}
-                  disabled={!prompt.trim() || isGenerating || (usageStats.remaining === 0 && usageStats.limit !== -1)}
+                  disabled={!prompt.trim() || isGenerating || ((usageStats?.remaining === 0) && (usageStats?.limits?.generations !== -1))}
                   className="btn-primary"
                 >
                   {isGenerating ? (

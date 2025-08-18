@@ -13,7 +13,13 @@ import {
   Settings, 
   FileText, 
   Megaphone,
-  X
+  UserCheck,
+  Bot,
+  BookOpen,
+  Star,
+  BarChart3,
+  X,
+  CheckCircle
 } from 'lucide-react'
 
 const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
@@ -37,6 +43,59 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
       href: '/admin/events',
       icon: Calendar,
       current: location.pathname === '/admin/events'
+    },
+    {
+      name: 'Políticos',
+      href: '/admin/politicians',
+      icon: UserCheck,
+      current: location.pathname === '/admin/politicians',
+      submenu: [
+        {
+          name: 'Gerenciar',
+          href: '/admin/politicians',
+          current: location.pathname === '/admin/politicians'
+        },
+        {
+          name: 'Aprovações',
+          href: '/admin/politicians/approval',
+          current: location.pathname === '/admin/politicians/approval'
+        },
+        {
+          name: 'Sincronização',
+          href: '/admin/politicians/sync',
+          current: location.pathname === '/admin/politicians/sync'
+        }
+      ]
+    },
+    {
+      name: 'Agentes IA',
+      href: '/admin/agents',
+      icon: Bot,
+      current: location.pathname === '/admin/agents'
+    },
+    {
+      name: 'Blog Patriota',
+      href: '/admin/blog',
+      icon: BookOpen,
+      current: location.pathname === '/admin/blog'
+    },
+    {
+      name: 'Avaliações',
+      href: '/admin/ratings',
+      icon: Star,
+      current: location.pathname === '/admin/ratings'
+    },
+    {
+      name: 'Pesquisas DireitaJá',
+      href: '/admin/surveys',
+      icon: BarChart3,
+      current: location.pathname === '/admin/surveys'
+    },
+    {
+      name: 'Gerenciar Manifestações',
+      href: '/admin/unified-map',
+      icon: MapPin,
+      current: location.pathname === '/admin/unified-map'
     },
     {
       name: 'Mapa ao Vivo',
@@ -103,10 +162,10 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
 
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-conservative-900 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
+        fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex items-center justify-between h-16 px-4 bg-conservative-800">
+        <div className="flex items-center justify-between h-16 px-4 bg-gray-900 flex-shrink-0">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">D</span>
@@ -121,33 +180,58 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
           </button>
         </div>
 
-        <nav className="mt-8 px-4">
+        <nav className="flex-1 overflow-y-auto mt-8 px-4 pb-20">
           <div className="space-y-2">
             {menuItems.map((item) => {
               const Icon = item.icon
+              const hasSubmenu = item.submenu && item.submenu.length > 0
+              const isParentActive = hasSubmenu && item.submenu.some(sub => sub.current)
+              
               return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`
-                    group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200
-                    ${item.current
-                      ? 'bg-primary-600 text-white'
-                      : 'text-gray-300 hover:bg-conservative-800 hover:text-white'
-                    }
-                  `}
-                >
-                  <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                  {item.name}
-                </Link>
+                <div key={item.name}>
+                  <Link
+                    to={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`
+                      group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200
+                      ${item.current || isParentActive
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      }
+                    `}
+                  >
+                    <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                    {item.name}
+                  </Link>
+                  
+                  {hasSubmenu && (
+                    <div className="ml-6 mt-1 space-y-1">
+                      {item.submenu.map((subItem) => (
+                        <Link
+                          key={subItem.name}
+                          to={subItem.href}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`
+                            block px-3 py-1 text-xs font-medium rounded transition-colors duration-200
+                            ${subItem.current
+                              ? 'bg-primary-500 text-white'
+                              : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                            }
+                          `}
+                        >
+                          {subItem.name}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>
         </nav>
 
         {/* Admin Info */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-conservative-800">
+        <div className="flex-shrink-0 p-4 bg-gray-900 border-t border-gray-700">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
               <span className="text-white text-sm font-medium">A</span>
