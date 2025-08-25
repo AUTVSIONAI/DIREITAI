@@ -134,44 +134,67 @@ class ApiClientImpl implements ApiClient {
             config.headers = {};
           }
           
-          // Tentar obter o token de forma mais direta
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          let token = null;
           
-          console.log('🔐 Session check:', session ? 'Found' : 'Not found');
-          if (sessionError) {
-            console.log('❌ Session error:', sessionError.message);
+          // Estratégia 1: Tentar obter sessão atual
+          try {
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            
+            if (session?.access_token && !sessionError) {
+              token = session.access_token;
+              console.log('✅ Token obtido da sessão atual para:', config.url);
+            } else if (sessionError) {
+              console.log('⚠️ Erro na sessão:', sessionError.message);
+            }
+          } catch (sessionErr) {
+            console.log('⚠️ Falha ao obter sessão:', sessionErr.message);
           }
           
-          if (session?.access_token) {
-            config.headers.Authorization = `Bearer ${session.access_token}`;
-            console.log('✅ Token added to request:', config.url);
-            console.log('🔍 Token preview:', session.access_token.substring(0, 50) + '...');
+          // Estratégia 2: Se não tem token, tentar refresh da sessão
+          if (!token) {
+            try {
+              const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+              if (refreshedSession?.access_token && !refreshError) {
+                token = refreshedSession.access_token;
+                console.log('✅ Token obtido via refresh para:', config.url);
+              } else if (refreshError) {
+                console.log('⚠️ Erro no refresh:', refreshError.message);
+              }
+            } catch (refreshErr) {
+              console.log('⚠️ Falha no refresh:', refreshErr.message);
+            }
+          }
+          
+          // Estratégia 3: Verificar se há token nos headers padrão (fallback)
+          if (!token && this.axiosInstance.defaults.headers?.common?.Authorization) {
+            const authHeader = this.axiosInstance.defaults.headers.common.Authorization;
+            if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+              token = authHeader.substring(7);
+              console.log('✅ Token obtido dos headers padrão para:', config.url);
+            }
+          }
+          
+          // Aplicar token se encontrado
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+            console.log('🔍 Token aplicado (preview):', token.substring(0, 20) + '...');
           } else {
-            console.log('❌ No token available for request:', config.url);
+            console.log('❌ Nenhum token disponível para:', config.url);
             
-            // Tentar obter usuário diretamente
+            // Verificar se usuário ainda está logado
             try {
               const { data: { user }, error: userError } = await supabase.auth.getUser();
-              if (user && !userError) {
-                // Se temos usuário mas não sessão, tentar refresh
-                const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
-                if (refreshedSession?.access_token && !refreshError) {
-                  config.headers.Authorization = `Bearer ${refreshedSession.access_token}`;
-                  console.log('✅ Refreshed token added to request:', config.url);
-                } else {
-                  console.log('❌ Refresh failed:', refreshError?.message);
-                }
-              } else {
-                console.log('❌ No user found:', userError?.message);
+              if (!user || userError) {
+                console.log('❌ Usuário não autenticado, redirecionando...');
+                // Não redirecionar imediatamente, deixar o backend retornar 401
               }
             } catch (userCheckError) {
-              console.log('❌ User check failed:', userCheckError.message);
+              console.log('❌ Erro ao verificar usuário:', userCheckError.message);
             }
           }
         } catch (error) {
-          console.error('Erro no interceptor de requisição:', error);
-          console.warn('Erro ao obter sessão do Supabase:', error);
-          // Retornar config básico em caso de erro
+          console.error('❌ Erro crítico no interceptor:', error);
+          // Garantir que config seja válido mesmo em caso de erro
           if (!config) {
             config = { headers: {} };
           }

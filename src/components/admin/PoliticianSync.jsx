@@ -6,8 +6,15 @@ const PoliticianSync = () => {
   const [syncStatus, setSyncStatus] = useState({
     deputados: { loading: false, result: null, error: null },
     senadores: { loading: false, result: null, error: null },
-    all: { loading: false, result: null, error: null }
+    all: { loading: false, result: null, error: null },
+    deputadosEstaduais: { loading: false, result: null, error: null },
+    prefeitos: { loading: false, result: null, error: null },
+    vereadores: { loading: false, result: null, error: null },
+    allLocal: { loading: false, result: null, error: null }
   });
+
+  const [selectedState, setSelectedState] = useState('SP');
+  const [selectedMunicipality, setSelectedMunicipality] = useState('');
 
   const handleSyncDeputados = async () => {
     setSyncStatus(prev => ({
@@ -65,6 +72,94 @@ const PoliticianSync = () => {
       setSyncStatus(prev => ({
         ...prev,
         all: { loading: false, result: null, error: error.message }
+      }));
+    }
+  };
+
+  const handleSyncDeputadosEstaduais = async () => {
+    setSyncStatus(prev => ({
+      ...prev,
+      deputadosEstaduais: { loading: true, result: null, error: null }
+    }));
+
+    try {
+      const result = await politiciansService.syncDeputadosEstaduais(selectedState);
+      setSyncStatus(prev => ({
+        ...prev,
+        deputadosEstaduais: { loading: false, result, error: null }
+      }));
+    } catch (error) {
+      setSyncStatus(prev => ({
+        ...prev,
+        deputadosEstaduais: { loading: false, result: null, error: error.message }
+      }));
+    }
+  };
+
+  const handleSyncPrefeitos = async () => {
+    setSyncStatus(prev => ({
+      ...prev,
+      prefeitos: { loading: true, result: null, error: null }
+    }));
+
+    try {
+      const result = await politiciansService.syncPrefeitos(selectedState);
+      setSyncStatus(prev => ({
+        ...prev,
+        prefeitos: { loading: false, result, error: null }
+      }));
+    } catch (error) {
+      setSyncStatus(prev => ({
+        ...prev,
+        prefeitos: { loading: false, result: null, error: error.message }
+      }));
+    }
+  };
+
+  const handleSyncVereadores = async () => {
+    if (!selectedMunicipality) {
+      setSyncStatus(prev => ({
+        ...prev,
+        vereadores: { loading: false, result: null, error: 'Município é obrigatório para sincronizar vereadores' }
+      }));
+      return;
+    }
+
+    setSyncStatus(prev => ({
+      ...prev,
+      vereadores: { loading: true, result: null, error: null }
+    }));
+
+    try {
+      const result = await politiciansService.syncVereadores(selectedState, selectedMunicipality);
+      setSyncStatus(prev => ({
+        ...prev,
+        vereadores: { loading: false, result, error: null }
+      }));
+    } catch (error) {
+      setSyncStatus(prev => ({
+        ...prev,
+        vereadores: { loading: false, result: null, error: error.message }
+      }));
+    }
+  };
+
+  const handleSyncAllLocal = async () => {
+    setSyncStatus(prev => ({
+      ...prev,
+      allLocal: { loading: true, result: null, error: null }
+    }));
+
+    try {
+      const result = await politiciansService.syncAllLocalPoliticians(selectedState, selectedMunicipality);
+      setSyncStatus(prev => ({
+        ...prev,
+        allLocal: { loading: false, result, error: null }
+      }));
+    } catch (error) {
+      setSyncStatus(prev => ({
+        ...prev,
+        allLocal: { loading: false, result: null, error: error.message }
       }));
     }
   };
@@ -178,6 +273,92 @@ const PoliticianSync = () => {
         />
       </div>
 
+      {/* Seção de Políticos Locais */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          Políticos Locais
+        </h2>
+        <p className="text-gray-600 mb-6">
+          Sincronize dados de deputados estaduais, prefeitos e vereadores por estado e município.
+        </p>
+
+        {/* Controles de Estado e Município */}
+        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Estado
+              </label>
+              <select
+                value={selectedState}
+                onChange={(e) => setSelectedState(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="SP">São Paulo</option>
+                <option value="RJ">Rio de Janeiro</option>
+                <option value="MG">Minas Gerais</option>
+                <option value="RS">Rio Grande do Sul</option>
+                <option value="PR">Paraná</option>
+                <option value="SC">Santa Catarina</option>
+                <option value="BA">Bahia</option>
+                <option value="GO">Goiás</option>
+                <option value="PE">Pernambuco</option>
+                <option value="CE">Ceará</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Município (opcional para vereadores)
+              </label>
+              <input
+                type="text"
+                value={selectedMunicipality}
+                onChange={(e) => setSelectedMunicipality(e.target.value)}
+                placeholder="Ex: São Paulo, Rio de Janeiro..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Cards de Sincronização Local */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <SyncCard
+            title={`Deputados Estaduais - ${selectedState}`}
+            icon={Users}
+            status={syncStatus.deputadosEstaduais}
+            onSync={handleSyncDeputadosEstaduais}
+            description={`Sincronizar deputados da Assembleia Legislativa de ${selectedState}`}
+          />
+
+          <SyncCard
+            title={`Prefeitos - ${selectedState}`}
+            icon={Users}
+            status={syncStatus.prefeitos}
+            onSync={handleSyncPrefeitos}
+            description={`Sincronizar prefeitos do estado de ${selectedState}`}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <SyncCard
+            title={selectedMunicipality ? `Vereadores - ${selectedMunicipality}` : 'Vereadores'}
+            icon={Users}
+            status={syncStatus.vereadores}
+            onSync={handleSyncVereadores}
+            description={selectedMunicipality ? `Sincronizar vereadores de ${selectedMunicipality}` : 'Selecione um município para sincronizar vereadores'}
+          />
+
+          <SyncCard
+            title={`Sincronização Local Completa - ${selectedState}`}
+            icon={Upload}
+            status={syncStatus.allLocal}
+            onSync={handleSyncAllLocal}
+            description={`Sincronizar todos os políticos locais de ${selectedState}`}
+          />
+        </div>
+      </div>
+
       {/* Informações importantes */}
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
         <div className="flex items-start gap-3">
@@ -187,7 +368,8 @@ const PoliticianSync = () => {
             <ul className="text-sm text-yellow-700 space-y-1">
               <li>• Os políticos sincronizados ficam com status "pendente" até aprovação manual</li>
               <li>• A sincronização não sobrescreve dados já existentes no sistema</li>
-              <li>• Dados são obtidos diretamente das APIs oficiais do governo</li>
+              <li>• Dados federais são obtidos das APIs oficiais do governo</li>
+              <li>• Dados locais são simulados para demonstração (implementar APIs reais conforme necessário)</li>
               <li>• O processo pode demorar alguns minutos para grandes volumes de dados</li>
             </ul>
           </div>

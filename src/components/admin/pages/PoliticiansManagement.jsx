@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Search, Filter, UserCheck, Upload, Image } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Filter, UserCheck, Upload, Image, Eye, EyeOff } from 'lucide-react'
 import { apiClient } from '../../../lib/api'
 import { politiciansService } from '../../../services'
 import { getPoliticianPhotoUrl } from '../../../utils/imageUtils'
@@ -87,6 +87,26 @@ const PoliticiansManagement = () => {
       } catch (error) {
         console.error('Erro ao excluir político:', error)
       }
+    }
+  }
+
+  const toggleExpensesVisibility = async (politician) => {
+    try {
+      const newVisibility = !politician.expenses_visible
+      await apiClient.put(`/admin/politicians/${politician.id}/expenses-visibility`, {
+        expenses_visible: newVisibility
+      })
+      
+      // Atualizar o estado local
+      setPoliticians(politicians.map(p => 
+        p.id === politician.id 
+          ? { ...p, expenses_visible: newVisibility }
+          : p
+      ))
+      
+      console.log(`Gastos ${newVisibility ? 'habilitados' : 'desabilitados'} para ${politician.name}`)
+    } catch (error) {
+      console.error('Erro ao alterar visibilidade dos gastos:', error)
     }
   }
 
@@ -244,6 +264,9 @@ const PoliticiansManagement = () => {
                   Cargo
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Gastos Visíveis
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
@@ -283,6 +306,23 @@ const PoliticiansManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {politician.position}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <button
+                      onClick={() => toggleExpensesVisibility(politician)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                        politician.expenses_visible
+                          ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                      }`}
+                      title={politician.expenses_visible ? 'Clique para ocultar gastos' : 'Clique para mostrar gastos'}
+                    >
+                      {politician.expenses_visible ? (
+                        <><Eye className="h-3 w-3" /> Visível</>
+                      ) : (
+                        <><EyeOff className="h-3 w-3" /> Oculto</>
+                      )}
+                    </button>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">

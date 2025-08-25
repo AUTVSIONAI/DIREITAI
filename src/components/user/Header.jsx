@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useGamification } from '../../hooks/useGamification'
 import { signOut } from '../../lib/supabase'
-import { Menu, Bell, LogOut, Settings, User } from 'lucide-react'
+import { Menu, LogOut, Settings, User } from 'lucide-react'
+import NotificationBell from '../common/NotificationBell'
 
 const Header = ({ setSidebarOpen }) => {
   const { user, userProfile } = useAuth()
@@ -78,9 +79,7 @@ const Header = ({ setSidebarOpen }) => {
           )}
           
           {/* Notifications */}
-          <button className="p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 rounded-full">
-            <Bell className="h-5 w-5" />
-          </button>
+          <NotificationBell />
           
           {/* User Menu */}
           <div className="relative">

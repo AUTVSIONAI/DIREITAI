@@ -27,34 +27,26 @@ const BlogPost = () => {
     fetchRelatedPosts();
   }, [slug]);
 
+  useEffect(() => {
+    if (post?.id) {
+      registerView();
+      checkLikeStatus();
+      fetchComments();
+    }
+  }, [post?.id]);
+
   const fetchPost = async () => {
     try {
       setLoading(true);
       const response = await apiClient.get(`/blog/posts/${slug}`);
       
       const data = response.data;
+      console.log('📝 Dados do post carregados:', data);
+      console.log('🖼️ URL da imagem:', data.cover_image_url || data.featured_image_url);
       setPost(data);
       setLikesCount(data.likes_count || 0);
       setCommentsCount(data.comments_count || 0);
       setSharesCount(data.shares_count || 0);
-      
-      // Simular comentários
-      setComments([
-        {
-          id: 1,
-          author: 'João Silva',
-          content: 'Excelente análise! Muito esclarecedor.',
-          created_at: new Date().toISOString(),
-          likes: 5
-        },
-        {
-          id: 2,
-          author: 'Maria Santos',
-          content: 'Concordo plenamente com os pontos levantados.',
-          created_at: new Date().toISOString(),
-          likes: 3
-        }
-      ]);
       
     } catch (err) {
       setError(err.message);
@@ -73,28 +65,82 @@ const BlogPost = () => {
     }
   };
 
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
+  const registerView = async () => {
+    if (!post?.id) return;
+    try {
+      await apiClient.post(`/blog/${post.id}/view`, {
+        ip: null // O backend usará req.ip
+      });
+    } catch (error) {
+      console.error('Erro ao registrar visualização:', error);
+    }
+  };
+
+  const checkLikeStatus = async () => {
+    if (!post?.id) return;
+    try {
+      const response = await apiClient.get(`/blog/${post.id}/like-status`);
+      setIsLiked(response.data.liked);
+    } catch (error) {
+      console.error('Erro ao verificar status de curtida:', error);
+    }
+  };
+
+  const fetchComments = async () => {
+    if (!post?.id) return;
+    try {
+      const response = await apiClient.get(`/blog/${post.id}/comments`);
+      setComments(response.data.comments || []);
+    } catch (error) {
+      console.error('Erro ao buscar comentários:', error);
+      // Manter comentários simulados como fallback
+      setComments([
+        {
+          id: 1,
+          content: 'Excelente análise! Muito esclarecedor.',
+          created_at: new Date().toISOString(),
+          likes_count: 5,
+          users: { name: 'João Silva' }
+        },
+        {
+          id: 2,
+          content: 'Concordo plenamente com os pontos levantados.',
+          created_at: new Date().toISOString(),
+          likes_count: 3,
+          users: { name: 'Maria Santos' }
+        }
+      ]);
+    }
+  };
+
+  const handleLike = async () => {
+    try {
+      const response = await apiClient.post(`/blog/${post.id}/like`);
+      setIsLiked(response.data.liked);
+      setLikesCount(prev => response.data.liked ? prev + 1 : prev - 1);
+    } catch (error) {
+      console.error('Erro ao curtir post:', error);
+    }
   };
 
   const toggleComments = () => {
     setShowComments(!showComments);
   };
 
-  const handleAddComment = (e) => {
+  const handleAddComment = async (e) => {
     e.preventDefault();
     if (newComment.trim()) {
-      const comment = {
-        id: Date.now(),
-        author: 'Usuário',
-        content: newComment,
-        created_at: new Date().toISOString(),
-        likes: 0
-      };
-      setComments([comment, ...comments]);
-      setCommentsCount(prev => prev + 1);
-      setNewComment('');
+      try {
+        const response = await apiClient.post(`/blog/${post.id}/comments`, {
+          content: newComment
+        });
+        setComments([response.data, ...comments]);
+        setCommentsCount(prev => prev + 1);
+        setNewComment('');
+      } catch (error) {
+        console.error('Erro ao adicionar comentário:', error);
+        alert('Erro ao adicionar comentário. Verifique se você está logado.');
+      }
     }
   };
 
@@ -179,7 +225,7 @@ const BlogPost = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-8">
-              <Link to="/" className="text-2xl font-bold text-blue-600">
+              <Link to="/dashboard" className="text-2xl font-bold text-blue-600">
                 DireitAI
               </Link>
               <nav className="hidden md:flex items-center gap-6">
@@ -223,9 +269,13 @@ const BlogPost = () => {
             {(post.cover_image_url || post.featured_image_url) && (
               <div className="relative h-64 md:h-96 overflow-hidden rounded-xl shadow-lg mb-8">
                 <img
-                  src={post.cover_image_url || post.featured_image_url}
+                  src={`http://localhost:5120${post.cover_image_url || post.featured_image_url}`}
                   alt={post.title}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    console.log('❌ Erro ao carregar imagem:', e.target.src);
+                    e.target.style.display = 'none';
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
               </div>
@@ -290,8 +340,8 @@ const BlogPost = () => {
                   {/* Data */}
                   <div className="flex items-center gap-2 text-gray-600">
                     <Calendar className="w-4 h-4" />
-                    <span title={formatFullDate(post.created_at)}>
-                      {formatDate(post.created_at)}
+                    <span title={formatFullDate(post.published_at || post.created_at)}>
+                      {formatDate(post.published_at || post.created_at)}
                     </span>
                   </div>
 
@@ -445,7 +495,7 @@ const BlogPost = () => {
                               {relatedPost.title}
                             </h4>
                             <p className="text-xs text-gray-500">
-                              {formatDate(relatedPost.created_at)}
+                              {formatDate(relatedPost.published_at || relatedPost.created_at)}
                             </p>
                           </div>
                         </div>
@@ -546,11 +596,11 @@ const BlogPost = () => {
                     comments.map((comment) => (
                       <div key={comment.id} className="flex gap-4 p-4 bg-gray-50 rounded-lg">
                         <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                          {comment.author.charAt(0).toUpperCase()}
+                          {(comment.users?.name || comment.author || 'U').charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="font-medium text-gray-900">{comment.author}</span>
+                            <span className="font-medium text-gray-900">{comment.users?.name || comment.author || 'Usuário'}</span>
                             <span className="text-sm text-gray-500">
                               {formatDate(comment.created_at)}
                             </span>
@@ -559,7 +609,7 @@ const BlogPost = () => {
                           <div className="flex items-center gap-4">
                             <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 transition-colors">
                               <ThumbsUp className="w-4 h-4" />
-                              {comment.likes}
+                              {comment.likes_count || comment.likes || 0}
                             </button>
                             <button className="text-sm text-gray-500 hover:text-blue-600 transition-colors">
                               Responder

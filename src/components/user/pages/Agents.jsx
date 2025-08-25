@@ -75,7 +75,7 @@ const Agents = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Chat com Agentes IA</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Chat Político</h1>
         <p className="text-gray-600">
           Converse com os agentes de IA dos políticos e tire suas dúvidas sobre propostas e posicionamentos.
         </p>

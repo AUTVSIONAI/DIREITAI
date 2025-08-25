@@ -72,14 +72,24 @@ const Achievements = () => {
   // Buscar conquistas reais do usuário
   useEffect(() => {
     const fetchAchievements = async () => {
-      if (!userProfile?.id) return
+      console.log('🔍 Achievements - userProfile:', userProfile)
+      console.log('🔍 Achievements - userProfile.id:', userProfile?.id)
+      
+      if (!userProfile?.id) {
+        console.log('❌ Achievements - userProfile.id não encontrado, retornando')
+        return
+      }
       
       try {
         setLoading(true)
         setError(null)
         
+        console.log('🚀 Achievements - Fazendo requisição para:', `/gamification/users/${userProfile.id}/achievements`)
+        
         // Usar a nova API de gamificação
         const response = await apiRequest(`/gamification/users/${userProfile.id}/achievements`)
+        
+        console.log('📥 Achievements - Resposta recebida:', response)
         
         if (!response.success) {
           console.error('Erro ao buscar conquistas:', response.error)

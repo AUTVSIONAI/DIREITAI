@@ -12,6 +12,7 @@ import FinancialReports from './pages/FinancialReports'
 import SystemSettings from './pages/SystemSettings'
 import ApiLogs from './pages/ApiLogs'
 import Announcements from './pages/Announcements'
+import NotificationsManagement from './pages/NotificationsManagement'
 import PlansManagement from './pages/PlansManagement'
 import PaymentSuccess from './pages/PaymentSuccess'
 import PoliticiansManagement from './pages/PoliticiansManagement'
@@ -57,6 +58,7 @@ const AdminDashboard = () => {
             <Route path="/settings" element={<SystemSettings />} />
             <Route path="/logs" element={<ApiLogs />} />
             <Route path="/announcements" element={<Announcements />} />
+            <Route path="/notifications" element={<NotificationsManagement />} />
             <Route path="/plans" element={<PlansManagement />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
           </Routes>

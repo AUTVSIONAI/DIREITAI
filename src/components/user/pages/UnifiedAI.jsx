@@ -26,7 +26,7 @@ const UnifiedAI = () => {
   
   // Estados da IA Criativa
   const [activeMode, setActiveMode] = useState('chat') // 'chat' ou 'creative'
-  const [selectedTemplate, setSelectedTemplate] = useState('post')
+  const [selectedTemplate, setSelectedTemplate] = useState('social_post')
   const [selectedTone, setSelectedTone] = useState('profissional')
   const [selectedLength, setSelectedLength] = useState('medio')
   const [prompt, setPrompt] = useState('')
@@ -40,7 +40,7 @@ const UnifiedAI = () => {
   // Templates da IA Criativa
   const templates = [
     {
-      id: 'post',
+      id: 'social_post',
       name: 'Post Social',
       icon: MessageSquare,
       description: 'Posts para redes sociais com viés conservador',
@@ -139,16 +139,31 @@ const UnifiedAI = () => {
       const response = await apiClient.get('/ai/conversations')
       if (response.data?.conversations?.length > 0) {
         const lastConversation = response.data.conversations[0]
-        conversationId.current = lastConversation.id
+        conversationId.current = lastConversation.conversation_id
         
-        const messagesResponse = await apiClient.get(`/ai/conversations/${lastConversation.id}/messages`)
-        const formattedMessages = messagesResponse.data.messages.map(msg => ({
+        const messagesResponse = await apiClient.get(`/ai/conversations/${lastConversation.conversation_id}/messages`)
+        const messages = messagesResponse.data?.messages || []
+        const formattedMessages = messages.map(msg => ({
           id: msg.id,
-          type: msg.role === 'user' ? 'user' : 'bot',
-          content: msg.content,
+          type: 'user', // Primeira mensagem é do usuário
+          content: msg.message,
           timestamp: new Date(msg.created_at),
-          model: msg.model || 'Patriota IA'
+          model: msg.model_used || 'Patriota IA'
         }))
+        
+        // Adicionar as respostas da IA
+        messages.forEach(msg => {
+          if (msg.response) {
+            formattedMessages.push({
+              id: `${msg.id}_response`,
+              type: 'bot',
+              content: msg.response,
+              timestamp: new Date(msg.created_at),
+              model: msg.model_used || 'Patriota IA'
+            })
+          }
+        })
+        
         setMessages(formattedMessages)
       }
       
@@ -236,7 +251,8 @@ const UnifiedAI = () => {
     setIsGenerating(true)
     
     try {
-      const response = await apiClient.post('/ai/generate', {
+      const response = await apiClient.post('/ai/creative-ai/generate', {
+        type: selectedTemplate,
         prompt,
         template: selectedTemplate,
         tone: selectedTone,
@@ -303,7 +319,7 @@ const UnifiedAI = () => {
       {/* Header com seletor de modo */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">DireitaIA Unificada</h2>
+          <h2 className="text-2xl font-bold text-gray-900">DireitaGPT</h2>
           <p className="text-gray-600">Chat inteligente e criação de conteúdo em uma única interface</p>
         </div>
         
@@ -383,7 +399,6 @@ const UnifiedAI = () => {
                       ) : (
                         <Bot className="h-3 w-3" />
                       )}
-                      <span className="text-xs opacity-75">{message.model}</span>
                     </div>
                     <p className="text-sm">{message.content}</p>
                     {message.type === 'bot' && (
@@ -459,7 +474,7 @@ const UnifiedAI = () => {
                     Plano {usageStats.plan === 'gratuito' ? 'Gratuito' : 'Premium'}
                   </h3>
                   <p className="text-sm text-gray-600">
-                    {usageStats.limit === -1 ? 'Uso ilimitado' : `${usageStats.used}/${usageStats.limit} gerações utilizadas`}
+                    {usageStats.limits?.generations === -1 ? 'Uso ilimitado' : `${usageStats.today?.generations || 0}/${usageStats.limits?.generations || 0} gerações utilizadas hoje`}
                   </p>
                 </div>
               </div>

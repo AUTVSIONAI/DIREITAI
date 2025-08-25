@@ -113,6 +113,33 @@ export class NotificationsService {
   }
 
   /**
+   * Marcar notificação como lida (alias para compatibilidade)
+   */
+  static async markNotificationAsRead(notificationId: string): Promise<Notification> {
+    return this.markAsRead(notificationId);
+  }
+
+  /**
+   * Marcar notificação como clicada
+   */
+  static async markNotificationAsClicked(notificationId: string): Promise<Notification> {
+    const response = await apiClient.patch(
+      `/notifications/${notificationId}/click`
+    );
+    return response.data;
+  }
+
+  /**
+   * Dispensar notificação
+   */
+  static async dismissNotification(notificationId: string): Promise<Notification> {
+    const response = await apiClient.patch(
+      `/notifications/${notificationId}/dismiss`
+    );
+    return response.data;
+  }
+
+  /**
    * Deletar todas as notificações
    */
   static async deleteAllNotifications(): Promise<{ count: number }> {

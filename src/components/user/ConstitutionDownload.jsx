@@ -16,16 +16,58 @@ const ConstitutionDownload = () => {
     if (userProfile?.id) {
       console.log('🔍 ConstitutionDownload - userProfile:', userProfile);
       console.log('🔍 ConstitutionDownload - using ID:', userProfile.id);
-      checkDownloadStatus();
-      fetchUserPoints();
+      
+      // Limpar estado anterior e forçar verificação sempre que o componente montar
+      const forceCheck = async () => {
+        console.log('🔍 ConstitutionDownload - Limpando estado e forçando verificação...');
+        setIsDownloaded(false); // Reset do estado
+        localStorage.removeItem('constituicao_baixada'); // Limpar cache
+        await checkDownloadStatus();
+        await fetchUserPoints();
+      };
+      
+      forceCheck();
     }
-  }, [userProfile]);
+  }, [userProfile?.id]); // Dependência mais específica
+  
+  // Função para limpar cache e forçar nova verificação
+  const clearCacheAndRecheck = async () => {
+    console.log('🧹 ConstitutionDownload - Limpando cache e reverificando...');
+    localStorage.removeItem('constituicao_baixada');
+    setIsDownloaded(false);
+    setShowSuccess(false);
+    console.log('🧹 ConstitutionDownload - Estado resetado, verificando API...');
+    await checkDownloadStatus();
+    await fetchUserPoints();
+    console.log('🧹 ConstitutionDownload - Verificação concluída');
+  };
+  
+  // Verificar novamente quando o componente ficar visível (para casos de cache do navegador)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && userProfile?.id) {
+        console.log('🔍 ConstitutionDownload - Página ficou visível, reverificando...');
+        checkDownloadStatus();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [userProfile?.id]);
 
   const checkDownloadStatus = async () => {
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
-      // Usar o auth_id do Supabase para as rotas de constitution-downloads
-      const userId = user?.id || userProfile?.auth_id;
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5120/api';
+      // Usar o ID da tabela users, não o auth_id
+      const userId = userProfile?.id;
+      if (!userId) {
+        console.error('🔍 ConstitutionDownload - User ID não encontrado');
+        return;
+      }
+      
+      console.log('🔍 ConstitutionDownload - Verificando status para userId:', userId);
+      console.log('🔍 ConstitutionDownload - API URL:', `${API_BASE_URL}/constitution-downloads/users/${userId}/status`);
+      
       const response = await fetch(`${API_BASE_URL}/constitution-downloads/users/${userId}/status`, {
         headers: {
           'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
@@ -34,22 +76,33 @@ const ConstitutionDownload = () => {
       
       if (response.ok) {
         const status = await response.json();
-        setIsDownloaded(status.hasDownloaded);
-      } else {
-        console.error('Erro ao verificar status:', response.status);
-        // Fallback para localStorage em caso de erro
-        const downloaded = localStorage.getItem('constituicao_baixada');
-        if (downloaded === 'true') {
+        console.log('🔍 ConstitutionDownload - Status da API:', status);
+        
+        // SEMPRE usar o status da API e limpar localStorage se necessário
+        if (status.hasDownloaded) {
+          console.log('✅ ConstitutionDownload - Usuário JÁ BAIXOU a constituição');
           setIsDownloaded(true);
+          // Garantir que localStorage está sincronizado
+          localStorage.setItem('constituicao_baixada', 'true');
+        } else {
+          console.log('📘 ConstitutionDownload - Usuário NÃO BAIXOU a constituição');
+          setIsDownloaded(false);
+          // Limpar localStorage se API diz que não baixou
+          localStorage.removeItem('constituicao_baixada');
         }
+      } else {
+        console.error('🔍 ConstitutionDownload - Erro ao verificar status:', response.status);
+        // Em caso de erro da API, assumir que não foi baixado para evitar inconsistências
+        console.log('🔍 ConstitutionDownload - API falhou, assumindo não baixado');
+        setIsDownloaded(false);
+        localStorage.removeItem('constituicao_baixada');
       }
     } catch (error) {
-      console.error('Erro ao verificar status de download:', error);
-      // Fallback para localStorage em caso de erro
-      const downloaded = localStorage.getItem('constituicao_baixada');
-      if (downloaded === 'true') {
-        setIsDownloaded(true);
-      }
+      console.error('🔍 ConstitutionDownload - Erro ao verificar status de download:', error);
+      // Em caso de erro de rede, assumir que não foi baixado para evitar inconsistências
+      console.log('🔍 ConstitutionDownload - Erro de rede, assumindo não baixado');
+      setIsDownloaded(false);
+      localStorage.removeItem('constituicao_baixada');
     }
   };
 
@@ -57,10 +110,10 @@ const ConstitutionDownload = () => {
     try {
       // Buscar o user_id correto da tabela users usando o auth_id
       const session = await supabase.auth.getSession();
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5120/api';
       
       // Primeiro, buscar o user_id da tabela users
-      const userResponse = await fetch(`${API_BASE_URL}/users/profile`, {
+      const userResponse = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${session.data.session?.access_token}`
         }
@@ -68,7 +121,7 @@ const ConstitutionDownload = () => {
       
       if (userResponse.ok) {
         const userData = await userResponse.json();
-        const userId = userData.id; // ID da tabela users
+        const userId = userData.profile.id; // ID da tabela users
         console.log('🎮 Buscando pontos para userId da tabela users:', userId);
         const points = await GamificationService.getUserPoints(userId);
         setUserPoints(points);
@@ -98,10 +151,14 @@ const ConstitutionDownload = () => {
     try {
       // Primeiro, registrar o download no backend
       const session = await supabase.auth.getSession();
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
-      // Usar auth_id para constitution-downloads
-      const authUserId = user?.id || userProfile?.auth_id;
-      const response = await fetch(`${API_BASE_URL}/constitution-downloads/users/${authUserId}/register`, {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5120/api';
+      // Usar o ID da tabela users
+      const userId = userProfile?.id;
+      if (!userId) {
+        alert('Erro: ID do usuário não encontrado');
+        return;
+      }
+      const response = await fetch(`${API_BASE_URL}/constitution-downloads/users/${userId}/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -174,10 +231,18 @@ const ConstitutionDownload = () => {
               Missão "Verdade na Palma da Mão" concluída! Você ganhou 100 pontos.
             </p>
           </div>
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex items-center space-x-2">
             <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
               +100 pontos
             </div>
+            {/* Botão de debug - remover em produção */}
+            <button
+              onClick={clearCacheAndRecheck}
+              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded border"
+              title="Forçar verificação (debug)"
+            >
+              🔄
+            </button>
           </div>
         </div>
       </div>

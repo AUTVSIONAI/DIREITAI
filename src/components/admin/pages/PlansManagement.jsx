@@ -11,11 +11,17 @@ const PlansManagement = () => {
   const [editingPlan, setEditingPlan] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
+    slug: '',
     description: '',
-    price: '',
-    duration_months: '',
+    price_monthly: '',
+    price_yearly: '',
     features: '',
-    is_active: true
+    ai_conversations_limit: '',
+    fake_news_analyses_limit: '',
+    is_active: true,
+    is_popular: false,
+    color: 'blue',
+    icon: 'Package'
   });
 
   useEffect(() => {
@@ -50,10 +56,20 @@ const PlansManagement = () => {
     e.preventDefault();
     try {
       const planData = {
-        ...formData,
-        price: parseFloat(formData.price),
-        duration_months: parseInt(formData.duration_months),
-        features: formData.features.split(',').map(f => f.trim())
+        name: formData.name,
+        slug: formData.slug || formData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        description: formData.description,
+        price_monthly: parseFloat(formData.price_monthly) || 0,
+        price_yearly: parseFloat(formData.price_yearly) || 0,
+        features: formData.features.split(',').map(f => f.trim()),
+        limits: {
+          ai_conversations: parseInt(formData.ai_conversations_limit) || 10,
+          fake_news_analyses: parseInt(formData.fake_news_analyses_limit) || 1
+        },
+        is_active: formData.is_active,
+        is_popular: formData.is_popular,
+        color: formData.color,
+        icon: formData.icon
       };
 
       let response;
@@ -93,11 +109,17 @@ const PlansManagement = () => {
     setEditingPlan(plan);
     setFormData({
       name: plan.name || '',
+      slug: plan.slug || '',
       description: plan.description || '',
-      price: (plan.price || 0).toString(),
-      duration_months: (plan.duration_months || 0).toString(),
+      price_monthly: (plan.price_monthly || 0).toString(),
+      price_yearly: (plan.price_yearly || 0).toString(),
       features: Array.isArray(plan.features) ? plan.features.join(', ') : (plan.features || ''),
-      is_active: plan.is_active || false
+      ai_conversations_limit: (plan.limits?.ai_conversations || 10).toString(),
+      fake_news_analyses_limit: (plan.limits?.fake_news_analyses || 1).toString(),
+      is_active: plan.is_active || false,
+      is_popular: plan.is_popular || false,
+      color: plan.color || 'blue',
+      icon: plan.icon || 'Package'
     });
     setShowForm(true);
   };
@@ -186,15 +208,14 @@ const PlansManagement = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Preço (R$)
+                  Slug (identificador único)
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  type="text"
+                  value={formData.slug}
+                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  required
+                  placeholder="Ex: patriota-engajado"
                 />
               </div>
             </div>
@@ -213,28 +234,113 @@ const PlansManagement = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Duração (meses)
+                  Preço Mensal (R$)
                 </label>
                 <input
                   type="number"
-                  value={formData.duration_months}
-                  onChange={(e) => setFormData({ ...formData, duration_months: e.target.value })}
+                  step="0.01"
+                  value={formData.price_monthly}
+                  onChange={(e) => setFormData({ ...formData, price_monthly: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Preço Anual (R$)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.price_yearly}
+                  onChange={(e) => setFormData({ ...formData, price_yearly: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Limite de Conversas IA/dia (-1 = ilimitado)
+                </label>
+                <input
+                  type="number"
+                  value={formData.ai_conversations_limit}
+                  onChange={(e) => setFormData({ ...formData, ai_conversations_limit: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Status
+                  Limite de Análises Fake News/dia (-1 = ilimitado)
+                </label>
+                <input
+                  type="number"
+                  value={formData.fake_news_analyses_limit}
+                  onChange={(e) => setFormData({ ...formData, fake_news_analyses_limit: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cor do Plano
                 </label>
                 <select
-                  value={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' })}
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="true">Ativo</option>
-                  <option value="false">Inativo</option>
+                  <option value="gray">Cinza</option>
+                  <option value="blue">Azul</option>
+                  <option value="green">Verde</option>
+                  <option value="purple">Roxo</option>
+                  <option value="red">Vermelho</option>
+                  <option value="yellow">Amarelo</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ícone
+                </label>
+                <select
+                  value={formData.icon}
+                  onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="Package">Package</option>
+                  <option value="Star">Star</option>
+                  <option value="Crown">Crown</option>
+                  <option value="Shield">Shield</option>
+                  <option value="Zap">Zap</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_active}
+                      onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                      className="mr-2"
+                    />
+                    Plano Ativo
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_popular}
+                      onChange={(e) => setFormData({ ...formData, is_popular: e.target.checked })}
+                      className="mr-2"
+                    />
+                    Plano Popular
+                  </label>
+                </div>
               </div>
             </div>
             <div>
@@ -264,11 +370,17 @@ const PlansManagement = () => {
                   setEditingPlan(null);
                   setFormData({
                     name: '',
+                    slug: '',
                     description: '',
-                    price: '',
-                    duration_months: '',
+                    price_monthly: '',
+                    price_yearly: '',
                     features: '',
-                    is_active: true
+                    ai_conversations_limit: '',
+                    fake_news_analyses_limit: '',
+                    is_active: true,
+                    is_popular: false,
+                    color: 'blue',
+                    icon: 'Package'
                   });
                 }}
                 className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md"
@@ -288,10 +400,10 @@ const PlansManagement = () => {
                 Nome
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Preço
+                Preço Mensal
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Duração
+                Limites
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
@@ -311,10 +423,13 @@ const PlansManagement = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  R$ {plan.price?.toFixed(2)}
+                  R$ {plan.price_monthly?.toFixed(2) || '0,00'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {plan.duration_months} meses
+                  <div className="text-xs">
+                    <div>IA: {plan.limits?.ai_conversations === -1 ? 'Ilimitado' : plan.limits?.ai_conversations || 0}/dia</div>
+                    <div>Fake News: {plan.limits?.fake_news_analyses === -1 ? 'Ilimitado' : plan.limits?.fake_news_analyses || 0}/dia</div>
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

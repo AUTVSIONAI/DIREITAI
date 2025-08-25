@@ -6,6 +6,8 @@ import { supabase } from '../../../lib/supabase'
 import { apiClient } from '../../../lib/api.ts'
 import ConstitutionDownload from '../ConstitutionDownload'
 import AIConversations from '../AIConversations'
+import UsageLimits from '../UsageLimits'
+import AnnouncementBanner from '../../common/AnnouncementBanner'
 import { 
   MapPin, 
   MessageCircle, 
@@ -95,8 +97,8 @@ const Overview = () => {
       console.log('📊 Dados de gamificação:', gamificationResponse)
       
       // Buscar estatísticas do usuário (incluindo conversas de IA reais)
-        const statsResponse = await apiClient.get(`/users/${userId}/stats`)
-        const aiConversations = statsResponse.data?.ai_conversations || 0
+        const usageResponse = await apiClient.get('/users/usage-stats')
+        const aiConversations = usageResponse.data?.usage?.ai_conversations?.used || 0
       
       // Buscar conquistas reais da tabela badges
         const achievementsResponse = await apiClient.get(`/gamification/users/${userId}/achievements?status=unlocked`)
@@ -129,7 +131,7 @@ const Overview = () => {
       }
       
       setStats({
-          totalCheckins: statsResponse.data?.checkins || 0,
+          totalCheckins: usageResponse.data?.checkins || 0,
           chatMessages: aiConversations,
           rankingPosition: userPosition,
           achievementsUnlocked: achievements,
@@ -194,6 +196,9 @@ const Overview = () => {
 
   return (
     <div className="space-y-6">
+      {/* Announcement Banners */}
+      <AnnouncementBanner />
+      
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-primary-600 to-conservative-600 rounded-lg p-6 text-white">
         <h2 className="text-2xl font-bold mb-2">
@@ -247,6 +252,9 @@ const Overview = () => {
 
       {/* Constitution Download */}
       <ConstitutionDownload />
+
+      {/* Usage Limits Section */}
+      <UsageLimits />
 
       {/* AI Conversations Section */}
       <AIConversations />

@@ -95,7 +95,7 @@ const Ranking = () => {
         // Fallback para dados mock em caso de resposta vazia
         console.log('⚠️ Caindo no fallback dos dados mock')
         const currentRankings = mockRankings[selectedScope][selectedPeriod]
-        setRankings(currentRankings.filter(user => !user.isCurrentUser))
+        setRankings(currentRankings) // Mostrar todos os usuários, incluindo o atual
         setUserPosition(currentRankings.find(user => user.isCurrentUser))
       }
     } catch (err) {
@@ -103,7 +103,7 @@ const Ranking = () => {
       setError('Erro ao carregar ranking')
       // Fallback para dados mock em caso de erro
       const currentRankings = mockRankings[selectedScope][selectedPeriod]
-      setRankings(currentRankings.filter(user => !user.isCurrentUser))
+      setRankings(currentRankings) // Mostrar todos os usuários, incluindo o atual
       setUserPosition(currentRankings.find(user => user.isCurrentUser))
     } finally {
       setLoading(false)
@@ -112,12 +112,25 @@ const Ranking = () => {
 
   const fetchPlatformStats = async () => {
     try {
-      const response = await apiClient.get(`/users/platform-stats?scope=${selectedScope}&period=${selectedPeriod}`)
+      // Usar dados reais do ranking para calcular estatísticas da plataforma
+      const response = await apiClient.get(`/users/ranking?scope=${selectedScope}&period=${selectedPeriod}`)
       console.log('📊 Platform Stats API Response:', response)
       
-      if (response?.data) {
-        setPlatformStats(response.data)
-        console.log('✅ Usando dados reais das estatísticas:', response.data)
+      if (response?.data?.rankings) {
+        const rankings = response.data.rankings
+        const totalUsers = rankings.length
+        const totalPoints = rankings.reduce((sum, user) => sum + (user.points || 0), 0)
+        const averagePoints = totalUsers > 0 ? Math.round(totalPoints / totalUsers) : 0
+        
+        const platformStats = {
+          totalUsers,
+          totalPoints,
+          averagePoints,
+          activeUsers: rankings.filter(user => user.points > 0).length
+        }
+        
+        setPlatformStats(platformStats)
+        console.log('✅ Usando dados reais das estatísticas calculadas:', platformStats)
       }
     } catch (err) {
       console.error('Error fetching platform stats:', err)
