@@ -101,7 +101,7 @@ const VoiceControls = forwardRef(({
         });
       }
     }
-  }), [lastMessage, autoSpeak, voiceEnabled, speechSupported, speakWithVoice, selectedVoiceType, speechRate, speechVolume]);
+  }, [lastMessage, autoSpeak, voiceEnabled, speechSupported, speakWithVoice, selectedVoiceType, speechRate, speechVolume]);
 
   // Processar transcrição
   useEffect(() => {
