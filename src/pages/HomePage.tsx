@@ -19,7 +19,6 @@ import {
   BarChart3,
   TrendingUp,
   Mail,
-  Phone,
   MapPin
 } from 'lucide-react';
 
@@ -426,10 +425,6 @@ const HomePage = () => {
                 <li className="flex items-center space-x-2">
                   <Mail className="h-4 w-4 text-conservative-400" />
                   <span>contato@direitai.com</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <Phone className="h-4 w-4 text-conservative-400" />
-                  <span>(11) 99999-9999</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <MapPin className="h-4 w-4 text-conservative-400" />

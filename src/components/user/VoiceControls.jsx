@@ -51,10 +51,12 @@ const VoiceControls = forwardRef(({
           .trim();
         
         if (cleanText) {
+          console.log('🎤 Falando mensagem via VoiceControls:', cleanText.substring(0, 50) + '...');
           speak(cleanText, {
             voice: selectedVoice,
             rate: speechRate,
-            volume: speechVolume
+            volume: speechVolume,
+            lang: 'pt-BR'
           });
         }
       }
@@ -66,16 +68,33 @@ const VoiceControls = forwardRef(({
     }
   }), [voiceEnabled, speechSupported, speak, selectedVoice, speechRate, speechVolume, speaking, stopSpeaking]);
 
-  // Configurar voz padrão (português brasileiro)
+  // Configurar voz padrão (português brasileiro) com prioridade para mobile
   useEffect(() => {
     if (voices.length > 0 && !selectedVoice) {
-      const ptBrVoice = voices.find(voice => 
-        voice.lang.includes('pt-BR') || 
-        (voice.lang.includes('pt') && voice.name.toLowerCase().includes('brasil'))
-      ) || voices.find(voice => voice.lang.includes('pt'));
+      console.log('🎤 Configurando voz brasileira para VoiceControls');
       
-      if (ptBrVoice) {
-        setSelectedVoice(ptBrVoice);
+      // Buscar vozes brasileiras com prioridade
+      const brazilianVoices = voices.filter(voice => {
+        const lang = voice.lang.toLowerCase();
+        const name = voice.name.toLowerCase();
+        return (
+          lang.includes('pt-br') || 
+          (lang.includes('pt') && (name.includes('brasil') || name.includes('brazil') || name.includes('luciana') || name.includes('felipe')))
+        );
+      });
+      
+      // Priorizar vozes femininas brasileiras para melhor experiência
+      const femaleVoice = brazilianVoices.find(voice => 
+        voice.name.toLowerCase().includes('luciana') || 
+        voice.name.toLowerCase().includes('female') ||
+        voice.name.toLowerCase().includes('feminina')
+      );
+      
+      const selectedBrazilianVoice = femaleVoice || brazilianVoices[0] || voices.find(voice => voice.lang.includes('pt'));
+      
+      if (selectedBrazilianVoice) {
+        setSelectedVoice(selectedBrazilianVoice);
+        console.log('🇧🇷 Voz brasileira selecionada:', selectedBrazilianVoice.name, '- Idioma:', selectedBrazilianVoice.lang);
       }
     }
   }, [voices, selectedVoice]);
@@ -95,10 +114,12 @@ const VoiceControls = forwardRef(({
         .trim();
 
       if (cleanText) {
+        console.log('🎤 Auto-falando resposta da IA:', cleanText.substring(0, 50) + '...');
         speak(cleanText, {
           voice: selectedVoice,
           rate: speechRate,
-          volume: speechVolume
+          volume: speechVolume,
+          lang: 'pt-BR'
         });
       }
     }

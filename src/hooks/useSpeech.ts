@@ -36,17 +36,36 @@ export const useSpeechSynthesis = () => {
       
       const updateVoices = () => {
         const availableVoices = window.speechSynthesis.getVoices();
+        console.log('🎤 Vozes disponíveis:', availableVoices.map(v => `${v.name} (${v.lang})`));
+        
+        // Filtrar e priorizar vozes brasileiras
+        const brazilianVoices = availableVoices.filter(voice => {
+          const lang = voice.lang.toLowerCase();
+          const name = voice.name.toLowerCase();
+          return (
+            lang.includes('pt-br') || 
+            (lang.includes('pt') && (name.includes('brasil') || name.includes('brazil')))
+          );
+        });
+        
+        console.log('🇧🇷 Vozes brasileiras encontradas:', brazilianVoices.map(v => `${v.name} (${v.lang})`));
         setVoices(availableVoices);
       };
 
-      updateVoices();
+      // Aguardar um pouco para carregar as vozes em mobile
+      if (isMobile) {
+        setTimeout(updateVoices, 500);
+      } else {
+        updateVoices();
+      }
+      
       window.speechSynthesis.onvoiceschanged = updateVoices;
 
       return () => {
         window.speechSynthesis.onvoiceschanged = null;
       };
     }
-  }, []);
+  }, [isMobile]);
 
   const speak = useCallback((text: string, config: SpeechConfig = {}) => {
     if (!supported || !text.trim()) return;
@@ -56,41 +75,64 @@ export const useSpeechSynthesis = () => {
 
     // Configurações otimizadas para mobile
     const mobileOptimizedText = isMobile ? 
-      text.substring(0, 200) : // Limitar texto em dispositivos móveis
+      text.substring(0, 300) : // Aumentar limite para mobile
       text;
 
     const utterance = new SpeechSynthesisUtterance(mobileOptimizedText);
     
-    // Configurar voz (preferir português brasileiro)
+    // Configurar voz (priorizar português brasileiro nativo)
     if (config.voice) {
       utterance.voice = config.voice;
     } else {
-      const ptBrVoice = voices.find(voice => 
-        voice.lang.includes('pt-BR') || voice.lang.includes('pt')
+      // Buscar vozes brasileiras com prioridade
+      const brazilianVoices = voices.filter(voice => {
+        const lang = voice.lang.toLowerCase();
+        const name = voice.name.toLowerCase();
+        return (
+          lang.includes('pt-br') || 
+          (lang.includes('pt') && (name.includes('brasil') || name.includes('brazil') || name.includes('luciana') || name.includes('felipe')))
+        );
+      });
+      
+      // Priorizar vozes femininas brasileiras para melhor experiência
+      const femaleVoice = brazilianVoices.find(voice => 
+        voice.name.toLowerCase().includes('luciana') || 
+        voice.name.toLowerCase().includes('female') ||
+        voice.name.toLowerCase().includes('feminina')
       );
-      if (ptBrVoice) {
-        utterance.voice = ptBrVoice;
+      
+      const selectedVoice = femaleVoice || brazilianVoices[0] || voices.find(voice => voice.lang.includes('pt'));
+      
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        console.log('🎤 Voz selecionada:', selectedVoice.name, '- Idioma:', selectedVoice.lang);
       }
     }
 
-    // Configurações otimizadas para mobile
-    utterance.rate = config.rate || (isMobile ? 0.8 : 0.9); // Mais lento em mobile
-    utterance.pitch = config.pitch || 1;
-    utterance.volume = config.volume || (isMobile ? 0.8 : 1); // Volume menor em mobile
+    // Configurações otimizadas para mobile brasileiro
+    utterance.rate = config.rate || (isMobile ? 0.85 : 0.9); // Velocidade otimizada para português
+    utterance.pitch = config.pitch || (isMobile ? 1.1 : 1); // Tom ligeiramente mais alto para mobile
+    utterance.volume = config.volume || (isMobile ? 0.9 : 1); // Volume otimizado
     utterance.lang = config.lang || 'pt-BR';
 
-    utterance.onstart = () => setSpeaking(true);
-    utterance.onend = () => setSpeaking(false);
+    utterance.onstart = () => {
+      setSpeaking(true);
+      console.log('🎤 Iniciando síntese de voz em português brasileiro');
+    };
+    utterance.onend = () => {
+      setSpeaking(false);
+      console.log('🎤 Síntese de voz finalizada');
+    };
     utterance.onerror = (event) => {
-      console.warn('Speech synthesis error:', event);
+      console.warn('🚫 Erro na síntese de voz:', event);
       setSpeaking(false);
     };
 
-    // Para dispositivos móveis, aguardar um pouco antes de falar
+    // Para dispositivos móveis, aguardar um pouco mais antes de falar
     if (isMobile) {
       setTimeout(() => {
         window.speechSynthesis.speak(utterance);
-      }, 100);
+      }, 150);
     } else {
       window.speechSynthesis.speak(utterance);
     }
@@ -144,14 +186,16 @@ export const useSpeechRecognition = () => {
         setSupported(true);
         const recognitionInstance = new SpeechRecognition();
         
-        // Configurações otimizadas para mobile
+        // Configurações otimizadas para mobile brasileiro
         recognitionInstance.continuous = !isMobile; // Desabilitar continuous em mobile
         recognitionInstance.interimResults = !isMobile; // Desabilitar interim results em mobile
         recognitionInstance.lang = 'pt-BR';
         recognitionInstance.maxAlternatives = 1;
         
-        // Configurações específicas para mobile
-        // Nota: grammars não precisa ser definido explicitamente
+        // Configurações específicas para português brasileiro
+        if (isMobile) {
+          console.log('🎤 Configurando reconhecimento de voz para mobile brasileiro');
+        }
         
         setRecognition(recognitionInstance);
       }
@@ -184,12 +228,14 @@ export const useSpeechRecognition = () => {
       }
     };
 
-    // Para dispositivos móveis, aguardar um pouco antes de iniciar
+    // Para dispositivos móveis brasileiros, aguardar um pouco antes de iniciar
     if (isMobile) {
+      console.log('🎤 Iniciando reconhecimento de voz em português brasileiro (mobile)');
       setTimeout(() => {
         recognition.start();
-      }, 200);
+      }, 300);
     } else {
+      console.log('🎤 Iniciando reconhecimento de voz em português brasileiro (desktop)');
       recognition.start();
     }
   }, [supported, recognition, isMobile]);
