@@ -45,7 +45,7 @@ const AuthProvider = ({ children }) => {
         return;
       }
       
-      console.log('✅ AuthProvider - Usuário encontrado na tabela users:', dbUser.email, 'ID:', dbUser.id);
+      console.log('✅ AuthProvider - Usuário encontrado na tabela users:', dbUser.email, 'ID da tabela users:', dbUser.id, 'auth_id:', dbUser.auth_id);
       
       // Usar dados reais da tabela users
       const realProfile = {
@@ -62,6 +62,7 @@ const AuthProvider = ({ children }) => {
         role: dbUser.role || (dbUser.is_admin ? 'admin' : 'user')
       };
       
+      console.log('🔍 AuthProvider - Definindo userProfile.id como:', realProfile.id);
       setUserProfile(realProfile);
       setLoading(false);
     } catch (error) {
