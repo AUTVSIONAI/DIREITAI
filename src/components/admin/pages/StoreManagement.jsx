@@ -74,6 +74,11 @@ const StoreManagement = () => {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
+  
+  // Estados para modal de categoria
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [creatingCategory, setCreatingCategory] = useState(false)
 
   // Função para carregar dados da API
   const loadData = async () => {
@@ -239,6 +244,37 @@ const StoreManagement = () => {
     setImageFile(null)
     setImagePreview(null)
     setShowProductModal(false)
+  }
+
+  // Função para criar nova categoria
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      alert('Por favor, digite o nome da categoria')
+      return
+    }
+
+    try {
+      setCreatingCategory(true)
+      const newCategory = await storeManagementService.createCategory(newCategoryName.trim())
+      
+      // Atualizar lista de categorias
+      setCategories(prev => [...prev, newCategory])
+      
+      // Limpar formulário e fechar modal
+      setNewCategoryName('')
+      setShowCategoryModal(false)
+      
+      alert('Categoria criada com sucesso!')
+    } catch (error) {
+      console.error('Erro ao criar categoria:', error)
+      if (error.response?.status === 409) {
+        alert('Esta categoria já existe!')
+      } else {
+        alert('Erro ao criar categoria. Tente novamente.')
+      }
+    } finally {
+      setCreatingCategory(false)
+    }
   }
 
   // Carregar dados ao montar o componente
@@ -1026,19 +1062,29 @@ const StoreManagement = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-                  <select 
-                    value={productForm.category}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    required
-                  >
-                    <option value="">Selecione uma categoria</option>
-                    {Array.isArray(categories) && categories.map(category => (
-                      <option key={category.id || category} value={category.id || category}>
-                        {category.name || category}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex gap-2">
+                    <select 
+                      value={productForm.category}
+                      onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      required
+                    >
+                      <option value="">Selecione uma categoria</option>
+                      {Array.isArray(categories) && categories.map(category => (
+                        <option key={category.id || category} value={category.id || category}>
+                          {category.name || category}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryModal(true)}
+                      className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors flex items-center gap-1"
+                      title="Adicionar nova categoria"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -1094,6 +1140,68 @@ const StoreManagement = () => {
               >
                 {uploadingImage && <Upload className="w-4 h-4 animate-spin" />}
                 {uploadingImage ? 'Enviando...' : (editingProduct ? 'Atualizar Produto' : 'Criar Produto')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para criar categoria */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Nova Categoria</h3>
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false)
+                  setNewCategoryName('')
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nome da Categoria
+                </label>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Digite o nome da categoria"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleCreateCategory()
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false)
+                  setNewCategoryName('')
+                }}
+                className="btn-secondary"
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleCreateCategory}
+                disabled={creatingCategory || !newCategoryName.trim()}
+                className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {creatingCategory && <Loader2 className="w-4 h-4 animate-spin" />}
+                {creatingCategory ? 'Criando...' : 'Criar Categoria'}
               </button>
             </div>
           </div>

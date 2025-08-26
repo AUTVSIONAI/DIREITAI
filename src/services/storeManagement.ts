@@ -199,6 +199,11 @@ class StoreManagementService {
     return response.data;
   }
 
+  async createCategory(name: string): Promise<{ id: string; name: string; count: number }> {
+    const response = await apiClient.post('/admin/store/categories', { name });
+    return response.data.category;
+  }
+
   // Export
   async exportProducts(format: 'csv' | 'xlsx' = 'csv'): Promise<Blob> {
     const response = await apiClient.get(`/admin/store/export/products?format=${format}`, {

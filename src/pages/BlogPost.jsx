@@ -6,6 +6,26 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../lib/api';
 
+// Função para processar URLs de imagens no conteúdo HTML
+const processImageUrls = (content) => {
+  if (!content) return content;
+  
+  // Processar imagens com URLs relativas
+  let processedContent = content
+    // URLs que começam com /uploads/ -> usar a URL base da API
+    .replace(/src="\/uploads\//g, 'src="https://direitai-backend.vercel.app/uploads/')
+    // URLs que começam com ./assets/ -> usar a URL do frontend
+    .replace(/src="\.\/assets\//g, 'src="http://localhost:5120/assets/')
+    // URLs que começam com /assets/ -> usar a URL do frontend
+    .replace(/src="\/assets\//g, 'src="http://localhost:5120/assets/')
+    // URLs que começam com ./images/ -> usar a URL do frontend
+    .replace(/src="\.\/images\//g, 'src="http://localhost:5120/images/')
+    // URLs que começam com /images/ -> usar a URL do frontend
+    .replace(/src="\/images\//g, 'src="http://localhost:5120/images/');
+  
+  return processedContent;
+};
+
 const BlogPost = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -460,7 +480,7 @@ const BlogPost = () => {
               {/* Conteúdo */}
               <div 
                 className="prose prose-lg prose-blue max-w-none"
-                dangerouslySetInnerHTML={{ __html: post.content }}
+                dangerouslySetInnerHTML={{ __html: processImageUrls(post.content) }}
               />
             </div>
           </article>

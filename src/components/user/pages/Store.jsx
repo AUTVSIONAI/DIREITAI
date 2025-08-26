@@ -116,8 +116,8 @@ const Store = () => {
       }
       
       const response = await StoreService.createCheckoutSession(checkoutData)
-      if (response.checkout_url) {
-        window.location.href = response.checkout_url
+      if (response.url) {
+        window.location.href = response.url
       }
     } catch (error) {
       console.error('Erro no checkout:', error)
