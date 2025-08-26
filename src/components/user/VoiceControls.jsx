@@ -16,7 +16,7 @@ const VoiceControls = forwardRef(({
   className = '' 
 }, ref) => {
   const {
-    speak,
+    speakWithVoice,
     stop: stopSpeaking,
     speaking,
     speechSupported,
@@ -26,7 +26,7 @@ const VoiceControls = forwardRef(({
     startListening,
     stopListening,
     resetTranscript,
-    voices
+    getBrazilianVoices
   } = useSpeech();
 
   const [isMobile] = useState(isMobileDevice());
@@ -34,7 +34,8 @@ const VoiceControls = forwardRef(({
   const [showSettings, setShowSettings] = useState(false);
   const [speechRate, setSpeechRate] = useState(isMobile ? 0.8 : 0.9);
   const [speechVolume, setSpeechVolume] = useState(isMobile ? 0.8 : 1);
-  const [selectedVoice, setSelectedVoice] = useState(null);
+  const [selectedVoiceType, setSelectedVoiceType] = useState('female');
+  const [availableVoices, setAvailableVoices] = useState({ female: null, male: null });
 
   // Expor métodos para o componente pai
   useImperativeHandle(ref, () => ({
@@ -52,11 +53,9 @@ const VoiceControls = forwardRef(({
         
         if (cleanText) {
           console.log('🎤 Falando mensagem via VoiceControls:', cleanText.substring(0, 50) + '...');
-          speak(cleanText, {
-            voice: selectedVoice,
+          speakWithVoice(cleanText, selectedVoiceType, {
             rate: speechRate,
-            volume: speechVolume,
-            lang: 'pt-BR'
+            volume: speechVolume
           });
         }
       }
@@ -66,38 +65,19 @@ const VoiceControls = forwardRef(({
         stopSpeaking();
       }
     }
-  }), [voiceEnabled, speechSupported, speak, selectedVoice, speechRate, speechVolume, speaking, stopSpeaking]);
+  }), [voiceEnabled, speechSupported, speakWithVoice, selectedVoiceType, speechRate, speechVolume, speaking, stopSpeaking]);
 
-  // Configurar voz padrão (português brasileiro) com prioridade para mobile
+  // Configurar vozes brasileiras disponíveis
   useEffect(() => {
-    if (voices.length > 0 && !selectedVoice) {
-      console.log('🎤 Configurando voz brasileira para VoiceControls');
-      
-      // Buscar vozes brasileiras com prioridade
-      const brazilianVoices = voices.filter(voice => {
-        const lang = voice.lang.toLowerCase();
-        const name = voice.name.toLowerCase();
-        return (
-          lang.includes('pt-br') || 
-          (lang.includes('pt') && (name.includes('brasil') || name.includes('brazil') || name.includes('luciana') || name.includes('felipe')))
-        );
+    const voices = getBrazilianVoices();
+    if (voices.female || voices.male) {
+      setAvailableVoices(voices);
+      console.log('🎤 Vozes brasileiras configuradas:', {
+        feminina: voices.female?.name,
+        masculina: voices.male?.name
       });
-      
-      // Priorizar vozes femininas brasileiras para melhor experiência
-      const femaleVoice = brazilianVoices.find(voice => 
-        voice.name.toLowerCase().includes('luciana') || 
-        voice.name.toLowerCase().includes('female') ||
-        voice.name.toLowerCase().includes('feminina')
-      );
-      
-      const selectedBrazilianVoice = femaleVoice || brazilianVoices[0] || voices.find(voice => voice.lang.includes('pt'));
-      
-      if (selectedBrazilianVoice) {
-        setSelectedVoice(selectedBrazilianVoice);
-        console.log('🇧🇷 Voz brasileira selecionada:', selectedBrazilianVoice.name, '- Idioma:', selectedBrazilianVoice.lang);
-      }
     }
-  }, [voices, selectedVoice]);
+  }, [getBrazilianVoices]);
 
   // Auto-falar quando receber nova mensagem da IA
   useEffect(() => {
@@ -115,15 +95,13 @@ const VoiceControls = forwardRef(({
 
       if (cleanText) {
         console.log('🎤 Auto-falando resposta da IA:', cleanText.substring(0, 50) + '...');
-        speak(cleanText, {
-          voice: selectedVoice,
+        speakWithVoice(cleanText, selectedVoiceType, {
           rate: speechRate,
-          volume: speechVolume,
-          lang: 'pt-BR'
+          volume: speechVolume
         });
       }
     }
-  }, [lastMessage, autoSpeak, voiceEnabled, speechSupported, speak, selectedVoice, speechRate, speechVolume]);
+  }), [lastMessage, autoSpeak, voiceEnabled, speechSupported, speakWithVoice, selectedVoiceType, speechRate, speechVolume]);
 
   // Processar transcrição
   useEffect(() => {
@@ -219,24 +197,23 @@ const VoiceControls = forwardRef(({
               {/* Seleção de Voz */}
               <div className="mb-3">
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Voz
+                  Voz Brasileira
                 </label>
                 <select
-                  value={selectedVoice?.name || ''}
-                  onChange={(e) => {
-                    const voice = voices.find(v => v.name === e.target.value);
-                    setSelectedVoice(voice);
-                  }}
+                  value={selectedVoiceType}
+                  onChange={(e) => setSelectedVoiceType(e.target.value)}
                   className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {voices
-                    .filter(voice => voice.lang.includes('pt') || voice.lang.includes('en'))
-                    .map((voice) => (
-                      <option key={voice.name} value={voice.name}>
-                        {voice.name} ({voice.lang})
-                      </option>
-                    ))
-                  }
+                  {availableVoices.female && (
+                    <option value="female">
+                      Feminina - {availableVoices.female.name}
+                    </option>
+                  )}
+                  {availableVoices.male && (
+                    <option value="male">
+                      Masculina - {availableVoices.male.name}
+                    </option>
+                  )}
                 </select>
               </div>
 
@@ -274,8 +251,7 @@ const VoiceControls = forwardRef(({
 
               {/* Teste */}
               <button
-                onClick={() => speak('Olá, patriota! Esta é a voz da DireitaIA.', {
-                  voice: selectedVoice,
+                onClick={() => speakWithVoice('Olá, patriota! Esta é a voz da DireitaIA.', selectedVoiceType, {
                   rate: speechRate,
                   volume: speechVolume
                 })}

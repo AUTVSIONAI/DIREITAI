@@ -265,9 +265,84 @@ export const useSpeech = () => {
   const speechSynthesis = useSpeechSynthesis();
   const speechRecognition = useSpeechRecognition();
 
+  const getBrazilianVoices = useCallback(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return { female: null, male: null };
+    
+    const voices = window.speechSynthesis.getVoices();
+    console.log('🎤 Todas as vozes disponíveis:', voices.map(v => `${v.name} (${v.lang})`));
+    
+    // Filtrar apenas vozes brasileiras
+    const brazilianVoices = voices.filter(voice => voice.lang.includes('pt-BR'));
+    
+    // Encontrar uma voz feminina brasileira
+    const femaleVoice = brazilianVoices.find(voice => 
+      voice.name.toLowerCase().includes('luciana') ||
+      voice.name.toLowerCase().includes('female') ||
+      voice.name.toLowerCase().includes('feminina') ||
+      voice.name.toLowerCase().includes('woman') ||
+      voice.name.toLowerCase().includes('maria') ||
+      voice.name.toLowerCase().includes('ana')
+    ) || brazilianVoices.find(voice => !voice.name.toLowerCase().includes('male') && !voice.name.toLowerCase().includes('masculino'));
+    
+    // Encontrar uma voz masculina brasileira
+    const maleVoice = brazilianVoices.find(voice => 
+      voice.name.toLowerCase().includes('male') ||
+      voice.name.toLowerCase().includes('masculino') ||
+      voice.name.toLowerCase().includes('man') ||
+      voice.name.toLowerCase().includes('joão') ||
+      voice.name.toLowerCase().includes('carlos')
+    ) || brazilianVoices.find(voice => voice !== femaleVoice);
+    
+    console.log('🎤 Voz feminina brasileira:', femaleVoice?.name || 'Não encontrada');
+    console.log('🎤 Voz masculina brasileira:', maleVoice?.name || 'Não encontrada');
+    
+    return {
+      female: femaleVoice || null,
+      male: maleVoice || null
+    };
+  }, []);
+
+  const speakWithVoice = useCallback((text: string, voiceType: 'female' | 'male' = 'female') => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text.trim()) return;
+    
+    // Cancelar qualquer fala em andamento
+    window.speechSynthesis.cancel();
+    
+    // Dividir texto em chunks menores para mobile (300 caracteres)
+    const chunks = text.match(/.{1,300}(\s|$)/g) || [text];
+    
+    chunks.forEach((chunk, index) => {
+      setTimeout(() => {
+        const utterance = new SpeechSynthesisUtterance(chunk.trim());
+        
+        // Configurar voz brasileira (feminina ou masculina)
+        const voices = getBrazilianVoices();
+        const selectedVoice = voiceType === 'female' ? voices.female : voices.male;
+        
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        }
+        
+        // Configurações otimizadas para português brasileiro
+        utterance.lang = 'pt-BR';
+        utterance.rate = 0.9; // Velocidade um pouco mais lenta
+        utterance.pitch = 1.1; // Tom ligeiramente mais alto
+        utterance.volume = 0.8; // Volume um pouco mais baixo
+        
+        console.log('🎤 Falando chunk:', chunk.substring(0, 50) + '...');
+        console.log('🎤 Voz selecionada:', utterance.voice?.name || 'Padrão');
+        console.log('🎤 Tipo de voz:', voiceType);
+        
+        window.speechSynthesis.speak(utterance);
+      }, index * 100); // Pequeno delay entre chunks
+    });
+  }, [getBrazilianVoices]);
+
   return {
     ...speechSynthesis,
     ...speechRecognition,
+    speakWithVoice,
+    getBrazilianVoices,
     speechSupported: speechSynthesis.supported,
     recognitionSupported: speechRecognition.supported
   };
