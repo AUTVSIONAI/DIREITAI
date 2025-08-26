@@ -41,10 +41,14 @@ const BlogManagement = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0]
     if (file) {
+      console.log('📁 Arquivo selecionado:', file.name, 'Tipo:', file.type, 'Tamanho:', file.size)
       if (file.type.startsWith('image/')) {
         setImageFile(file)
         const reader = new FileReader()
-        reader.onload = (e) => setImagePreview(e.target.result)
+        reader.onload = (e) => {
+          console.log('🖼️ Preview da imagem carregado')
+          setImagePreview(e.target.result)
+        }
         reader.readAsDataURL(file)
       } else {
         alert('Por favor, selecione apenas arquivos de imagem (JPG, PNG, etc.)')
@@ -56,18 +60,23 @@ const BlogManagement = () => {
     if (!imageFile) return null
     
     try {
+      console.log('🔄 Iniciando upload da imagem:', imageFile.name)
       setUploadingImage(true)
       const formData = new FormData()
       formData.append('image', imageFile)
       
+      console.log('📤 Enviando requisição para /upload/image')
       const response = await apiClient.post('/upload/image', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       })
-      return response.data.url
+      console.log('✅ Upload bem-sucedido:', response.data)
+      return response.data.data.url
     } catch (error) {
-      console.error('Erro ao fazer upload da imagem:', error)
+      console.error('❌ Erro ao fazer upload da imagem:', error)
+      console.error('Detalhes do erro:', error.response?.data || error.message)
+      alert(`Erro no upload: ${error.response?.data?.error || error.message}`)
       throw new Error('Falha no upload da imagem')
     } finally {
       setUploadingImage(false)
@@ -77,11 +86,14 @@ const BlogManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
+      console.log('🚀 Iniciando salvamento do post')
       let imageUrl = formData.cover_image_url
       
       // Upload da imagem se houver uma nova
       if (imageFile) {
+        console.log('📸 Fazendo upload da nova imagem')
         imageUrl = await uploadBlogImage()
+        console.log('🖼️ URL da imagem:', imageUrl)
       }
       
       const postData = {
@@ -90,16 +102,24 @@ const BlogManagement = () => {
         tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
       }
       
+      console.log('📝 Dados do post:', postData)
+      
       if (editingPost) {
+        console.log('✏️ Atualizando post existente:', editingPost.id)
         await apiClient.put(`/blog/${editingPost.id}`, postData)
       } else {
+        console.log('➕ Criando novo post')
         await apiClient.post('/blog', postData)
       }
+      
+      console.log('✅ Post salvo com sucesso')
       fetchPosts()
       resetForm()
+      alert('Post salvo com sucesso!')
     } catch (error) {
-      console.error('Erro ao salvar post:', error)
-      alert('Erro ao salvar post. Tente novamente.')
+      console.error('❌ Erro ao salvar post:', error)
+      console.error('Detalhes do erro:', error.response?.data || error.message)
+      alert(`Erro ao salvar post: ${error.response?.data?.error || error.message}`)
     }
   }
 

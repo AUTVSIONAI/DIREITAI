@@ -65,6 +65,11 @@ const Politicians = () => {
       if (selectedParty) params.append('party', selectedParty);
       if (selectedPosition) params.append('position', selectedPosition);
       if (searchTerm) params.append('search', searchTerm);
+      
+      // Usar dados reais para deputados federais
+      if (selectedPosition === 'Deputado Federal' || selectedPosition === 'deputado') {
+        params.append('use_real_data', 'true');
+      }
 
       const response = await apiClient.get(`/politicians?${params.toString()}`);
       

@@ -54,9 +54,10 @@
     "postcss.config.js"
   ],
   "exclude": [
-    "node_modules",
     "dist",
-    "backend",
+    "build",
+    "node_modules",
+    "backend-oficial",
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/*.spec.ts",

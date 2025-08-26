@@ -1,49 +1,15 @@
 import React, { useState } from 'react'
-import { Menu, Bell, Search, LogOut, Settings, User, Shield } from 'lucide-react'
+import { Menu, Search, LogOut, Settings, User, Shield } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import NotificationBell from '../common/NotificationBell'
 
 const AdminHeader = ({ setSidebarOpen }) => {
   const { user } = useAuth()
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
-
   const handleLogout = async () => {
     await supabase.auth.signOut()
   }
-
-  const notifications = [
-    {
-      id: 1,
-      type: 'user',
-      message: 'Novo usuário registrado: João Silva',
-      time: '5 min atrás',
-      unread: true
-    },
-    {
-      id: 2,
-      type: 'event',
-      message: 'Evento "Marcha da Família" atingiu 500 check-ins',
-      time: '15 min atrás',
-      unread: true
-    },
-    {
-      id: 3,
-      type: 'moderation',
-      message: 'Conteúdo reportado aguarda moderação',
-      time: '1 hora atrás',
-      unread: false
-    },
-    {
-      id: 4,
-      type: 'system',
-      message: 'Backup do sistema concluído com sucesso',
-      time: '2 horas atrás',
-      unread: false
-    }
-  ]
-
-  const unreadCount = notifications.filter(n => n.unread).length
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
@@ -87,53 +53,7 @@ const AdminHeader = ({ setSidebarOpen }) => {
           </div>
 
           {/* Notifications */}
-          <div className="relative">
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg relative"
-            >
-              <Bell className="h-6 w-6" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-
-            {/* Notifications Dropdown */}
-            {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                <div className="p-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Notificações</h3>
-                </div>
-                <div className="max-h-96 overflow-y-auto">
-                  {notifications.map(notification => (
-                    <div
-                      key={notification.id}
-                      className={`p-4 border-b border-gray-100 hover:bg-gray-50 ${
-                        notification.unread ? 'bg-blue-50' : ''
-                      }`}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className={`w-2 h-2 rounded-full mt-2 ${
-                          notification.unread ? 'bg-blue-500' : 'bg-gray-300'
-                        }`}></div>
-                        <div className="flex-1">
-                          <p className="text-sm text-gray-900">{notification.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="p-4 border-t border-gray-200">
-                  <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                    Ver todas as notificações
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <NotificationBell />
 
           {/* User Menu */}
           <div className="relative">

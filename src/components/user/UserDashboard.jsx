@@ -18,7 +18,7 @@ import BlogPost from '../../pages/BlogPost'
 import AgentChat from '../../pages/AgentChat'
 import Agents from './pages/Agents'
 import EventMap from './pages/EventMap'
-import UsageDashboard from './dashboard/UsageDashboard'
+
 
 const UserDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -49,7 +49,7 @@ const UserDashboard = () => {
             <Route path="/achievements" element={<Achievements />} />
             <Route path="/plan" element={<Plan />} />
             <Route path="/events" element={<EventMap />} />
-            <Route path="/usage" element={<UsageDashboard />} />
+
           </Routes>
         </main>
       </div>

@@ -13,6 +13,7 @@ import {
   Settings, 
   FileText, 
   Megaphone,
+  Bell,
   UserCheck,
   Bot,
   BookOpen,
@@ -139,7 +140,12 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
       icon: Megaphone,
       current: location.pathname === '/admin/announcements'
     },
-
+    {
+      name: 'Notificações',
+      href: '/admin/notifications',
+      icon: Bell,
+      current: location.pathname === '/admin/notifications'
+    },
     {
       name: 'Configurações',
       href: '/admin/settings',

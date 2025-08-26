@@ -483,9 +483,9 @@ const PoliticianApproval = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        getStatusColor(politician.approval_status)
+                        getStatusColor(politician.status)
                       }`}>
-                        {getStatusText(politician.approval_status)}
+                        {getStatusText(politician.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -496,7 +496,7 @@ const PoliticianApproval = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
-                        {politician.approval_status === 'pending' && (
+                        {politician.status === 'pending' && (
                           <>
                             <button
                               onClick={() => handleAction(politician, 'approve')}

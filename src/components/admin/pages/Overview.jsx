@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { AdminService } from '../../../services/admin'
+import AnnouncementBanner from '../../common/AnnouncementBanner'
 import { 
   User, 
   Calendar, 
@@ -155,6 +156,9 @@ const Overview = () => {
 
   return (
     <div className="space-y-6">
+      {/* Announcement Banners */}
+      <AnnouncementBanner />
+      
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

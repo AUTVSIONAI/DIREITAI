@@ -67,12 +67,13 @@ const AIConversations = () => {
 
   const fetchConversationStats = async () => {
     try {
-      // Buscar todas as atividades para contar conversas
-      const response = await apiClient.get(`/gamification/users/${userProfile.id}/activities?limit=100`)
+      // Buscar estatísticas reais de uso de IA
+      const usageResponse = await apiClient.get('/users/usage-stats')
+      const usageData = usageResponse.data
       
-      // A resposta pode estar em response.data ou diretamente em response
-      const activities = Array.isArray(response) ? response : (response.data || [])
-      const aiConversations = activities.filter(activity => activity.type === 'ai_conversation')
+      // Buscar histórico de uso dos últimos 30 dias
+      const historyResponse = await apiClient.get('/users/usage-history?days=30')
+      const historyData = historyResponse.data?.history || []
       
       // Calcular estatísticas semanais e mensais
       const weekAgo = new Date()
@@ -81,22 +82,31 @@ const AIConversations = () => {
       const monthAgo = new Date()
       monthAgo.setMonth(monthAgo.getMonth() - 1)
       
-      const thisWeekConversations = aiConversations.filter(conv => 
-        new Date(conv.timestamp) >= weekAgo
-      ).length
+      const thisWeekConversations = historyData
+        .filter(day => new Date(day.date) >= weekAgo)
+        .reduce((sum, day) => sum + (day.ai_conversations || 0), 0)
       
-      const thisMonthConversations = aiConversations.filter(conv => 
-        new Date(conv.timestamp) >= monthAgo
-      ).length
+      const thisMonthConversations = historyData
+        .reduce((sum, day) => sum + (day.ai_conversations || 0), 0)
+      
+      // Usar dados de uso atual para total de conversas
+      const totalConversations = usageData?.usage?.ai_conversations?.used || 0
       
       setStats({
-        total: aiConversations.length,
+        total: totalConversations,
         thisWeek: thisWeekConversations,
         thisMonth: thisMonthConversations,
-        totalTokens: aiConversations.length * 150 // Estimativa de tokens por conversa
+        totalTokens: totalConversations * 150 // Estimativa de tokens por conversa
       })
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error)
+      // Fallback para dados básicos
+      setStats({
+        total: 0,
+        thisWeek: 0,
+        thisMonth: 0,
+        totalTokens: 0
+      })
     }
   }
 

@@ -303,10 +303,10 @@ const Blog = () => {
             posts.map((post) => (
               <article key={post.id} className="group bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-500 border border-gray-200/50 hover:border-blue-300/50 transform hover:-translate-y-2">
                 {/* Imagem com overlay */}
-                {post.featured_image_url && (
+                {(post.cover_image_url || post.featured_image_url) && (
                   <div className="relative h-56 overflow-hidden">
                     <img
-                      src={post.featured_image_url}
+                      src={post.cover_image_url || post.featured_image_url}
                       alt={post.title}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                     />

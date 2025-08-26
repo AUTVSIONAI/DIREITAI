@@ -7,7 +7,7 @@ import { apiClient } from '../../../lib/api'
 const CreativeAI = () => {
   const { userProfile } = useAuth()
   const navigate = useNavigate()
-  const [selectedTemplate, setSelectedTemplate] = useState('post')
+  const [selectedTemplate, setSelectedTemplate] = useState('social_post')
   const [prompt, setPrompt] = useState('')
   const [generatedContent, setGeneratedContent] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -22,7 +22,7 @@ const CreativeAI = () => {
   useEffect(() => {
     const loadUsageStats = async () => {
       try {
-        const response = await apiClient.get('/creative-ai/usage')
+        const response = await apiClient.get('/ai/creative-ai/usage')
         setUsageStats(response.data.usage)
       } catch (error) {
         console.error('Erro ao carregar estatísticas:', error)
@@ -36,7 +36,7 @@ const CreativeAI = () => {
 
   const templates = [
     {
-      id: 'post',
+      id: 'social_post',
       name: 'Post Social',
       icon: MessageSquare,
       description: 'Crie posts envolventes para redes sociais',
@@ -52,7 +52,7 @@ const CreativeAI = () => {
       placeholder: 'Ex: Crie um meme sobre responsabilidade fiscal'
     },
     {
-      id: 'video',
+      id: 'video_script',
       name: 'Roteiro Vídeo',
       icon: Video,
       description: 'Roteiros para vídeos educativos e informativos',
@@ -86,7 +86,7 @@ const CreativeAI = () => {
   const mockHistory = [
     {
       id: 1,
-      template: 'post',
+      template: 'social_post',
       prompt: 'Post sobre importância da família',
       content: 'A família é o alicerce da nossa sociedade. É no seio familiar que aprendemos os valores fundamentais que nos guiarão por toda a vida: respeito, responsabilidade, amor e união. Quando fortalecemos nossas famílias, fortalecemos nossa nação. #FamíliaForte #ValoresConservadores',
       createdAt: '2024-01-15T10:30:00Z',
@@ -120,7 +120,7 @@ const CreativeAI = () => {
     setIsGenerating(true)
     
     try {
-      const response = await apiClient.post('/creative-ai/generate', {
+      const response = await apiClient.post('/ai/creative-ai/generate', {
         prompt,
         template: selectedTemplate,
         tone: selectedTone,
@@ -164,13 +164,13 @@ const CreativeAI = () => {
         let mockContent = ''
         
         switch (selectedTemplate) {
-          case 'post':
+          case 'social_post':
             mockContent = `🇧🇷 ${prompt}\n\nNossos valores conservadores são a base de uma sociedade próspera e justa. É fundamental que defendamos nossos princípios com coragem e determinação.\n\n#ValoresConservadores #BrasilForte #Patriotismo`
             break
           case 'meme':
             mockContent = `💡 IDEIA PARA MEME:\n\nTítulo: "${prompt}"\n\nTexto sugerido: "Quando você entende que responsabilidade fiscal significa um futuro melhor para seus filhos"\n\nImagem sugerida: Pessoa sorrindo olhando para uma planilha de gastos\n\n#ResponsabilidadeFiscal #FuturoMelhor`
             break
-          case 'video':
+          case 'video_script':
             mockContent = `🎬 ROTEIRO DE VÍDEO\n\n[ABERTURA - 0:00-0:15]\nOlá, patriotas! Hoje vamos falar sobre ${prompt.toLowerCase()}.\n\n[DESENVOLVIMENTO - 0:15-1:30]\nO empreendedorismo é fundamental para o crescimento do nosso país...\n\n[CONCLUSÃO - 1:30-2:00]\nLembrem-se: cada negócio criado é um passo rumo à prosperidade nacional!`
             break
           case 'speech':

@@ -29,7 +29,7 @@ const UsageNotification = ({ userId, onClose }) => {
         }
       });
 
-      if (response.success) {
+      if (response.success && response.data) {
         setUsage(response.data);
         
         // Mostrar notificação se estiver próximo do limite

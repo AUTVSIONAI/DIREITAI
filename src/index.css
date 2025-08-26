@@ -28,4 +28,25 @@
   .sidebar-item.active {
     @apply bg-primary-50 text-primary-600 border-r-2 border-primary-600;
   }
+
+  /* Estilos para conteúdo do blog */
+  .prose img {
+    @apply rounded-lg shadow-sm;
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1.5rem auto;
+  }
+
+  .prose h2 {
+    @apply text-2xl font-bold text-gray-900 mt-8 mb-4;
+  }
+
+  .prose h3 {
+    @apply text-xl font-semibold text-gray-800 mt-6 mb-3;
+  }
+
+  .prose p {
+    @apply text-gray-700 leading-relaxed mb-4;
+  }
 }

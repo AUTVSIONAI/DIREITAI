@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiClient } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
+import { PoliticiansService } from '../services/politicians';
 import { 
   ArrowLeft, 
   MapPin, 
@@ -16,9 +17,23 @@ import {
   MessageSquare,
   ThumbsUp,
   Send,
-  Filter
+  Filter,
+  DollarSign,
+  Users,
+  TrendingUp,
+  PieChart,
+  RefreshCw,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { getPoliticianPhotoUrl } from '../utils/imageUtils';
+
+// Função para formatar datas
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('pt-BR');
+};
 
 const PoliticianProfile = () => {
   const { id } = useParams();
@@ -36,6 +51,15 @@ const PoliticianProfile = () => {
   const [ratingsPage, setRatingsPage] = useState(1);
   const [ratingsPagination, setRatingsPagination] = useState(null);
   const [ratingsSort, setRatingsSort] = useState('recent');
+  
+  // Estados para gastos e servidores
+
+
+  const [staffData, setStaffData] = useState(null);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [transparencyData, setTransparencyData] = useState(null);
+  const [transparencyLoading, setTransparencyLoading] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(2025);
 
   useEffect(() => {
     if (id) {
@@ -45,7 +69,13 @@ const PoliticianProfile = () => {
         fetchUserRating();
       }
     }
-  }, [id, user]);
+  }, [id, user, selectedYear]);
+
+  useEffect(() => {
+    if (politician) {
+      fetchTransparencyData();
+    }
+  }, [politician, selectedYear]);
 
   useEffect(() => {
     fetchRatings();
@@ -54,7 +84,19 @@ const PoliticianProfile = () => {
   const fetchPolitician = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get(`/politicians/${id}`);
+      // Tentar primeiro com dados reais se for ID numérico (deputado federal)
+      let response;
+      if (!isNaN(id) && id.length >= 5) {
+        try {
+          response = await apiClient.get(`/politicians/${id}?use_real_data=true`);
+        } catch (realDataError) {
+          console.log('Dados reais não disponíveis, usando dados do Supabase');
+          response = await apiClient.get(`/politicians/${id}`);
+        }
+      } else {
+        response = await apiClient.get(`/politicians/${id}`);
+      }
+      
       if (response.data.success) {
         setPolitician(response.data.data);
       }
@@ -95,6 +137,91 @@ const PoliticianProfile = () => {
     } catch (error) {
       console.error('Erro ao carregar avaliação do usuário:', error);
     }
+  };
+
+  const fetchTransparencyData = async () => {
+    try {
+
+      setTransparencyLoading(true);
+
+      let response;
+      
+      // Escolher o método correto baseado no nível do político
+      if (politician.position === 'Deputado Federal' || politician.position === 'deputado' || politician.position === 'Senador' || politician.position === 'senador') {
+
+        response = await PoliticiansService.getTransparencyData(id, selectedYear);
+      } else if (politician.position === 'Deputado Estadual') {
+        response = await PoliticiansService.getStateDeputyTransparencyData(id, selectedYear);
+      } else if (politician.position === 'Prefeito') {
+        response = await PoliticiansService.getMayorTransparencyData(id, selectedYear);
+      } else if (politician.position === 'Vereador') {
+        response = await PoliticiansService.getCouncilorTransparencyData(id, selectedYear);
+      } else {
+        console.log('Tipo de político não suportado para dados de transparência:', politician.position);
+        setTransparencyLoading(false);
+        return;
+      }
+      
+      if (response.success) {
+        setTransparencyData(response.data);
+        
+        // Mapear dados de gastos para compatibilidade
+        const expenses = response.data.expenses;
+        const mappedSummary = {
+          totalGasto: expenses.total_year || 0,
+          mediaMensal: expenses.average_monthly || 0,
+          categorias: expenses.categories ? Object.entries(expenses.categories).map(([nome, data]) => ({
+            nome,
+            valor: data.total
+          })) : [],
+          periodo: expenses.summary.period
+        };
+        // Dados de gastos agora vêm da transparencyData
+        
+        // Mapear dados de equipe
+        const staffMembers = response.data.staff.members || [];
+        setStaffData(staffMembers);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados de transparência:', error);
+      setTransparencyData(null);
+      // Dados de gastos resetados com transparencyData
+      setStaffData([]);
+    } finally {
+      
+      setTransparencyLoading(false);
+    }
+  };
+
+
+
+  const fetchStaffData = async () => {
+    try {
+      setStaffLoading(true);
+      // Usar endpoint unificado para todos os tipos de políticos
+      const response = await apiClient.get(`/admin/politicians/staff/${politician.id}`);
+      if (response.data.success) {
+        setStaffData(response.data.data.staff);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados de servidores:', error);
+      setStaffData(null);
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
+  const refreshExpensesData = () => {
+    if (politician) {
+      fetchTransparencyData();
+    }
+  };
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value || 0);
   };
 
   const submitRating = async () => {
@@ -267,15 +394,16 @@ const PoliticianProfile = () => {
                     
                     <div className="flex items-center gap-2 text-gray-600">
                       <MapPin className="w-5 h-5" />
-                      <span>{politician.state} • {politician.party}</span>
+                      <span>
+                        {politician.municipality ? `${politician.municipality}, ` : ''}
+                        {politician.state} • {politician.party}
+                        {politician.level && politician.level !== 'federal' && (
+                          <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                            {politician.level === 'estadual' ? 'Estadual' : 'Municipal'}
+                          </span>
+                        )}
+                      </span>
                     </div>
-
-                    {politician.birth_date && (
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Calendar className="w-5 h-5" />
-                        <span>Nascido em {formatDate(politician.birth_date)}</span>
-                      </div>
-                    )}
                   </div>
 
                   {/* Avaliação */}
@@ -351,6 +479,499 @@ const PoliticianProfile = () => {
                     <p key={index} className="mb-4">{paragraph}</p>
                   ))}
                 </div>
+
+                {/* Indicadores de Transparência */}
+                {transparencyData && (
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <PieChart className="w-5 h-5 text-orange-600" />
+                      Indicadores de Transparência
+                    </h3>
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {/* Score de Transparência */}
+                      {transparencyData.transparency_score && (
+                        <div className="bg-orange-50 p-4 rounded-lg">
+                          <div className="text-sm text-orange-600 font-medium">Score de Transparência</div>
+                          <div className="text-2xl font-bold text-orange-800">
+                            {transparencyData.transparency_score.overall_score}/100
+                          </div>
+                          <div className="text-xs text-orange-600 mt-1">
+                            {transparencyData.transparency_score.classification}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Funcionários Fantasma */}
+                      {transparencyData.ghost_employees && (
+                        <div className="bg-red-50 p-4 rounded-lg">
+                          <div className="text-sm text-red-600 font-medium">Funcionários Fantasma</div>
+                          <div className="text-2xl font-bold text-red-800">
+                            {transparencyData.ghost_employees.suspicious_count || 0}
+                          </div>
+                          <div className="text-xs text-red-600 mt-1">
+                            {transparencyData.ghost_employees.risk_level || 'Baixo'} risco
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Detalhes dos Indicadores */}
+                    {(transparencyData.transparency_score?.details || transparencyData.ghost_employees?.indicators) && (
+                      <div className="mt-4 space-y-3">
+                        {transparencyData.transparency_score?.details && (
+                          <div className="bg-gray-50 p-3 rounded">
+                            <div className="text-sm font-medium text-gray-700 mb-2">Detalhes da Transparência:</div>
+                            <div className="text-xs text-gray-600 space-y-1">
+                              {Object.entries(transparencyData.transparency_score.details).map(([key, value]) => (
+                                <div key={key} className="flex justify-between">
+                                  <span>{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</span>
+                                  <span className="font-medium">{value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {transparencyData.ghost_employees?.indicators && (
+                          <div className="bg-gray-50 p-3 rounded">
+                            <div className="text-sm font-medium text-gray-700 mb-2">Indicadores de Risco:</div>
+                            <div className="text-xs text-gray-600 space-y-1">
+                              {transparencyData.ghost_employees.indicators.map((indicator, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                  <div className={`w-2 h-2 rounded-full ${
+                                    indicator.risk === 'high' ? 'bg-red-500' :
+                                    indicator.risk === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                                  }`}></div>
+                                  <span>{indicator.description}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Informações Institucionais para Políticos Locais */}
+            {(politician.level === 'estadual' || politician.level === 'municipal') && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <Award className="w-6 h-6 text-blue-600" />
+                  Informações Institucionais
+                </h2>
+                
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Informações da Instituição */}
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-semibold text-gray-800">
+                      {politician.level === 'estadual' ? 'Assembleia Legislativa' : 'Câmara Municipal'}
+                    </h3>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <MapPin className="w-4 h-4" />
+                        <span>
+                          {politician.level === 'estadual' 
+                            ? `Assembleia Legislativa do Estado de ${politician.state}`
+                            : `Câmara Municipal de ${politician.municipality || 'Município'}`
+                          }
+                        </span>
+                      </div>
+                      
+                      {politician.state_assembly_id && (
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Award className="w-4 h-4" />
+                          <span>ID Assembleia: {politician.state_assembly_id}</span>
+                        </div>
+                      )}
+                      
+                      {politician.municipal_chamber_id && (
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Award className="w-4 h-4" />
+                          <span>ID Câmara: {politician.municipal_chamber_id}</span>
+                        </div>
+                      )}
+                      
+                      {politician.electoral_zone && (
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <MapPin className="w-4 h-4" />
+                          <span>Zona Eleitoral: {politician.electoral_zone}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Status do Mandato */}
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-semibold text-gray-800">Status do Mandato</h3>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${
+                          politician.current_mandate ? 'bg-green-500' : 'bg-gray-400'
+                        }`}></div>
+                        <span className="text-gray-700">
+                          {politician.current_mandate ? 'Mandato Ativo' : 'Mandato Inativo'}
+                        </span>
+                      </div>
+                      
+                      {politician.mandate_start_date && (
+                        <div className="text-sm text-gray-600">
+                          <strong>Início:</strong> {formatDate(politician.mandate_start_date)}
+                        </div>
+                      )}
+                      
+                      {politician.mandate_end_date && (
+                        <div className="text-sm text-gray-600">
+                          <strong>Término:</strong> {formatDate(politician.mandate_end_date)}
+                        </div>
+                      )}
+                      
+                      {politician.source && (
+                        <div className="text-sm text-gray-600">
+                          <strong>Fonte:</strong> {politician.source.toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Gastos e Transparência */}
+            {(politician.position === 'Deputado Federal' || politician.position === 'deputado' || politician.position === 'Senador' || politician.position === 'senador' || politician.position === 'Deputado Estadual' || politician.position === 'Prefeito' || politician.position === 'Vereador') && politician.expenses_visible === true && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <DollarSign className="w-6 h-6 text-green-600" />
+                    Gastos e Transparência
+                  </h2>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    >
+                      {[2025, 2024, 2023, 2022, 2021, 2020].map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={refreshExpensesData}
+                      className="p-2 text-gray-600 hover:text-green-600 transition-colors"
+                      title="Atualizar dados"
+                    >
+                      <RefreshCw className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Resumo de Gastos */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-blue-600" />
+                      Resumo de Gastos {selectedYear}
+                    </h3>
+                    
+                    {(console.log('transparencyLoading:', transparencyLoading), transparencyLoading) ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600 mx-auto mb-2"></div>
+                        <p className="text-gray-600 text-sm">Carregando gastos...</p>
+                      </div>
+                    ) : transparencyData?.expenses && transparencyData.expenses.total_year > 0 ? (
+                      <div className="space-y-3">
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                          <div className="text-sm text-blue-600 font-medium">Total Gasto</div>
+                          <div className="text-2xl font-bold text-blue-800">
+                            {formatCurrency(transparencyData.expenses.total_year)}
+                          </div>
+                        </div>
+                        
+                        <div className="bg-green-50 p-4 rounded-lg">
+                          <div className="text-sm text-green-600 font-medium">Média Mensal</div>
+                          <div className="text-xl font-bold text-green-800">
+                            {formatCurrency(transparencyData.expenses.average_monthly)}
+                          </div>
+                        </div>
+
+                        {transparencyData.expenses.categories && Object.keys(transparencyData.expenses.categories).length > 0 && (
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium text-gray-700">Principais Categorias:</div>
+                            {Object.entries(transparencyData.expenses.categories).slice(0, 3).map(([nome, data], index) => (
+                              <div key={index} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                <span className="text-sm text-gray-700 truncate">{nome}</span>
+                                <span className="text-sm font-medium text-gray-900">
+                                  {formatCurrency(data.total)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <PieChart className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm">Dados de gastos não disponíveis</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Informações de Salário */}
+                  {transparencyData?.salary && (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                        <DollarSign className="w-5 h-5 text-green-600" />
+                        Remuneração
+                      </h3>
+                      
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {transparencyData.salary.base_salary && typeof transparencyData.salary.base_salary === 'number' && (
+                          <div className="bg-green-50 p-4 rounded-lg">
+                            <div className="text-sm text-green-600 font-medium">Salário Base</div>
+                            <div className="text-xl font-bold text-green-800">
+                              {formatCurrency(transparencyData.salary.base_salary)}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {transparencyData.salary.office_allowance && typeof transparencyData.salary.office_allowance === 'number' && (
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <div className="text-sm text-blue-600 font-medium">Verba de Gabinete</div>
+                            <div className="text-xl font-bold text-blue-800">
+                              {formatCurrency(transparencyData.salary.office_allowance)}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {transparencyData.salary.total_monthly && typeof transparencyData.salary.total_monthly === 'number' && (
+                          <div className="bg-purple-50 p-4 rounded-lg">
+                            <div className="text-sm text-purple-600 font-medium">Total Mensal</div>
+                            <div className="text-xl font-bold text-purple-800">
+                              {formatCurrency(transparencyData.salary.total_monthly)}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {transparencyData.salary.allowances && Array.isArray(transparencyData.salary.allowances) && transparencyData.salary.allowances.length > 0 && (
+                          <div className="bg-orange-50 p-4 rounded-lg">
+                            <div className="text-sm text-orange-600 font-medium">Auxílios</div>
+                            <div className="text-xs text-orange-700 space-y-1">
+                              {transparencyData.salary.allowances.map((auxilio, index) => (
+                                <div key={index} className="flex justify-between">
+                                  <span>{auxilio.name}</span>
+                                  <span className="font-medium">{formatCurrency(auxilio.value)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {transparencyData.salary.source && (
+                        <div className="text-xs text-gray-500 text-center">
+                          Fonte: {transparencyData.salary.source}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Informações da Equipe */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-purple-600" />
+                      Equipe do Gabinete
+                    </h3>
+                    
+                    {transparencyLoading ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600 mx-auto mb-2"></div>
+                        <p className="text-gray-600 text-sm">Carregando equipe...</p>
+                      </div>
+                    ) : transparencyData?.staff?.members && Array.isArray(transparencyData.staff.members) && transparencyData.staff.members.length > 0 ? (
+                      <div className="space-y-3">
+                        {/* Resumo da Equipe */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="bg-purple-50 p-4 rounded-lg">
+                            <div className="text-sm text-purple-600 font-medium">Total de Servidores</div>
+                            <div className="text-2xl font-bold text-purple-800">
+                              {transparencyData.staff.members.length}
+                            </div>
+                          </div>
+                          
+                          {transparencyData?.staff?.salary_analysis && (
+                            <div className="bg-green-50 p-4 rounded-lg">
+                              <div className="text-sm text-green-600 font-medium">Folha de Pagamento</div>
+                              <div className="text-2xl font-bold text-green-800">
+                                {formatCurrency(transparencyData.staff.salary_analysis.total_payroll || 0)}
+                              </div>
+                              <div className="text-xs text-green-600 mt-1">
+                                Mensal estimado
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Resumo de Gastos da Equipe */}
+                        {transparencyData?.staff?.salary_analysis && (
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <div className="text-sm text-blue-600 font-medium mb-2">Resumo de Gastos da Equipe</div>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <div className="text-gray-600">Gasto Anual Estimado</div>
+                                <div className="font-bold text-blue-800">
+                                  {formatCurrency((transparencyData.staff.salary_analysis.total_payroll || 0) * 12)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-gray-600">Média por Servidor</div>
+                                <div className="font-bold text-blue-800">
+                                  {formatCurrency((transparencyData.staff.salary_analysis.total_payroll || 0) / transparencyData.staff.members.length)}
+                                </div>
+                              </div>
+                            </div>
+                            {transparencyData.staff.salary_analysis.benefits_info && (
+                              <div className="mt-2 text-xs text-blue-600">
+                                💡 {transparencyData.staff.salary_analysis.benefits_info}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          <div className="text-sm font-medium text-gray-700">Equipe:</div>
+                          {transparencyData.staff.members.slice(0, 5).map((servidor, index) => (
+                            <div key={index} className="bg-gray-50 p-3 rounded border-l-4 border-purple-200">
+                              <div className="font-medium text-gray-900 text-sm">
+                                {servidor.nome || servidor.name || 'Nome não informado'}
+                              </div>
+                              <div className="text-xs text-gray-600 mb-1">
+                                {servidor.cargo || servidor.position || 'Função não informada'}
+                              </div>
+                              
+                              {/* Informações adicionais */}
+                              <div className="space-y-1">
+                                {(servidor.salario || servidor.salary) && (
+                                  <div className="text-xs text-green-600 font-medium">
+                                    💰 {formatCurrency(servidor.salario || servidor.salary)}
+                                  </div>
+                                )}
+                                
+                                {servidor.education && (
+                                  <div className="text-xs text-blue-600">
+                                    🎓 {servidor.education}
+                                  </div>
+                                )}
+                                
+                                {servidor.experience_years && (
+                                  <div className="text-xs text-orange-600">
+                                    📅 {servidor.experience_years} anos de experiência
+                                  </div>
+                                )}
+                                
+                                {servidor.location && (
+                                  <div className="text-xs text-gray-500">
+                                    📍 {servidor.location}
+                                  </div>
+                                )}
+                                
+                                {servidor.hire_date && (
+                                  <div className="text-xs text-gray-500">
+                                    📋 Contratado em: {new Date(servidor.hire_date).toLocaleDateString('pt-BR')}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {transparencyData.staff.members.length > 5 && (
+                            <div className="text-center text-sm text-gray-500 py-2 bg-gray-100 rounded">
+                              +{transparencyData.staff.members.length - 5} servidores adicionais
+                              <div className="text-xs text-gray-400 mt-1">
+                                Clique para ver todos os membros da equipe
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm">Dados da equipe não disponíveis</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Análise de Funcionários Fantasma */}
+                {transparencyData?.staff?.ghost_employee_indicators && transparencyData.staff.ghost_employee_indicators.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-red-600" />
+                      Análise de Funcionários Fantasma
+                    </h3>
+                    
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="w-4 h-4 text-red-600" />
+                        <span className="text-sm font-medium text-red-800">
+                          {transparencyData.staff.ghost_employee_indicators.length} funcionário(s) com indicadores suspeitos
+                        </span>
+                      </div>
+                      <p className="text-xs text-red-700">
+                        Esta análise identifica possíveis irregularidades baseada em critérios como salários incompatíveis, 
+                        nomes genéricos, CPF não informado e funcionários inativos recebendo salário.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {transparencyData.staff.ghost_employee_indicators.map((indicator, index) => (
+                        <div key={index} className={`p-4 rounded-lg border ${
+                          indicator.risk_level === 'Alto' ? 'bg-red-50 border-red-200' :
+                          indicator.risk_level === 'Médio' ? 'bg-yellow-50 border-yellow-200' :
+                          'bg-orange-50 border-orange-200'
+                        }`}>
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <div className="font-medium text-gray-900">{indicator.name}</div>
+                              <div className="text-sm text-gray-600">{indicator.cargo}</div>
+                            </div>
+                            <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              indicator.risk_level === 'Alto' ? 'bg-red-100 text-red-800' :
+                              indicator.risk_level === 'Médio' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-orange-100 text-orange-800'
+                            }`}>
+                              Risco {indicator.risk_level}
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            {indicator.warnings.map((warning, wIndex) => (
+                              <div key={wIndex} className="flex items-center gap-2 text-sm">
+                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                                <span className="text-gray-700">{warning}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Info className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-800">Como interpretar</span>
+                      </div>
+                      <p className="text-xs text-blue-700">
+                        Estes indicadores são baseados em análise automatizada e servem como alerta para possíveis 
+                        irregularidades. Investigação adicional pode ser necessária para confirmar qualquer suspeita.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

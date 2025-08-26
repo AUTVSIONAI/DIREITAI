@@ -14,16 +14,72 @@ interface DeputadoCamara {
 }
 
 interface SenadorSenado {
-  CodigoParlamentar: string;
-  NomeParlamentar: string;
-  NomeCompletoParlamentar: string;
-  SexoParlamentar: string;
-  FormaTratamento: string;
-  UrlFotoParlamentar: string;
-  UrlPaginaParlamentar: string;
-  EmailParlamentar: string;
-  SiglaPartidoParlamentar: string;
-  UfParlamentar: string;
+  IdentificacaoParlamentar: {
+    CodigoParlamentar: string;
+    NomeParlamentar: string;
+    NomeCompletoParlamentar: string;
+    SexoParlamentar: string;
+    FormaTratamento: string;
+    UrlFotoParlamentar: string;
+    UrlPaginaParlamentar: string;
+    EmailParlamentar: string;
+    SiglaPartidoParlamentar: string;
+    UfParlamentar: string;
+  };
+  Mandato: {
+    UfParlamentar: string;
+  };
+}
+
+// Interfaces para dados de gastos
+interface DeputadoExpense {
+  ano: number;
+  mes: number;
+  tipoDespesa: string;
+  codDocumento: number;
+  tipoDocumento: string;
+  codTipoDocumento: number;
+  dataDocumento: string;
+  numDocumento: string;
+  valorDocumento: number;
+  urlDocumento: string;
+  nomeFornecedor: string;
+  cnpjCpfFornecedor: string;
+  valorLiquido: number;
+  valorGlosa: number;
+  numRessarcimento: string;
+  codLote: number;
+  parcela: number;
+}
+
+interface SenadorExpense {
+  ano: string;
+  mes: string;
+  senador: string;
+  tipo_despesa: string;
+  cnpj_cpf: string;
+  fornecedor: string;
+  documento: string;
+  data: string;
+  detalhamento: string;
+  valor_reembolsado: number;
+}
+
+// Interfaces para dados de servidores
+interface DeputadoStaff {
+  nome: string;
+  cargo: string;
+  situacao: string;
+  remuneracao: number;
+  tipo_folha: string;
+}
+
+interface SenadorStaff {
+  nome: string;
+  cargo: string;
+  lotacao: string;
+  remuneracao_bruta: number;
+  situacao: string;
 }
 
 interface PoliticianSyncData {
@@ -55,6 +111,34 @@ export interface Politician {
     instagram?: string;
     website?: string;
   };
+  expenses?: {
+    monthly_total?: number;
+    yearly_total?: number;
+    last_updated?: string;
+  };
+  staff?: {
+    total_count?: number;
+    parliamentary_secretaries?: number;
+    last_updated?: string;
+  };
+  // Novos campos para políticos locais
+  level?: 'federal' | 'estadual' | 'municipal';
+  municipality?: string;
+  municipality_code?: string;
+  electoral_zone?: string;
+  mandate_start_date?: string;
+  mandate_end_date?: string;
+  current_mandate?: boolean;
+  state_assembly_id?: string;
+  district_number?: number;
+  municipal_chamber_id?: string;
+  council_seat_number?: number;
+  full_name?: string;
+  email?: string;
+  external_id?: string;
+  source?: 'manual' | 'camara' | 'senado' | 'alesp' | 'alerj' | 'almg' | 'assembleia_estadual' | 'tse' | 'camara_municipal' | 'prefeitura';
+  legislature_id?: number;
+  status?: 'pending' | 'approved' | 'rejected';
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +157,24 @@ export interface CreatePoliticianData {
     instagram?: string;
     website?: string;
   };
+  // Novos campos para políticos locais
+  level?: 'federal' | 'estadual' | 'municipal';
+  municipality?: string;
+  municipality_code?: string;
+  electoral_zone?: string;
+  mandate_start_date?: string;
+  mandate_end_date?: string;
+  current_mandate?: boolean;
+  state_assembly_id?: string;
+  district_number?: number;
+  municipal_chamber_id?: string;
+  council_seat_number?: number;
+  full_name?: string;
+  email?: string;
+  external_id?: string;
+  source?: 'manual' | 'camara' | 'senado' | 'alesp' | 'alerj' | 'almg' | 'assembleia_estadual' | 'tse' | 'camara_municipal' | 'prefeitura';
+  legislature_id?: number;
+  status?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface UpdatePoliticianData extends Partial<CreatePoliticianData> {}
@@ -89,8 +191,12 @@ export class PoliticiansService {
     position?: string;
     city?: string;
     state?: string;
+    level?: 'federal' | 'estadual' | 'municipal';
+    municipality?: string;
+    current_mandate?: boolean;
     page?: number;
     limit?: number;
+    use_real_data?: boolean;
   }): Promise<{
     politicians: Politician[];
     total: number;
@@ -114,8 +220,9 @@ export class PoliticiansService {
   /**
    * Obter político específico
    */
-  static async getPolitician(id: number): Promise<Politician> {
-    const response = await apiClient.get(`/politicians/${id}`);
+  static async getPolitician(id: number, useRealData?: boolean): Promise<Politician> {
+    const params = useRealData ? '?use_real_data=true' : '';
+    const response = await apiClient.get(`/politicians/${id}${params}`);
     return response.data;
   }
 
@@ -239,15 +346,16 @@ export class PoliticiansService {
    * Converte dados de senador para formato padrão
    */
   private static convertSenadorData(senador: SenadorSenado): PoliticianSyncData {
+    const identificacao = senador.IdentificacaoParlamentar;
     return {
-      name: senador.NomeParlamentar,
-      full_name: senador.NomeCompletoParlamentar,
-      party: senador.SiglaPartidoParlamentar,
-      state: senador.UfParlamentar,
+      name: identificacao.NomeParlamentar,
+      full_name: identificacao.NomeCompletoParlamentar,
+      party: identificacao.SiglaPartidoParlamentar,
+      state: identificacao.UfParlamentar,
       position: 'senador',
-      photo_url: senador.UrlFotoParlamentar,
-      email: senador.EmailParlamentar,
-      external_id: senador.CodigoParlamentar,
+      photo_url: identificacao.UrlFotoParlamentar,
+      email: identificacao.EmailParlamentar,
+      external_id: identificacao.CodigoParlamentar,
       source: 'senado',
       status: 'pending'
     };
@@ -331,6 +439,157 @@ export class PoliticiansService {
     }
   }
 
+  // ===== MÉTODOS PARA POLÍTICOS LOCAIS =====
+
+  /**
+   * Busca deputados estaduais de um estado específico
+   */
+  static async fetchDeputadosEstaduais(state: string): Promise<any[]> {
+    try {
+      const response = await apiClient.get(`/admin/politicians/fetch/deputados-estaduais/${state}`);
+      return response.data.deputados_estaduais || [];
+    } catch (error) {
+      console.error('Erro ao buscar deputados estaduais:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca prefeitos de um estado específico
+   */
+  static async fetchPrefeitos(state: string): Promise<any[]> {
+    try {
+      const response = await apiClient.get(`/admin/politicians/fetch/prefeitos/${state}`);
+      return response.data.prefeitos || [];
+    } catch (error) {
+      console.error('Erro ao buscar prefeitos:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca vereadores de um município específico
+   */
+  static async fetchVereadores(state: string, municipality: string): Promise<any[]> {
+    try {
+      const response = await apiClient.get(`/admin/politicians/fetch/vereadores/${state}/${municipality}`);
+      return response.data.vereadores || [];
+    } catch (error) {
+      console.error('Erro ao buscar vereadores:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sincroniza deputados estaduais com o banco de dados
+   */
+  static async syncDeputadosEstaduais(state: string): Promise<{ success: number; errors: number; total: number }> {
+    try {
+      const deputadosEstaduais = await this.fetchDeputadosEstaduais(state);
+      
+      const response = await apiClient.post('/admin/politicians/sync/deputados-estaduais', {
+        state: state,
+        politicians: deputadosEstaduais
+      });
+      
+      return {
+        success: response.data.created || 0,
+        errors: response.data.errors || 0,
+        total: response.data.total || 0
+      };
+    } catch (error) {
+      console.error('Erro na sincronização de deputados estaduais:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sincroniza prefeitos com o banco de dados
+   */
+  static async syncPrefeitos(state: string): Promise<{ success: number; errors: number; total: number }> {
+    try {
+      const prefeitos = await this.fetchPrefeitos(state);
+      
+      const response = await apiClient.post('/admin/politicians/sync/prefeitos', {
+        state: state,
+        politicians: prefeitos
+      });
+      
+      return {
+        success: response.data.created || 0,
+        errors: response.data.errors || 0,
+        total: response.data.total || 0
+      };
+    } catch (error) {
+      console.error('Erro na sincronização de prefeitos:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sincroniza vereadores com o banco de dados
+   */
+  static async syncVereadores(state: string, municipality: string): Promise<{ success: number; errors: number; total: number }> {
+    try {
+      const vereadores = await this.fetchVereadores(state, municipality);
+      
+      const response = await apiClient.post('/admin/politicians/sync/vereadores', {
+        state: state,
+        municipality: municipality,
+        politicians: vereadores
+      });
+      
+      return {
+        success: response.data.created || 0,
+        errors: response.data.errors || 0,
+        total: response.data.total || 0
+      };
+    } catch (error) {
+      console.error('Erro na sincronização de vereadores:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sincroniza todos os políticos locais de um estado
+   */
+  static async syncAllLocalPoliticians(state: string, municipality?: string): Promise<{
+    deputados_estaduais: { success: number; errors: number; total: number };
+    prefeitos: { success: number; errors: number; total: number };
+    vereadores?: { success: number; errors: number; total: number };
+  }> {
+    try {
+      console.log(`Iniciando sincronização de políticos locais para ${state}...`);
+      
+      const promises = [
+        this.syncDeputadosEstaduais(state),
+        this.syncPrefeitos(state)
+      ];
+      
+      if (municipality) {
+        promises.push(this.syncVereadores(state, municipality));
+      }
+      
+      const results = await Promise.all(promises);
+      
+      const response: any = {
+        deputados_estaduais: results[0],
+        prefeitos: results[1]
+      };
+      
+      if (municipality && results[2]) {
+        response.vereadores = results[2];
+      }
+      
+      console.log('Sincronização de políticos locais concluída:', response);
+      
+      return response;
+    } catch (error) {
+      console.error('Erro na sincronização de políticos locais:', error);
+      throw error;
+    }
+  }
+
   /**
    * Busca detalhes de um deputado específico
    */
@@ -382,6 +641,168 @@ export class PoliticiansService {
       throw error;
     }
   }
+
+  // ===== MÉTODOS PARA DADOS DE GASTOS E SERVIDORES =====
+
+  /**
+   * Busca gastos de um deputado específico
+   */
+  static async getDeputadoExpenses(deputadoId: string, ano?: number, mes?: number): Promise<DeputadoExpense[]> {
+    try {
+      const response = await apiClient.get(`/admin/politicians/expenses/${deputadoId}`, {
+        params: { ano, mes }
+      });
+      return response.data.expenses;
+    } catch (error) {
+      console.error(`Erro ao buscar gastos do deputado ${deputadoId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca gastos de um senador específico
+   */
+  static async getSenadorExpenses(senadorId: string, ano?: number, mes?: number): Promise<SenadorExpense[]> {
+    try {
+      const response = await apiClient.get(`/admin/politicians/expenses/${senadorId}`, {
+        params: { ano, mes }
+      });
+      return response.data.expenses;
+    } catch (error) {
+      console.error(`Erro ao buscar gastos do senador ${senadorId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca servidores de um político (unificado para todos os tipos)
+   */
+  static async getPoliticianStaff(politicianId: string): Promise<any[]> {
+    try {
+      const response = await apiClient.get(`/admin/politicians/staff/${politicianId}`);
+      return response.data.data.staff;
+    } catch (error) {
+      console.error(`Erro ao buscar servidores do político ${politicianId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca servidores de um deputado específico (mantido para compatibilidade)
+   */
+  static async getDeputadoStaff(deputadoId: string): Promise<DeputadoStaff[]> {
+    return this.getPoliticianStaff(deputadoId);
+  }
+
+  /**
+   * Busca servidores de um senador específico (mantido para compatibilidade)
+   */
+  static async getSenadorStaff(senadorId: string): Promise<SenadorStaff[]> {
+    return this.getPoliticianStaff(senadorId);
+  }
+
+  /**
+   * Busca dados completos de transparência de um político
+   */
+  static async getTransparencyData(politicianId: string, year?: number, useRealData?: boolean): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      if (year) params.append('ano', year.toString());
+      if (useRealData || (!isNaN(Number(politicianId)) && politicianId.length >= 5)) {
+        params.append('use_real_data', 'true');
+      }
+      
+      const url = `/admin/politicians/transparency/${politicianId}${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await apiClient.get(url);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao buscar dados de transparência do político ${politicianId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca dados de transparência para deputado estadual
+   */
+  static async getStateDeputyTransparencyData(politicianId: string, year?: number): Promise<any> {
+    try {
+      const url = year 
+        ? `/admin/politicians/transparency/deputado-estadual/${politicianId}?ano=${year}`
+        : `/admin/politicians/transparency/deputado-estadual/${politicianId}`;
+      const response = await apiClient.get(url);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao buscar dados de transparência do deputado estadual ${politicianId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca dados de transparência para prefeito
+   */
+  static async getMayorTransparencyData(politicianId: string, year?: number): Promise<any> {
+    try {
+      const url = year 
+        ? `/admin/politicians/transparency/prefeito/${politicianId}?ano=${year}`
+        : `/admin/politicians/transparency/prefeito/${politicianId}`;
+      const response = await apiClient.get(url);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao buscar dados de transparência do prefeito ${politicianId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca dados de transparência para vereador
+   */
+  static async getCouncilorTransparencyData(politicianId: string, year?: number): Promise<any> {
+    try {
+      const url = year 
+        ? `/admin/politicians/transparency/vereador/${politicianId}?ano=${year}`
+        : `/admin/politicians/transparency/vereador/${politicianId}`;
+      const response = await apiClient.get(url);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao buscar dados de transparência do vereador ${politicianId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Atualiza dados de gastos e servidores de um político
+   */
+  static async updatePoliticianExpensesAndStaff(politicianId: number, source: 'camara' | 'senado', externalId: string): Promise<any> {
+    try {
+      const response = await apiClient.post(`/admin/politicians/${politicianId}/update-expenses-staff`, {
+        source,
+        externalId
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao atualizar gastos e servidores do político ${politicianId}:`, error);
+      throw error;
+    }
+  }
+
+
+
+  /**
+   * Busca resumo de servidores de um político
+   */
+  static async getPoliticianStaffSummary(politicianId: number): Promise<{
+    total_count: number;
+    parliamentary_secretaries: number;
+    last_updated: string;
+  }> {
+    try {
+      const response = await apiClient.get(`/politicians/${politicianId}/staff/summary`);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao buscar resumo de servidores do político ${politicianId}:`, error);
+      throw error;
+    }
+  }
 }
 
 // Exportar a instância para uso direto
@@ -404,7 +825,24 @@ export const politiciansService = {
   syncAllPoliticians: PoliticiansService.syncAllPoliticians,
   getDeputadoDetails: PoliticiansService.getDeputadoDetails,
   getSenadorDetails: PoliticiansService.getSenadorDetails,
-  updatePoliticianFromAPI: PoliticiansService.updatePoliticianFromAPI
+  updatePoliticianFromAPI: PoliticiansService.updatePoliticianFromAPI,
+  // Métodos para políticos locais
+  fetchDeputadosEstaduais: PoliticiansService.fetchDeputadosEstaduais,
+  fetchPrefeitos: PoliticiansService.fetchPrefeitos,
+  fetchVereadores: PoliticiansService.fetchVereadores,
+  syncDeputadosEstaduais: PoliticiansService.syncDeputadosEstaduais,
+  syncPrefeitos: PoliticiansService.syncPrefeitos,
+  syncVereadores: PoliticiansService.syncVereadores,
+  syncAllLocalPoliticians: PoliticiansService.syncAllLocalPoliticians,
+  // Métodos para gastos e servidores
+  getDeputadoExpenses: PoliticiansService.getDeputadoExpenses,
+  getSenadorExpenses: PoliticiansService.getSenadorExpenses,
+  getPoliticianStaff: PoliticiansService.getPoliticianStaff,
+  getDeputadoStaff: PoliticiansService.getDeputadoStaff,
+  getSenadorStaff: PoliticiansService.getSenadorStaff,
+  updatePoliticianExpensesAndStaff: PoliticiansService.updatePoliticianExpensesAndStaff,
+
+  getPoliticianStaffSummary: PoliticiansService.getPoliticianStaffSummary
 };
 
 export default PoliticiansService;
