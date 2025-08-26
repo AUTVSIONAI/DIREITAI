@@ -16,12 +16,18 @@ const ConstitutionDownload = () => {
     if (userProfile?.id) {
       console.log('🔍 ConstitutionDownload - userProfile:', userProfile);
       console.log('🔍 ConstitutionDownload - using ID:', userProfile.id);
+      console.log('📱 ConstitutionDownload - User Agent:', navigator.userAgent);
+      console.log('📱 ConstitutionDownload - Is Mobile:', /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
       
       // Limpar estado anterior e forçar verificação sempre que o componente montar
       const forceCheck = async () => {
         console.log('🔍 ConstitutionDownload - Limpando estado e forçando verificação...');
         setIsDownloaded(false); // Reset do estado
         localStorage.removeItem('constituicao_baixada'); // Limpar cache
+        
+        // Aguardar um pouco para garantir que o estado foi limpo
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         await checkDownloadStatus();
         await fetchUserPoints();
       };
@@ -67,16 +73,23 @@ const ConstitutionDownload = () => {
       
       console.log('🔍 ConstitutionDownload - Verificando status para userId:', userId);
       console.log('🔍 ConstitutionDownload - API URL:', `${API_BASE_URL}/constitution-downloads/users/${userId}/status`);
+      console.log('📱 ConstitutionDownload - localStorage antes da verificação:', localStorage.getItem('constituicao_baixada'));
+      
+      const session = await supabase.auth.getSession();
+      console.log('🔍 ConstitutionDownload - Session válida:', !!session.data.session);
       
       const response = await fetch(`${API_BASE_URL}/constitution-downloads/users/${userId}/status`, {
         headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          'Authorization': `Bearer ${session.data.session?.access_token}`
         }
       });
+      
+      console.log('🔍 ConstitutionDownload - Response status:', response.status);
       
       if (response.ok) {
         const status = await response.json();
         console.log('🔍 ConstitutionDownload - Status da API:', status);
+        console.log('📱 ConstitutionDownload - hasDownloaded from API:', status.hasDownloaded);
         
         // SEMPRE usar o status da API e limpar localStorage se necessário
         if (status.hasDownloaded) {
@@ -84,14 +97,17 @@ const ConstitutionDownload = () => {
           setIsDownloaded(true);
           // Garantir que localStorage está sincronizado
           localStorage.setItem('constituicao_baixada', 'true');
+          console.log('📱 ConstitutionDownload - localStorage atualizado para true');
         } else {
           console.log('📘 ConstitutionDownload - Usuário NÃO BAIXOU a constituição');
           setIsDownloaded(false);
           // Limpar localStorage se API diz que não baixou
           localStorage.removeItem('constituicao_baixada');
+          console.log('📱 ConstitutionDownload - localStorage removido');
         }
       } else {
-        console.error('🔍 ConstitutionDownload - Erro ao verificar status:', response.status);
+        const errorText = await response.text();
+        console.error('🔍 ConstitutionDownload - Erro ao verificar status:', response.status, errorText);
         // Em caso de erro da API, assumir que não foi baixado para evitar inconsistências
         console.log('🔍 ConstitutionDownload - API falhou, assumindo não baixado');
         setIsDownloaded(false);
