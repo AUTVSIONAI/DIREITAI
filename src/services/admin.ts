@@ -551,7 +551,7 @@ export class AdminService {
   static async updateSystemSettings(
     settings: Record<string, any>
   ): Promise<SystemSettings> {
-    const response = await apiClient.patch('/admin/settings', settings);
+    const response = await apiClient.put('/admin/settings', { settings });
     return response.data;
   }
 

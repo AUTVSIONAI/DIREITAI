@@ -24,6 +24,7 @@ import LiveMapService from '../../../services/liveMap'
 import { apiClient } from '../../../lib/api.ts'
 import { useAuth } from '../../../hooks/useAuth'
 import RSVPButton from '../../common/RSVPButton'
+import ManifestationsService from '../../../services/manifestations'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 
@@ -968,11 +969,18 @@ const UnifiedLiveMap = () => {
                          ✏️ Editar
                        </button>
                        <button
-                         onClick={() => {
+                         onClick={async () => {
                            if (confirm('Tem certeza que deseja excluir esta manifestação?')) {
-                             // Implementar exclusão
-                             console.log('Excluir manifestação:', selectedManifestation.id)
-                             setSelectedManifestation(null)
+                             try {
+                               await ManifestationsService.deleteManifestation(selectedManifestation.id)
+                               // Recarregar dados das manifestações
+                               await fetchManifestations()
+                               setSelectedManifestation(null)
+                               alert('Manifestação excluída com sucesso!')
+                             } catch (error) {
+                               console.error('Erro ao excluir manifestação:', error)
+                               alert('Erro ao excluir manifestação. Tente novamente.')
+                             }
                            }
                          }}
                          className="flex-1 px-3 py-1 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200"

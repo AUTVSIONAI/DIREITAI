@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Edit, Trash2, ToggleLeft, ToggleRight, ChevronUp, ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { ApiClientImpl } from '../../../lib/api';
 
 const apiClient = new ApiClientImpl();
@@ -20,6 +20,8 @@ const PlansManagement = () => {
     fake_news_analyses_limit: '',
     is_active: true,
     is_popular: false,
+    is_visible: true,
+    sort_order: 0,
     color: 'blue',
     icon: 'Package'
   });
@@ -162,6 +164,49 @@ const PlansManagement = () => {
         alert('Acesso negado. Faça login com uma conta de administrador.');
       } else {
         alert('Erro ao alterar status do plano');
+      }
+    }
+  };
+
+  const handleToggleVisibility = async (planId, currentVisibility) => {
+    try {
+      const response = await apiClient.patch(`/plans/${planId}/visibility`, {
+        is_visible: !currentVisibility
+      });
+      
+      if (response && response.data && response.data.success) {
+        alert(`Plano ${currentVisibility ? 'ocultado' : 'tornado visível'} com sucesso!`);
+        fetchPlans();
+      } else {
+        alert('Erro ao alterar visibilidade do plano: ' + (response?.data?.message || 'Resposta inválida'));
+      }
+    } catch (error) {
+      console.error('Erro ao alterar visibilidade do plano:', error);
+      if (error.response?.status === 403) {
+        alert('Acesso negado. Faça login com uma conta de administrador.');
+      } else {
+        alert('Erro ao alterar visibilidade do plano');
+      }
+    }
+  };
+
+  const handleReorder = async (planId, direction) => {
+    try {
+      const response = await apiClient.patch(`/plans/${planId}/reorder`, {
+        direction: direction
+      });
+      
+      if (response && response.data && response.data.success) {
+        fetchPlans();
+      } else {
+        alert('Erro ao reordenar plano: ' + (response?.data?.message || 'Resposta inválida'));
+      }
+    } catch (error) {
+      console.error('Erro ao reordenar plano:', error);
+      if (error.response?.status === 403) {
+        alert('Acesso negado. Faça login com uma conta de administrador.');
+      } else {
+        alert('Erro ao reordenar plano');
       }
     }
   };
@@ -340,8 +385,30 @@ const PlansManagement = () => {
                     />
                     Plano Popular
                   </label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_visible}
+                      onChange={(e) => setFormData({ ...formData, is_visible: e.target.checked })}
+                      className="mr-2"
+                    />
+                    Visível para Usuários
+                  </label>
                 </div>
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Ordem de Exibição
+              </label>
+              <input
+                type="number"
+                value={formData.sort_order}
+                onChange={(e) => setFormData({ ...formData, sort_order: e.target.value })}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                placeholder="0"
+                min="0"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -397,6 +464,9 @@ const PlansManagement = () => {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Ordem
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Nome
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -409,13 +479,37 @@ const PlansManagement = () => {
                 Status
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Visibilidade
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Ações
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {plans.map((plan) => (
+            {plans.map((plan, index) => (
               <tr key={plan.id}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">{plan.sort_order || 0}</span>
+                    <div className="flex flex-col">
+                      <button
+                        onClick={() => handleReorder(plan.id, 'up')}
+                        className="text-gray-400 hover:text-gray-600"
+                        disabled={index === 0}
+                      >
+                        <ChevronUp size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleReorder(plan.id, 'down')}
+                        className="text-gray-400 hover:text-gray-600"
+                        disabled={index === plans.length - 1}
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div>
                     <div className="text-sm font-medium text-gray-900">{plan.name}</div>
@@ -440,23 +534,42 @@ const PlansManagement = () => {
                     {plan.is_active ? 'Ativo' : 'Inativo'}
                   </span>
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <button
+                      onClick={() => handleToggleVisibility(plan.id, plan.is_visible)}
+                      className={`${plan.is_visible ? 'text-green-600 hover:text-green-900' : 'text-gray-400 hover:text-gray-600'}`}
+                      title={plan.is_visible ? 'Visível para usuários' : 'Oculto dos usuários'}
+                    >
+                      {plan.is_visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                    </button>
+                    <span className={`ml-2 text-xs ${
+                      plan.is_visible ? 'text-green-600' : 'text-gray-400'
+                    }`}>
+                      {plan.is_visible ? 'Visível' : 'Oculto'}
+                    </span>
+                  </div>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleEdit(plan)}
                       className="text-blue-600 hover:text-blue-900"
+                      title="Editar plano"
                     >
                       <Edit size={16} />
                     </button>
                     <button
                       onClick={() => handleToggleActive(plan.id, plan.is_active)}
                       className={`${plan.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}`}
+                      title={plan.is_active ? 'Desativar plano' : 'Ativar plano'}
                     >
                       {plan.is_active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                     </button>
                     <button
                       onClick={() => handleDelete(plan.id)}
                       className="text-red-600 hover:text-red-900"
+                      title="Deletar plano"
                     >
                       <Trash2 size={16} />
                     </button>
