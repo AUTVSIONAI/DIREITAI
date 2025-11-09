@@ -3,7 +3,15 @@ import { ApiClient, ApiResponse, RequestOptions, ApiMetrics, HealthCheck } from 
 import { supabase } from './supabase';
 
 // Configuração base da API
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
+const RAW_API_BASE_URL = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
+const IS_BROWSER = typeof window !== 'undefined';
+const IS_PROD_SITE = IS_BROWSER && !/localhost|127\.0\.0\.1/i.test(window.location.hostname);
+const IS_LOCAL_TARGET = /localhost|127\.0\.0\.1/i.test(RAW_API_BASE_URL);
+const IS_RELATIVE_API = RAW_API_BASE_URL.startsWith('/api');
+// Evitar usar localhost ou rota relativa em produção
+const API_BASE_URL = (IS_PROD_SITE && (IS_LOCAL_TARGET || IS_RELATIVE_API))
+  ? 'https://direitai-backend.vercel.app/api'
+  : RAW_API_BASE_URL;
 
 
 

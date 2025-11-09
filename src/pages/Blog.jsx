@@ -8,6 +8,7 @@ import {
   Search, Filter, Calendar, User, Eye, Tag, Heart, MessageCircle, 
   Share2, TrendingUp, Zap, Globe, ArrowLeft, Star, Clock
 } from 'lucide-react';
+import { resolveImageUrl } from '../utils/imageUtils';
 
 const Blog = () => {
   const [posts, setPosts] = useState([]);

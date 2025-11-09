@@ -82,3 +82,24 @@ export const getPoliticianPhotoUrl = (photoUrl) => {
 
   return getAbsoluteImageUrl(photoUrl);
 };
+
+// Obtém a origem do backend a partir da VITE_API_URL
+export const getApiOrigin = () => {
+  const base = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
+  return base.replace(/\/(api)\/?$/, '');
+};
+
+// Resolve URLs de imagens para suportar completas e relativas
+export const resolveImageUrl = (url) => {
+  if (!url) {
+    return null;
+  }
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  const origin = getApiOrigin();
+  if (url.startsWith('/')) {
+    return `${origin}${url}`;
+  }
+  return `${origin}/${url}`;
+};

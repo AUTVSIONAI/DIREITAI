@@ -12,7 +12,8 @@ export default defineConfig({
   
   // Configurações de desenvolvimento
   server: {
-    port: 5121,
+    port: Number(process.env.PORT || process.env.VITE_DEV_PORT || 5121),
+    strictPort: true,
     host: true,
     open: true,
     cors: {

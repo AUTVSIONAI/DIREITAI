@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { API_CONFIG } from '../lib/api';
+import { resolveImageUrl } from '../utils/imageUtils';
 
 // Função util para obter origem do backend a partir da BASE_URL
 const API_ORIGIN = (API_CONFIG?.BASE_URL || '').replace(/\/(api)\/?$/, '');
@@ -41,13 +42,8 @@ const processImageUrls = (content) => {
 };
 
 // Resolve URLs de imagens para suportar completas e relativas
-const resolveImageUrl = (url) => {
-  if (!url) return null;
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  const origin = API_ORIGIN || 'https://direitai-backend.vercel.app';
-  if (url.startsWith('/')) return `${origin}${url}`;
-  return `${origin}/${url}`;
-};
+// (util compartilhado importado de ../utils/imageUtils)
+// Função local removida para evitar duplicação.
 
 const BlogPost = () => {
   const { slug } = useParams();
@@ -735,3 +731,4 @@ const BlogPost = () => {
 };
 
 export default BlogPost;
+// Removido resolveImageUrl local; usando util compartilhado
