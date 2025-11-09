@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Search, Star, Trash2, Filter, TrendingUp, TrendingDown } from 'lucide-react'
 import { apiClient } from '../../../lib/api'
+import { supabase } from '../../../lib/supabase.js'
 
 const RatingsManagement = () => {
   const [ratings, setRatings] = useState([])
@@ -19,7 +20,33 @@ const RatingsManagement = () => {
     try {
       setLoading(true)
       const response = await apiClient.get('/ratings')
-      setRatings(response.data?.data || [])
+      let ratingsList = response.data?.data || []
+
+      // Normalizar chave do político (supabase retorna 'politicians')
+      ratingsList = ratingsList.map(r => ({
+        ...r,
+        politician: r.politician || r.politicians || null
+      }))
+
+      // Enriquecer com dados do usuário (nome e avatar)
+      const userIds = [...new Set(ratingsList.map(r => r?.user_id).filter(Boolean))]
+      if (userIds.length > 0) {
+        try {
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('id, full_name, name, username, email, avatar_url')
+            .in('id', userIds)
+          const usersById = Object.fromEntries((usersData || []).map(u => [u.id, u]))
+          ratingsList = ratingsList.map(r => ({
+            ...r,
+            user: r.user || usersById[r?.user_id] || null
+          }))
+        } catch (e) {
+          console.warn('Falha ao enriquecer usuários nas avaliações:', e)
+        }
+      }
+
+      setRatings(ratingsList)
     } catch (error) {
       console.error('Erro ao carregar avaliações:', error)
       setRatings([])
@@ -267,11 +294,30 @@ const RatingsManagement = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {rating.user?.name || 'Usuário anônimo'}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {rating.user?.email}
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-8 w-8">
+                        {rating.user?.avatar_url ? (
+                          <img
+                            className="h-8 w-8 rounded-full object-cover"
+                            src={rating.user.avatar_url}
+                            alt={rating.user.full_name || rating.user.name || rating.user.username}
+                          />
+                        ) : (
+                          <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                            <span className="text-xs font-medium text-gray-700">
+                              {(rating.user?.full_name || rating.user?.name || rating.user?.username || 'U')?.charAt(0)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="ml-3">
+                        <div className="text-sm text-gray-900">
+                          {rating.user?.full_name || rating.user?.name || rating.user?.username || 'Usuário anônimo'}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {rating.user?.email || ''}
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

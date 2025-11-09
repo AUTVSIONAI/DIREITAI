@@ -25,6 +25,14 @@ export interface CheckoutSession {
   sessionId: string
 }
 
+const getAffiliateCode = (): string | null => {
+  try {
+    return localStorage.getItem('affiliate_code') || null
+  } catch {
+    return null
+  }
+}
+
 class PaymentsService {
   async getPlans(): Promise<Plan[]> {
     const response = await apiClient.get('/payments/plans')
@@ -32,12 +40,19 @@ class PaymentsService {
   }
 
   async createCheckoutSession(planId: string): Promise<CheckoutSession> {
+    const affiliateCode = getAffiliateCode()
     const response = await apiClient.post('/payments/checkout', {
       planId,
+      affiliate_code: affiliateCode,
       successUrl: `${window.location.origin}/admin/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${window.location.origin}/admin/plans`
     })
-    return response.data
+    const payload = (response as any)?.data ?? response
+    const sessionData = payload?.data ?? payload
+    if (!sessionData?.url || !sessionData?.sessionId) {
+      throw new Error('Erro ao criar sessão de pagamento')
+    }
+    return sessionData
   }
 
   async getSubscription(): Promise<Subscription | null> {
