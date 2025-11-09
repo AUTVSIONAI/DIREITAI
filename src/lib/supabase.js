@@ -1,86 +1,34 @@
 import { createClient } from '@supabase/supabase-js'
+import { apiClient } from './api'
 
 // Configurações do Supabase
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Verificações básicas de conectividade
-
-// Verificar se as dependências estão disponíveis
-console.log('🔧 Verificando dependências...');
-console.log('🔧 createClient type:', typeof createClient);
-console.log('🔧 createClient:', createClient);
-
-// Criar cliente Supabase de forma simplificada
-let supabase;
-
-try {
-  console.log('🚀 Criando cliente Supabase...');
-  
-  // Criar cliente com configuração mínima
-  supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      flowType: 'pkce'
+// Criar cliente Supabase
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce'
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'direitai-frontend'
     }
-  });
-  
-  console.log('✅ Cliente Supabase criado com sucesso!');
-  
-} catch (error) {
-  console.error('❌ Erro ao criar cliente Supabase:', error);
-  
-  // Fallback sem configurações
-  try {
-    console.log('🔄 Tentando fallback sem configurações...');
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
-    console.log('✅ Cliente criado com fallback!');
-  } catch (fallbackError) {
-    console.error('❌ Erro no fallback:', fallbackError);
-    supabase = null;
+  },
+  db: {
+    schema: 'public'
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
   }
-}
+})
 
-// Fallback para cliente mock se não foi possível criar o cliente real
-if (!supabase) {
-  console.log('⚠️ Usando cliente mock - Supabase não disponível');
-  
-  // Fallback para cliente mock em caso de erro
-  supabase = {
-    auth: {
-      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-      signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Cliente Supabase não disponível') }),
-      signUp: () => Promise.resolve({ data: null, error: new Error('Cliente Supabase não disponível') }),
-      signOut: () => Promise.resolve({ error: null }),
-      resend: () => Promise.resolve({ data: null, error: new Error('Cliente Supabase não disponível') }),
-      onAuthStateChange: (callback) => {
-        console.log('Mock onAuthStateChange called');
-        if (typeof callback === 'function') {
-          setTimeout(() => callback('SIGNED_OUT', null), 0);
-        }
-        return {
-          data: {
-            subscription: {
-              unsubscribe: () => console.log('Mock subscription unsubscribed')
-            }
-          }
-        }
-      },
-      getSession: () => Promise.resolve({ data: { session: null }, error: null })
-    },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: () => Promise.resolve({ data: null, error: new Error('Cliente Supabase não disponível') })
-        })
-      })
-    })
-  };
-}
 
-export { supabase };
 
 // Função para verificar se o usuário está autenticado
 export const isAuthenticated = async () => {
@@ -96,50 +44,22 @@ export const isAuthenticated = async () => {
 // Função para obter o usuário atual
 export const getCurrentUser = async () => {
   try {
-    // Primeiro, verificar se há uma sessão ativa
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.log('❌ Erro ao obter sessão:', sessionError.message);
-    }
-    
-    if (session?.user) {
-      console.log('✅ Usuário obtido da sessão:', session.user.email);
-      return session.user;
-    }
-    
-    // Se não há sessão, tentar getUser()
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
+    const { data: { user }, error } = await supabase.auth.getUser()
     if (error) {
-      // Se o erro é "Auth session missing", tentar refresh
+      // Se for erro de sessão faltando, não é um erro real - apenas não há usuário logado
       if (error.message.includes('Auth session missing')) {
-        console.log('🔄 Tentando refresh da sessão...');
-        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
-        
-        if (refreshedSession?.user && !refreshError) {
-          console.log('✅ Usuário obtido após refresh:', refreshedSession.user.email);
-          return refreshedSession.user;
-        } else {
-          console.log('❌ Refresh falhou:', refreshError?.message);
-          return null; // Retornar null em vez de lançar erro
-        }
+        return null
       }
-      console.log('❌ Erro de autenticação:', error.message);
-      return null; // Retornar null para outros erros também
-    }
-    
-    if (user) {
-      console.log('✅ Usuário obtido via getUser:', user.email);
-    }
-    
-    return user;
-  } catch (error) {
-    // Não mostrar erros de auth em páginas públicas do blog
-    const isPublicBlogPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/blog');
-    if (!isPublicBlogPage) {
       console.error('Erro ao obter usuário atual:', error)
+      return null
     }
+    return user
+  } catch (error) {
+    // Se for erro de sessão faltando, não é um erro real - apenas não há usuário logado
+    if (error.message && error.message.includes('Auth session missing')) {
+      return null
+    }
+    console.error('Erro ao obter usuário atual:', error)
     return null
   }
 }
@@ -147,14 +67,22 @@ export const getCurrentUser = async () => {
 // Função para fazer login
 export const signIn = async (email, password) => {
   try {
+    // Verificar se as variáveis estão definidas
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Configuração do Supabase não encontrada')
+    }
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
-    if (error) throw error
+    
+    if (error) {
+      throw error
+    }
+    
     return { data, error: null }
   } catch (error) {
-    console.error('Erro ao fazer login:', error)
     return { data: null, error }
   }
 }
@@ -181,27 +109,34 @@ export const signUp = async (email, password, userData = {}) => {
 export const signOut = async () => {
   try {
     const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    if (error) {
+      // Se for erro de rede, ainda considerar logout como sucesso localmente
+      if (error.message?.includes('ERR_ABORTED') || error.message?.includes('network')) {
+        console.warn('Erro de rede no logout, mas limpando sessão local:', error.message)
+        return { success: true }
+      }
+      throw error
+    }
     return { success: true }
   } catch (error) {
     console.error('Erro ao fazer logout:', error)
+    // Para erros de rede, ainda retornar sucesso para limpar a sessão local
+    if (error.message?.includes('ERR_ABORTED') || error.message?.includes('network')) {
+      return { success: true }
+    }
     return { success: false, error }
   }
 }
 
-// Função para verificar se é admin
-export const isAdmin = async (userId) => {
+// Função para verificar se é admin via backend
+export const isAdmin = async (_userId) => {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', userId)
-      .single()
-    
-    if (error) throw error
-    return data?.role === 'admin'
+    const resp = await apiClient.get('/auth/me')
+    const profile = resp?.data?.profile
+    if (!profile) return false
+    return profile?.role === 'admin' || profile?.is_admin === true
   } catch (error) {
-    console.error('Erro ao verificar se é admin:', error)
+    console.error('Erro ao verificar se é admin via backend:', error)
     return false
   }
 }

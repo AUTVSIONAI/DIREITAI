@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Trophy, Medal, Crown, MapPin, TrendingUp, Users, Filter } from 'lucide-react'
-import { useAuth } from '../../../hooks/useAuth'
+import { useAuth } from '../../../contexts/AuthContext'
 import { apiClient } from '../../../lib/api'
 import { useNavigate } from 'react-router-dom'
 

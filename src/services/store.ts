@@ -727,7 +727,13 @@ export class StoreService {
     sessionId: string;
     url: string;
   }> {
-    const response = await apiClient.post('/store/checkout', { items });
+    const affiliateCode = (() => {
+      try { return localStorage.getItem('affiliate_code') || null } catch { return null }
+    })()
+    const payload: any = { items }
+
+    if (affiliateCode) payload.affiliate_code = affiliateCode
+    const response = await apiClient.post('/store/checkout', payload);
     return response.data;
   }
 
@@ -756,8 +762,15 @@ export class StoreService {
     sessionId: string;
     url: string;
   }> {
-    const response = await apiClient.post('/store/checkout');
-    return response.data.data;
+    const affiliateCode = (() => {
+      try { return localStorage.getItem('affiliate_code') || null } catch { return null }
+    })()
+    const payload: any = {}
+
+    if (affiliateCode) payload.affiliate_code = affiliateCode
+    const response = await apiClient.post('/store/checkout', payload);
+
+    return response.data;
   }
 
   /**

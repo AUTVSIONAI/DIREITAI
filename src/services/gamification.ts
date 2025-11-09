@@ -1,4 +1,4 @@
-import { apiClient } from '../lib/api.ts';
+import { apiClient } from '../lib/api';
 import type {
   UserLevel,
   UserPoints,
@@ -725,7 +725,7 @@ export class GamificationService {
   static async saveQuizResult(
     userId: string,
     result: {
-      quizType: 'constitution';
+      quizType: string;
       score: number;
       totalQuestions: number;
       correctAnswers: number;

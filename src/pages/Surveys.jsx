@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BarChart3, Clock, Users, TrendingUp, MessageCircle, Vote, ArrowLeft } from 'lucide-react'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/api'
 import { supabase } from '../lib/supabase'
 

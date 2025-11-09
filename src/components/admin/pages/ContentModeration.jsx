@@ -21,6 +21,7 @@ import {
   Shield,
   AlertCircle
 } from 'lucide-react'
+import { useDebounce } from '../../../hooks/useUtils.ts'
 import { ContentModerationService } from '../../../services'
 
 const ContentModeration = () => {
@@ -29,6 +30,9 @@ const ContentModeration = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedContent, setSelectedContent] = useState(null)
   const [showFilters, setShowFilters] = useState(false)
+
+  // Debounce search term para evitar muitas requisições
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
   
   // Estados para dados reais
   const [pendingContent, setPendingContent] = useState([])
@@ -144,8 +148,8 @@ const ContentModeration = () => {
   }
 
   const filteredContent = (getContentByTab() || []).filter(content => {
-    const matchesSearch = content.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         content.author.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = content.title.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                         content.author.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
     const matchesFilter = selectedFilter === 'all' || content.category === selectedFilter
     return matchesSearch && matchesFilter
   })

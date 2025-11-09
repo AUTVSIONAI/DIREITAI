@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart3, TrendingUp, Users, Calendar, Award, MapPin } from 'lucide-react'
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { LazyPieChart, LazyBarChart } from '../components/common/LazyRecharts'
 import { apiClient } from '../lib/api'
 import { supabase } from '../lib/supabase'
 
@@ -260,56 +260,13 @@ const SurveyResults = () => {
                     {/* Gráfico de Pizza */}
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h4 className="text-lg font-semibold text-gray-900 mb-4">Distribuição dos Votos</h4>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={chartData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percentage }) => `${name}: ${percentage}%`}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {chartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <LazyPieChart data={chartData} colors={COLORS} />
                     </div>
 
                     {/* Gráfico de Barras */}
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h4 className="text-lg font-semibold text-gray-900 mb-4">Comparação de Votos</h4>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={chartData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                          <XAxis 
-                            dataKey="name" 
-                            tick={{ fill: 'white', fontSize: 12 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={80}
-                          />
-                          <YAxis tick={{ fill: 'white' }} />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'rgba(0,0,0,0.8)', 
-                              border: 'none', 
-                              borderRadius: '8px',
-                              color: 'white'
-                            }}
-                          />
-                          <Bar dataKey="value" fill="#8884d8">
-                            {chartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                      <LazyBarChart data={chartData} colors={COLORS} />
                     </div>
                   </div>
 

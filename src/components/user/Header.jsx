@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth } from '../../contexts/AuthContext';
 import { useGamification } from '../../hooks/useGamification'
 import { signOut } from '../../lib/supabase'
 import { Menu, LogOut, Settings, User } from 'lucide-react'
@@ -8,10 +8,6 @@ import NotificationBell from '../common/NotificationBell'
 const Header = ({ setSidebarOpen }) => {
   const { user, userProfile } = useAuth()
   const { userPoints } = useGamification()
-  
-  // Debug temporário para verificar userPoints
-  console.log('🎯 Header - userPoints:', userPoints)
-  console.log('🎯 Header - userPoints.total:', userPoints?.total)
   
   const [dropdownOpen, setDropdownOpen] = useState(false)
 

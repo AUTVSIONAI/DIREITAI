@@ -163,8 +163,8 @@ const VoiceControls = forwardRef(({
           className={`p-2 rounded-full transition-all duration-200 ${
             voiceEnabled
               ? speaking
-                ? 'bg-blue-500 text-white animate-pulse'
-                : 'bg-blue-100 hover:bg-blue-200 text-blue-600'
+                ? 'bg-gray-500 text-white animate-pulse'
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
               : 'bg-gray-100 hover:bg-gray-200 text-gray-400'
           }`}
           title={voiceEnabled ? 'Desativar voz' : 'Ativar voz'}
@@ -202,7 +202,7 @@ const VoiceControls = forwardRef(({
                 <select
                   value={selectedVoiceType}
                   onChange={(e) => setSelectedVoiceType(e.target.value)}
-                  className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-gray-500"
                 >
                   {availableVoices.female && (
                     <option value="female">
@@ -255,7 +255,7 @@ const VoiceControls = forwardRef(({
                   rate: speechRate,
                   volume: speechVolume
                 })}
-                className="w-full text-xs bg-blue-500 text-white py-1 px-2 rounded hover:bg-blue-600 transition-colors"
+                className="w-full text-xs bg-gray-600 text-white py-1 px-2 rounded hover:bg-gray-700 transition-colors"
               >
                 Testar Voz
               </button>
@@ -275,7 +275,7 @@ const VoiceControls = forwardRef(({
           )}
           {speaking && (
             <span className="flex items-center">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse mr-1"></div>
+              <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse mr-1"></div>
               Falando...
             </span>
           )}

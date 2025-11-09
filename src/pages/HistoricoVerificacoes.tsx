@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { apiRequest } from '../utils/apiClient'

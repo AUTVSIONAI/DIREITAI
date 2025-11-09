@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import Map, { Marker, Popup, NavigationControl, ScaleControl, FullscreenControl, Source, Layer } from 'react-map-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import { LazyMap, LazyMarker, LazyPopup, LazyNavigationControl, LazyScaleControl, LazyFullscreenControl, LazySource, LazyLayer } from '../../common/LazyMapbox'
 import {
   MapPin,
   Users,
@@ -25,8 +24,6 @@ import { apiClient } from '../../../lib/api.ts'
 import { useAuth } from '../../../hooks/useAuth'
 import RSVPButton from '../../common/RSVPButton'
 import ManifestationsService from '../../../services/manifestations'
-
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 
 const UnifiedLiveMap = () => {
   const { user } = useAuth()
@@ -806,20 +803,19 @@ const UnifiedLiveMap = () => {
       {/* Mapa */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="h-64 sm:h-80 md:h-96 lg:h-[600px]">
-          <Map
+          <LazyMap
             {...viewport}
             onMove={evt => setViewport(evt.viewState)}
             style={{ width: '100%', height: '100%' }}
             mapStyle={mapStyles[currentMapStyle]}
-            mapboxAccessToken={MAPBOX_TOKEN}
           >
             {/* Controles de Navegação */}
-            <NavigationControl position="top-right" />
-            <ScaleControl position="bottom-left" />
-            <FullscreenControl position="top-left" />
+            <LazyNavigationControl position="top-right" />
+            <LazyScaleControl position="bottom-left" />
+            <LazyFullscreenControl position="top-left" />
             {/* Camada de heatmap */}
             {layerVisibility.heatmap && heatmapData.length > 0 && (
-              <Source
+              <LazySource
                 id="heatmap-source"
                 type="geojson"
                 data={{
@@ -834,21 +830,21 @@ const UnifiedLiveMap = () => {
                   }))
                 }}
               >
-                <Layer {...heatmapLayerConfig} />
-              </Source>
+                <LazyLayer {...heatmapLayerConfig} />
+              </LazySource>
             )}
 
             {/* Círculos de raio das manifestações */}
             {layerVisibility.manifestations && generateManifestationCircles() && (
-              <Source id="manifestation-circles" type="geojson" data={generateManifestationCircles()}>
-                <Layer {...manifestationCircleLayer} />
-                <Layer {...manifestationCircleBorderLayer} />
-              </Source>
+              <LazySource id="manifestation-circles" type="geojson" data={generateManifestationCircles()}>
+                <LazyLayer {...manifestationCircleLayer} />
+                <LazyLayer {...manifestationCircleBorderLayer} />
+              </LazySource>
             )}
 
             {/* Marcadores de eventos */}
             {layerVisibility.events && activeEvents.map((event) => (
-              <Marker
+              <LazyMarker
                 key={event.id}
                 latitude={event.latitude}
                 longitude={event.longitude}
@@ -857,12 +853,12 @@ const UnifiedLiveMap = () => {
                 <div className="bg-green-500 rounded-full p-2 cursor-pointer hover:bg-green-600 transition-colors">
                   <Calendar className="h-4 w-4 text-white" />
                 </div>
-              </Marker>
+              </LazyMarker>
             ))}
 
             {/* Marcadores de manifestações */}
             {layerVisibility.manifestations && manifestations.map((manifestation) => (
-              <Marker
+              <LazyMarker
                 key={manifestation.id}
                 latitude={manifestation.latitude}
                 longitude={manifestation.longitude}
@@ -871,12 +867,12 @@ const UnifiedLiveMap = () => {
                 <div className="bg-red-500 rounded-full p-2 cursor-pointer hover:bg-red-600 transition-colors">
                   <MapPin className="h-4 w-4 text-white" />
                 </div>
-              </Marker>
+              </LazyMarker>
             ))}
 
             {/* Marcadores de usuários com check-in */}
             {layerVisibility.users && userCheckins.map((checkin) => (
-              <Marker
+              <LazyMarker
                 key={checkin.id}
                 latitude={checkin.latitude}
                 longitude={checkin.longitude}
@@ -885,12 +881,12 @@ const UnifiedLiveMap = () => {
                 <div className="bg-blue-500 rounded-full p-1.5 cursor-pointer hover:bg-blue-600 transition-colors border-2 border-white shadow-lg">
                   <Users className="h-3 w-3 text-white" />
                 </div>
-              </Marker>
+              </LazyMarker>
             ))}
 
             {/* Popups de eventos */}
             {selectedEvent && (
-              <Popup
+              <LazyPopup
                 latitude={selectedEvent.latitude}
                 longitude={selectedEvent.longitude}
                 onClose={() => setSelectedEvent(null)}
@@ -907,12 +903,12 @@ const UnifiedLiveMap = () => {
                     {new Date(selectedEvent.date).toLocaleDateString()}
                   </p>
                 </div>
-              </Popup>
+              </LazyPopup>
             )}
 
             {/* Popups de manifestações */}
             {selectedManifestation && (
-              <Popup
+              <LazyPopup
                 latitude={selectedManifestation.latitude}
                 longitude={selectedManifestation.longitude}
                 onClose={() => setSelectedManifestation(null)}
@@ -990,12 +986,12 @@ const UnifiedLiveMap = () => {
                      </div>
                   </div>
                 </div>
-              </Popup>
+              </LazyPopup>
             )}
 
             {/* Popup de check-ins de usuários */}
             {selectedUserCheckin && (
-              <Popup
+              <LazyPopup
                 latitude={selectedUserCheckin.latitude}
                 longitude={selectedUserCheckin.longitude}
                 onClose={() => setSelectedUserCheckin(null)}
@@ -1024,12 +1020,12 @@ const UnifiedLiveMap = () => {
                     </div>
                   </div>
                 </div>
-              </Popup>
+              </LazyPopup>
             )}
 
             {/* Marcadores de usuários */}
             {layerVisibility.users && onlineUsers.map((user) => (
-              <Marker
+              <LazyMarker
                 key={user.id}
                 latitude={user.latitude}
                 longitude={user.longitude}
@@ -1038,12 +1034,12 @@ const UnifiedLiveMap = () => {
                 <div className="bg-blue-500 rounded-full p-2 cursor-pointer hover:bg-blue-600 transition-colors">
                   <Users className="h-4 w-4 text-white" />
                 </div>
-              </Marker>
+              </LazyMarker>
             ))}
 
             {/* Popups de usuários */}
             {selectedUser && (
-              <Popup
+              <LazyPopup
                 latitude={selectedUser.latitude}
                 longitude={selectedUser.longitude}
                 onClose={() => setSelectedUser(null)}
@@ -1059,12 +1055,12 @@ const UnifiedLiveMap = () => {
                     Status: {selectedUser.status === 'online' ? 'Online' : 'Em evento'}
                   </p>
                 </div>
-              </Popup>
+              </LazyPopup>
             )}
 
             {/* Popups de clusters */}
             {selectedCluster && (
-              <Popup
+              <LazyPopup
                 latitude={selectedCluster.center.lat}
                 longitude={selectedCluster.center.lng}
                 onClose={() => setSelectedCluster(null)}
@@ -1096,9 +1092,9 @@ const UnifiedLiveMap = () => {
                     </div>
                   </div>
                 </div>
-              </Popup>
+              </LazyPopup>
             )}
-          </Map>
+          </LazyMap>
         </div>
       </div>
 

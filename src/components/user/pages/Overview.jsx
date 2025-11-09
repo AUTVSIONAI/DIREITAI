@@ -1,13 +1,19 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense, lazy } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../../../hooks/useAuth'
+import { useAuth } from '../../../contexts/AuthContext';
 import { useGamification } from '../../../hooks/useGamification'
-import { supabase } from '../../../lib/supabase'
 import { apiClient } from '../../../lib/api.ts'
-import ConstitutionDownload from '../ConstitutionDownload'
-import AIConversations from '../AIConversations'
-import UsageLimits from '../UsageLimits'
 import AnnouncementBanner from '../../common/AnnouncementBanner'
+
+// Lazy load components that are not immediately visible
+const ConstitutionDownload = lazy(() => import('../ConstitutionDownload'))
+const AIConversations = lazy(() => import('../AIConversations'))
+const UsageLimits = lazy(() => import('../UsageLimits'))
+
+// Loading component for lazy components
+const ComponentLoader = () => (
+  <div className="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+)
 import { 
   MapPin, 
   MessageCircle, 
@@ -37,119 +43,85 @@ const Overview = () => {
   const [loadingSurveys, setLoadingSurveys] = useState(true)
 
   useEffect(() => {
-    fetchUserStats()
-    fetchSurveys()
-  }, [])
+    if (userProfile?.id) {
+      fetchUserStats()
+      fetchSurveys()
+      setLoading(false)
+    }
+  }, [userProfile?.id])
 
   // Atualizar stats quando os dados de gamificação chegarem
   useEffect(() => {
-    if (userStats && userPoints) {
+    if (userStats && userPoints && !gamificationLoading) {
       const monthlyGoalValue = userGoals?.monthlyGoal?.target_value || Math.max(500, (userPoints.level || 1) * 100)
       
-      setStats(prev => ({
-        ...prev,
-        totalCheckins: userStats.checkins || 0,
-        chatMessages: userStats.conversations || 0,
-        weeklyPoints: userPoints.weeklyPoints || 0,
-        monthlyGoal: monthlyGoalValue
-      }))
+      setStats(prev => {
+        const newStats = {
+          ...prev,
+          totalCheckins: userStats.checkins || 0,
+          chatMessages: userStats.conversations || 0,
+          weeklyPoints: userPoints.weeklyPoints || 0,
+          monthlyGoal: monthlyGoalValue
+        }
+        
+        if (prev.totalCheckins === newStats.totalCheckins &&
+            prev.chatMessages === newStats.chatMessages &&
+            prev.weeklyPoints === newStats.weeklyPoints &&
+            prev.monthlyGoal === newStats.monthlyGoal) {
+          return prev
+        }
+        
+        return newStats
+      })
     }
-  }, [userStats, userPoints, userGoals])
+  }, [gamificationLoading])
 
-  // Função para obter o user_id correto da tabela public.users
+  // Obter o user_id diretamente do perfil (mapeado via AuthProvider)
   const getUserId = async () => {
-    if (!userProfile?.id) return null
-    
-    try {
-      // Buscar o user_id da tabela public.users usando o auth_id
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('id')
-        .eq('auth_id', userProfile.id)
-        .single()
-      
-      if (error) {
-        console.error('❌ Overview - Erro ao buscar user_id:', error)
-        return userProfile.id // fallback para auth_id
-      }
-      
-      console.log('🔑 Overview - user_id encontrado:', user.id, 'para auth_id:', userProfile.id)
-      return user.id
-    } catch (error) {
-      console.error('❌ Overview - Erro ao resolver user_id:', error)
-      return userProfile.id // fallback para auth_id
-    }
+    return userProfile?.id || null
   }
 
   const fetchUserStats = async () => {
     try {
       if (!userProfile?.id) {
-        console.log('UserProfile não disponível ainda')
         return
       }
       
-      // Usar user_id correto para buscar dados de gamificação
+      setLoading(true)
+      
       const userId = await getUserId()
-      if (!userId) return
-      
-      // Buscar dados de gamificação reais usando o user_id
-      const gamificationResponse = await apiClient.get(`/gamification/users/${userId}/stats`)
-      console.log('📊 Dados de gamificação:', gamificationResponse)
-      
-      // Buscar estatísticas do usuário (incluindo conversas de IA reais)
-        const usageResponse = await apiClient.get('/users/usage-stats')
-        const aiConversations = usageResponse.data?.usage?.ai_conversations?.used || 0
-      
-      // Buscar conquistas reais da tabela badges
-        const achievementsResponse = await apiClient.get(`/gamification/users/${userId}/achievements?status=unlocked`)
-        const achievements = achievementsResponse.data?.length || 0
-      
-      // Buscar posição no ranking usando a rota correta
-      let userPosition = 0
-      try {
-        const rankingResponse = await apiClient.get('/users/ranking')
-        userPosition = rankingResponse?.data?.user_position || 0
-      } catch (rankingError) {
-        console.log('Erro ao buscar ranking:', rankingError)
+      if (!userId) {
+        setLoading(false)
+        return
       }
       
-      // Calcular pontos semanais com base nas transações dos últimos 7 dias
-      let weeklyPoints = 0
-      try {
-        const weekAgo = new Date()
-        weekAgo.setDate(weekAgo.getDate() - 7)
-        
-        const transactionsResponse = await apiClient.get(`/gamification/users/${userId}/points/transactions?since=${weekAgo.toISOString()}`)
-        // A API retorna um array diretamente
-        const transactions = Array.isArray(transactionsResponse) ? transactionsResponse : (transactionsResponse?.data || [])
-        weeklyPoints = transactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0)
-        console.log('📊 Overview - Pontos semanais calculados:', weeklyPoints, 'de', transactions.length, 'transações')
-      } catch (transactionError) {
-        console.log('Erro ao buscar transações semanais, usando estimativa:', transactionError)
-        // Fallback: estimar pontos semanais como 30% dos pontos totais
-        weeklyPoints = Math.floor((gamificationResponse?.points || 0) * 0.3)
-      }
+      const [usageResponse, achievementsResponse, rankingResponse] = await Promise.allSettled([
+        apiClient.get('/users/usage-stats'),
+        apiClient.get(`/gamification/users/${userId}/achievements?status=unlocked`),
+        apiClient.get('/users/ranking')
+      ])
       
-      setStats({
-          totalCheckins: usageResponse.data?.checkins || 0,
-          chatMessages: aiConversations,
-          rankingPosition: userPosition,
-          achievementsUnlocked: achievements,
-          weeklyPoints: weeklyPoints,
-          monthlyGoal: 500 // Valor padrão, será atualizado pelo useEffect com dados reais
-        })
+      const aiConversations = usageResponse.status === 'fulfilled' ? 
+        usageResponse.value?.data?.usage?.ai_conversations?.used || 0 : 0
+      
+      const achievements = achievementsResponse.status === 'fulfilled' ? 
+        achievementsResponse.value?.data?.length || 0 : 0
+      
+      const userPosition = rankingResponse.status === 'fulfilled' ? 
+        rankingResponse.value?.data?.user_position || 0 : 0
+      
+      setStats(prev => ({
+        ...prev,
+        totalCheckins: usageResponse.status === 'fulfilled' ? usageResponse.value?.data?.checkins || 0 : 0,
+        chatMessages: aiConversations,
+        rankingPosition: userPosition,
+        achievementsUnlocked: achievements
+      }))
        
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error)
-      // Definir valores padrão em caso de erro
-      setStats({
-        totalCheckins: 0,
-        chatMessages: 0,
-        rankingPosition: 0,
-        achievementsUnlocked: 0,
-        weeklyPoints: 0,
-        monthlyGoal: 500
-      })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -251,13 +223,19 @@ const Overview = () => {
       </div>
 
       {/* Constitution Download */}
-      <ConstitutionDownload />
+      <Suspense fallback={<ComponentLoader />}>
+        <ConstitutionDownload />
+      </Suspense>
 
       {/* Usage Limits Section */}
-      <UsageLimits />
+      <Suspense fallback={<ComponentLoader />}>
+        <UsageLimits />
+      </Suspense>
 
       {/* AI Conversations Section */}
-      <AIConversations />
+      <Suspense fallback={<ComponentLoader />}>
+        <AIConversations />
+      </Suspense>
 
       {/* Progress Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

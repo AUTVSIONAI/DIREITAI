@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import Map, { Marker, Popup, NavigationControl, ScaleControl, FullscreenControl } from 'react-map-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import { LazyMap, LazyMarker, LazyPopup, LazyNavigationControl, LazyScaleControl, LazyFullscreenControl } from '../../common/LazyMapbox'
 import {
   MapPin,
   Calendar,
@@ -15,10 +14,8 @@ import {
   Target
 } from 'lucide-react'
 import { apiClient } from '../../../lib/api'
-import { useAuth } from '../../../hooks/useAuth'
+import { useAuth } from '../../../contexts/AuthContext'
 import RSVPButton from '../../common/RSVPButton'
-
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 
 const EventMap = () => {
   const { user } = useAuth()
@@ -77,9 +74,39 @@ const EventMap = () => {
         }))
         setLocationError(null)
       },
-      (error) => {
+      async (error) => {
         console.error('Erro ao obter localização:', error)
-        setLocationError('Não foi possível obter sua localização. Verifique as permissões.')
+        // Mensagem amigável por código
+        const friendly = error?.code === 1
+          ? 'Permissão de localização negada. Autorize o acesso ao GPS para check-in.'
+          : error?.code === 2
+            ? 'A posição não pôde ser determinada. Verifique sua conexão.'
+            : error?.code === 3
+              ? 'Tempo excedido para obter localização.'
+              : 'Não foi possível obter sua localização. Verifique as permissões.'
+        setLocationError(friendly)
+
+        // Fallback por IP: tenta obter lat/long aproximado
+        try {
+          const resp = await fetch('https://ipapi.co/json/')
+          if (resp.ok) {
+            const json = await resp.json()
+            if (json && typeof json.latitude === 'number' && typeof json.longitude === 'number') {
+              const approx = { latitude: json.latitude, longitude: json.longitude }
+              setUserLocation(approx)
+              setViewport(prev => ({
+                ...prev,
+                latitude: approx.latitude,
+                longitude: approx.longitude,
+                zoom: 8
+              }))
+              // Atualiza mensagem para indicar localização aproximada
+              setLocationError('Usando localização aproximada por IP. Para check-in, habilite o GPS.')
+            }
+          }
+        } catch (e) {
+          console.warn('Falha no fallback de IP para localização:', e)
+        }
       },
       {
         enableHighAccuracy: true,
@@ -228,16 +255,38 @@ const EventMap = () => {
     loadUserCheckins()
   }, [loadUserCheckins])
 
-  // Auto-refresh a cada 30 segundos
+  // Auto-refresh otimizado - reduz frequência quando página não está visível
   useEffect(() => {
-    const interval = setInterval(() => {
-      loadAllData()
-      loadUserCheckins()
-      setLastRefresh(new Date())
-    }, 30000)
-
-    return () => clearInterval(interval)
-  }, [loadAllData, loadUserCheckins])
+    let interval
+    
+    const startAutoRefresh = () => {
+      // Intervalo mais longo quando página não está visível (2 minutos)
+      // Intervalo normal quando página está visível (30 segundos)
+      const refreshInterval = document.hidden ? 120000 : 30000
+      
+      interval = setInterval(() => {
+        // Só atualiza se a página estiver visível ou se passou muito tempo
+        if (!document.hidden || Date.now() - lastRefresh.getTime() > 120000) {
+          loadAllData()
+          loadUserCheckins()
+          setLastRefresh(new Date())
+        }
+      }, refreshInterval)
+    }
+    
+    const handleVisibilityChange = () => {
+      clearInterval(interval)
+      startAutoRefresh()
+    }
+    
+    startAutoRefresh()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [loadAllData, loadUserCheckins, lastRefresh])
 
   const getEventStatusColor = (event) => {
     if (checkedInEvents.includes(event.id)) return 'bg-green-500'
@@ -410,27 +459,26 @@ const EventMap = () => {
           </div>
         )}
 
-        <Map
-          {...viewport}
+        <LazyMap
+          viewState={viewport}
           onMove={evt => setViewport(evt.viewState)}
           style={{ width: '100%', height: '100%' }}
           mapStyle="mapbox://styles/mapbox/streets-v12"
-          mapboxAccessToken={MAPBOX_TOKEN}
         >
-          <NavigationControl position="top-right" />
-          <ScaleControl position="bottom-left" />
-          <FullscreenControl position="top-right" />
+          <LazyNavigationControl position="top-right" />
+          <LazyScaleControl position="bottom-left" />
+          <LazyFullscreenControl position="top-right" />
 
           {/* Marcador da localização do usuário */}
           {userLocation && (
-            <Marker
+            <LazyMarker
               latitude={userLocation.latitude}
               longitude={userLocation.longitude}
             >
               <div className="bg-blue-600 rounded-full p-2 border-2 border-white shadow-lg">
                 <Navigation className="h-4 w-4 text-white" />
               </div>
-            </Marker>
+            </LazyMarker>
           )}
 
           {/* Marcadores de eventos */}
@@ -442,7 +490,7 @@ const EventMap = () => {
               return true
             })
             .map((event) => (
-              <Marker
+              <LazyMarker
                 key={event.id}
                 latitude={event.latitude}
                 longitude={event.longitude}
@@ -451,7 +499,7 @@ const EventMap = () => {
                 <div className={`${getEventStatusColor(event)} rounded-full p-2 cursor-pointer hover:scale-110 transition-transform border-2 border-white shadow-lg`}>
                   <Calendar className="h-4 w-4 text-white" />
                 </div>
-              </Marker>
+              </LazyMarker>
             ))
           }
 
@@ -464,7 +512,7 @@ const EventMap = () => {
               return true
             })
             .map((manifestation) => (
-              <Marker
+              <LazyMarker
                 key={`manifestation-${manifestation.id}`}
                 latitude={manifestation.latitude}
                 longitude={manifestation.longitude}
@@ -473,13 +521,13 @@ const EventMap = () => {
                 <div className="bg-purple-600 rounded-full p-2 cursor-pointer hover:scale-110 transition-transform border-2 border-white shadow-lg">
                   <Users className="h-4 w-4 text-white" />
                 </div>
-              </Marker>
+              </LazyMarker>
             ))
           }
 
           {/* Popup do evento selecionado */}
           {selectedEvent && (
-            <Popup
+            <LazyPopup
               latitude={selectedEvent.latitude}
               longitude={selectedEvent.longitude}
               onClose={() => setSelectedEvent(null)}
@@ -560,12 +608,12 @@ const EventMap = () => {
                   )}
                 </div>
               </div>
-            </Popup>
+            </LazyPopup>
           )}
 
           {/* Popup da manifestação selecionada */}
           {selectedManifestation && (
-            <Popup
+            <LazyPopup
               latitude={selectedManifestation.latitude}
               longitude={selectedManifestation.longitude}
               onClose={() => setSelectedManifestation(null)}
@@ -613,9 +661,9 @@ const EventMap = () => {
                   />
                 </div>
               </div>
-            </Popup>
+            </LazyPopup>
           )}
-        </Map>
+        </LazyMap>
       </div>
 
       {/* Legenda */}

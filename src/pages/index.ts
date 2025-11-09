@@ -2,6 +2,7 @@
 export { default as HomePage } from './HomePage';
 
 // Auth Pages
+
 export { default as LoginPage } from './Auth/LoginPage';
 export { default as RegisterPage } from './Auth/RegisterPage';
 

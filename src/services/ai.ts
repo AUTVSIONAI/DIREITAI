@@ -1,4 +1,4 @@
-import { apiClient } from '../lib/api.ts';
+import { apiClient } from '../lib/api';
 import type {
   AIConversation,
   AIMessage,
@@ -25,13 +25,20 @@ export class AIService {
    */
   static async getConversations(userId: string): Promise<AIConversation[]> {
     try {
-      const response = await apiClient.get(`/ai/conversations?userId=${userId}`);
-      // Verificar se a resposta é um array válido
-      if (Array.isArray(response.data)) {
-        return response.data;
+      const response = await fetch('/api/ai/conversations', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      console.warn('API retornou dados inválidos para conversas:', response.data);
-      return [];
+
+      const data = await response.json();
+      return data.conversations || [];
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
       return [];
@@ -60,16 +67,50 @@ export class AIService {
   static async updateConversation(
     conversationId: string,
     updates: Partial<AIConversation>
-  ): Promise<AIConversation> {
-    const response = await apiClient.patch(`/ai/conversations/${conversationId}`, updates);
-    return response.data;
+  ): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/ai/conversations/${conversationId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating conversation:', error);
+      return false;
+    }
   }
 
   /**
    * Deletar conversa
    */
-  static async deleteConversation(conversationId: string): Promise<void> {
-    await apiClient.delete(`/ai/conversations/${conversationId}`);
+  static async deleteConversation(conversationId: string): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/ai/conversations/${conversationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      return false;
+    }
   }
 
   /**

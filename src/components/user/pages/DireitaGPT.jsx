@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { Send, Bot, User, Trash2, Download, Copy, Wifi, WifiOff } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Bot, User, Send, Copy, Download, Trash2, Wifi, WifiOff, MessageSquare, Plus } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 import { AIService } from '../../../services/ai'
-import { apiClient } from '../../../lib/api'
-import VoiceControls from '../VoiceControls'
+import { apiClient } from '../../../utils/apiClient'
+import VoiceControls from '../common/VoiceControls'
+import ConversationList from '../ConversationList'
 
 const DireitaGPT = () => {
   const { userProfile } = useAuth()
@@ -11,13 +12,16 @@ const DireitaGPT = () => {
   const [inputMessage, setInputMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [currentModel, setCurrentModel] = useState('')
   const [isConnected, setIsConnected] = useState(true)
+  const [currentModel, setCurrentModel] = useState('Patriota IA')
+  const [lastBotMessage, setLastBotMessage] = useState('')
+  const [showConversationList, setShowConversationList] = useState(false)
+  const [currentConversation, setCurrentConversation] = useState(null)
+  const [conversations, setConversations] = useState([])
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
-  const conversationId = useRef(null)
   const voiceControlsRef = useRef(null)
-  const [lastBotMessage, setLastBotMessage] = useState('')
+  const conversationId = useRef(null)
 
   // Função para retry com exponential backoff (versão robusta para produção)
   const retryWithBackoff = async (fn, maxRetries = 5, baseDelay = 3000) => {
@@ -62,58 +66,115 @@ const DireitaGPT = () => {
     scrollToBottom()
   }, [messages])
 
-  // Carregar histórico de conversas ao montar o componente
+  // Carregar lista de conversas ao montar o componente
   useEffect(() => {
-    loadConversationHistory()
+    loadConversations()
   }, [])
 
-  const loadConversationHistory = async () => {
+  // Carregar mensagens quando a conversa atual mudar
+  useEffect(() => {
+    if (currentConversation) {
+      loadConversationMessages(currentConversation.id)
+    } else {
+      // Se não há conversa selecionada, mostrar mensagem de boas-vindas
+      setMessages([{
+        id: 'welcome',
+        type: 'bot',
+        content: 'Olá! Sou a Patriota IA, sua IA conservadora. Como posso ajudá-lo hoje? Posso discutir política, economia, valores tradicionais e muito mais!',
+        timestamp: new Date(),
+        model: 'Patriota IA'
+      }])
+    }
+  }, [currentConversation])
+
+  const loadConversations = async () => {
     try {
       setIsLoading(true)
       const history = await AIService.getConversations(userProfile?.id || 'anonymous')
       
-      // Verificar se history é um array válido
-      if (!Array.isArray(history) || history.length === 0) {
-        // Se não há histórico ou dados inválidos, mostrar mensagem de boas-vindas
-        setMessages([{
-          id: 'welcome',
-          type: 'bot',
-          content: 'Olá! Sou a Patriota IA, sua IA conservadora. Como posso ajudá-lo hoje? Posso discutir política, economia, valores tradicionais e muito mais!',
-          timestamp: new Date(),
-          model: 'Patriota IA'
-        }])
+      if (Array.isArray(history) && history.length > 0) {
+        setConversations(history)
+        // Selecionar a conversa mais recente por padrão
+        setCurrentConversation(history[0])
       } else {
-        // Converter histórico para formato de mensagens
-        const formattedMessages = []
-        history.forEach(conv => {
-          formattedMessages.push({
-            id: `user-${conv.id}`,
+        setConversations([])
+        setCurrentConversation(null)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar conversas:', error)
+      setConversations([])
+      setCurrentConversation(null)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loadConversationMessages = async (conversationId) => {
+    try {
+      // Por enquanto, vamos simular o carregamento de mensagens
+      // Isso será implementado quando o backend suportar mensagens por conversa
+      const conversation = conversations.find(c => c.id === conversationId)
+      if (conversation) {
+        const formattedMessages = [
+          {
+            id: `user-${conversation.id}`,
             type: 'user',
-            content: conv.userMessage,
-            timestamp: new Date(conv.createdAt),
+            content: conversation.userMessage || conversation.last_message_preview,
+            timestamp: new Date(conversation.created_at),
             model: 'User'
-          })
-          formattedMessages.push({
-            id: `bot-${conv.id}`,
+          },
+          {
+            id: `bot-${conversation.id}`,
             type: 'bot',
-            content: conv.aiResponse,
-            timestamp: new Date(conv.createdAt),
-            model: conv.model || 'Patriota IA'
-          })
-        })
+            content: conversation.aiResponse || 'Resposta da IA para esta conversa.',
+            timestamp: new Date(conversation.created_at),
+            model: conversation.model || 'Patriota IA'
+          }
+        ]
         setMessages(formattedMessages)
       }
     } catch (error) {
-      console.error('Erro ao carregar histórico:', error)
-      setMessages([{
-        id: 'error',
-        type: 'bot',
-        content: 'Desculpe, houve um erro ao carregar o histórico. Vamos começar uma nova conversa!',
-        timestamp: new Date(),
-        model: 'Patriota IA'
-      }])
-    } finally {
-      setIsLoading(false)
+      console.error('Erro ao carregar mensagens da conversa:', error)
+    }
+  }
+
+  const createNewConversation = () => {
+    setCurrentConversation(null)
+    conversationId.current = null
+    setMessages([{
+      id: 'welcome',
+      type: 'bot',
+      content: 'Olá! Sou a Patriota IA, sua IA conservadora. Como posso ajudá-lo hoje?',
+      timestamp: new Date(),
+      model: 'Patriota IA'
+    }])
+    setShowConversationList(false)
+  }
+
+  const handleConversationSelect = (conversation) => {
+    setCurrentConversation(conversation)
+    conversationId.current = conversation.conversation_id
+    setShowConversationList(false)
+  }
+
+  const handleConversationDelete = async (conversationId) => {
+    try {
+      await AIService.deleteConversation(conversationId)
+      await loadConversations()
+      if (currentConversation?.id === conversationId) {
+        createNewConversation()
+      }
+    } catch (error) {
+      console.error('Erro ao deletar conversa:', error)
+    }
+  }
+
+  const handleConversationUpdate = async (conversationId, updates) => {
+    try {
+      await AIService.updateConversation(conversationId, updates)
+      await loadConversations()
+    } catch (error) {
+      console.error('Erro ao atualizar conversa:', error)
     }
   }
 
@@ -163,6 +224,9 @@ const DireitaGPT = () => {
         setCurrentModel('Patriota IA')
         setIsConnected(true)
         setLastBotMessage(data.response)
+        
+        // Recarregar lista de conversas após nova mensagem
+        loadConversations()
         
         // Auto-falar a resposta da IA
         if (voiceControlsRef.current) {
@@ -265,21 +329,35 @@ const DireitaGPT = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-400"></div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-[calc(100vh-12rem)]">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-[calc(100vh-12rem)] relative">
+      {/* Conversation List Sidebar */}
+      {showConversationList && (
+        <div className="absolute top-0 left-0 w-80 h-full bg-white border-r border-gray-200 z-10 shadow-lg">
+          <ConversationList
+            conversations={conversations}
+            currentConversation={currentConversation}
+            onConversationSelect={handleConversationSelect}
+            onConversationDelete={handleConversationDelete}
+            onConversationUpdate={handleConversationUpdate}
+            onNewConversation={createNewConversation}
+            onClose={() => setShowConversationList(false)}
+          />
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Bot className="h-6 w-6 text-blue-600" />
-          </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Patriota IA</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {currentConversation?.title || 'Patriota IA'}
+            </h2>
             <div className="flex items-center space-x-2">
               {isConnected ? (
                 <Wifi className="h-4 w-4 text-green-500" />
@@ -293,65 +371,39 @@ const DireitaGPT = () => {
           </div>
         </div>
         
-        <div className="flex items-center space-x-2">
-          <VoiceControls 
-            ref={voiceControlsRef}
-            autoSpeak={true}
-            lastMessage={lastBotMessage}
-            onTranscript={(text) => {
-              setInputMessage(prev => prev + (prev ? ' ' : '') + text)
-              inputRef.current?.focus()
-            }}
-            onSend={() => {
-              if (inputMessage.trim()) {
-                handleSendMessage()
-              }
-            }}
-          />
-          <button
-            onClick={exportConversation}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            title="Exportar conversa"
-          >
-            <Download className="h-5 w-5" />
-          </button>
-          <button
-            onClick={clearConversation}
-            className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-            title="Limpar conversa"
-          >
-            <Trash2 className="h-5 w-5" />
-          </button>
-        </div>
+
       </div>
+
+      {/* Conversation List Sidebar */}
+      {showConversationList && (
+        <div className="absolute top-0 left-0 w-80 h-full bg-white border-r border-gray-200 z-10 shadow-lg">
+          <ConversationList
+            conversations={conversations}
+            currentConversation={currentConversation}
+            onConversationSelect={handleConversationSelect}
+            onConversationDelete={handleConversationDelete}
+            onConversationUpdate={handleConversationUpdate}
+            onNewConversation={createNewConversation}
+            onClose={() => setShowConversationList(false)}
+          />
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 h-[calc(100%-8rem)]">
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex items-start space-x-3 ${
-              message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+            className={`flex items-start ${
+              message.type === 'user' ? 'justify-end' : 'justify-start'
             }`}
           >
-            <div className={`p-2 rounded-lg ${
-              message.type === 'user' 
-                ? 'bg-gray-100' 
-                : 'bg-blue-100'
-            }`}>
-              {message.type === 'user' ? (
-                <User className="h-5 w-5 text-blue-600" />
-              ) : (
-                <Bot className="h-5 w-5 text-blue-600" />
-              )}
-            </div>
-            
             <div className={`flex-1 max-w-3xl ${
               message.type === 'user' ? 'text-right' : ''
             }`}>
               <div className={`inline-block p-3 rounded-lg ${
                 message.type === 'user'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-gray-100 text-gray-900'
                   : 'bg-gray-100 text-gray-900'
               }`}>
                 <p className="whitespace-pre-wrap">{message.content}</p>
@@ -403,7 +455,7 @@ const DireitaGPT = () => {
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Digite sua mensagem..."
-              className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
               rows={1}
               style={{
                 minHeight: '44px',
@@ -420,7 +472,7 @@ const DireitaGPT = () => {
           <button
             onClick={handleSendMessage}
             disabled={!inputMessage.trim() || isTyping}
-            className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="p-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send className="h-5 w-5" />
           </button>

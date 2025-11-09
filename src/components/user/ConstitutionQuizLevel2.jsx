@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Star, Clock, CheckCircle, XCircle, RotateCcw, Award, Target, ArrowLeft } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import GamificationService from '../../services/gamification';
 
@@ -261,21 +261,25 @@ const ConstitutionQuizLevel2 = () => {
     try {
       // Calcular estatísticas
       const correctAnswers = answers.filter(a => a.correct).length;
-      const accuracy = (correctAnswers / questions.length) * 100;
       const totalTime = answers.reduce((sum, a) => sum + a.timeSpent, 0);
-      const avgTimePerQuestion = totalTime / questions.length;
 
-      // Registrar resultado no sistema de gamificação
-      const result = await GamificationService.completeQuiz({
-        userId: user?.id,
+      // Montar payload de resultado
+      const quizData = {
         quizType: 'constitution_level2',
         score: score,
-        accuracy: accuracy,
+        totalQuestions: questions.length,
+        correctAnswers,
         timeSpent: totalTime,
-        streak: bestStreak,
-        level: 2
-      });
+        answers: answers.map((a, index) => ({
+          questionId: questions[index].id?.toString?.() || String(questions[index].id),
+          selectedAnswer: a.selectedAnswer,
+          isCorrect: a.correct,
+          timeSpent: a.timeSpent
+        }))
+      };
 
+      // Registrar resultado no sistema de gamificação
+      const result = await GamificationService.saveQuizResult(user?.id, quizData);
       setGamificationResult(result);
     } catch (error) {
       console.error('Erro ao registrar resultado do quiz:', error);

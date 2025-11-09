@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { signIn, signUp } from '../../lib/supabase'
+import { signIn, signUp, supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 import { Flag, Shield, Users, ArrowLeft } from 'lucide-react'
+import { apiClient } from '../../lib/api'
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true)
@@ -11,37 +13,59 @@ const Login = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  const { user, userProfile, loading: authLoading } = useAuth()
+
+  const withTimeout = (promise, ms = 12000) => {
+    let timeoutId
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Tempo limite atingido. Tente novamente.')), ms)
+    })
+    return Promise.race([promise.finally(() => clearTimeout(timeoutId)), timeout])
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    if (!email || !password) {
+      setError('Por favor, preencha todos os campos')
+      return
+    }
+
     setLoading(true)
     setError('')
 
     try {
-      if (isLogin) {
-        const { data, error } = await signIn(email, password)
-        if (error) throw error
-        
-        // Verificar se é admin para redirecionar
-        if (data.user?.email === 'admin@direitai.com') {
-          navigate('/admin')
-        } else {
-          navigate('/dashboard')
-        }
-      } else {
-        const userData = {
-          username,
-          plan: 'gratuito',
-          role: 'user'
-        }
-        const { data, error } = await signUp(email, password, userData)
-        if (error) throw error
-        
-        alert('Cadastro realizado! Verifique seu email para confirmar a conta.')
-        setIsLogin(true)
+      const signInPromise = supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      const { data, error } = await withTimeout(signInPromise)
+
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
       }
+      
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      if (accessToken) {
+        apiClient.setAuthToken(accessToken)
+      } else {
+        console.warn('Login realizado, mas sessão não contém access_token')
+      }
+      
+      // Navegação simples baseada no email do usuário logado
+      const userEmail = data?.user?.email
+      if (userEmail === 'admin@direitai.com') {
+        navigate('/admin')
+      } else {
+        navigate('/dashboard')
+      }
+      
     } catch (error) {
-      setError(error.message)
+      setError(`Erro: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -96,6 +120,7 @@ const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                autoComplete="email"
                 required
               />
             </div>
@@ -123,9 +148,16 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full btn-primary disabled:opacity-50"
+              className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Carregando...' : (isLogin ? 'Entrar' : 'Cadastrar')}
+              {loading ? (
+                <div className="flex items-center justify-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Processando...</span>
+                </div>
+              ) : (
+                isLogin ? 'Entrar' : 'Cadastrar'
+              )}
             </button>
           </form>
 

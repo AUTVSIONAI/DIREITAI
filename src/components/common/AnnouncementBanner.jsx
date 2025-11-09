@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ExternalLink, Info, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
 import { NotificationsService } from '../../services/notifications';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 
 const AnnouncementBanner = ({ className = '' }) => {
   const { user } = useAuth();
@@ -17,12 +17,14 @@ const AnnouncementBanner = ({ className = '' }) => {
       }
 
       try {
+        // Remover timeout artificial e confiar no cliente API
         const response = await NotificationsService.getAnnouncementBanners();
-        // Garantir que response seja sempre um array
         const announcementsData = Array.isArray(response) ? response : [];
         setAnnouncements(announcementsData);
       } catch (error) {
-        console.error('Erro ao carregar anúncios:', error);
+        console.warn('Erro ao carregar anúncios (tratado):', error?.message || error);
+        // Em caso de erro, não mostrar anúncios
+        setAnnouncements([]);
       } finally {
         setLoading(false);
       }
@@ -54,20 +56,19 @@ const AnnouncementBanner = ({ className = '' }) => {
     }
   };
 
-  // Ícones por tipo de anúncio
+  // Ícone por tipo de anúncio
   const getAnnouncementIcon = (type) => {
     const iconProps = { className: 'h-5 w-5' };
-    
     switch (type) {
       case 'success':
-        return <CheckCircle {...iconProps} className="h-5 w-5 text-green-600" />;
+        return <CheckCircle {...iconProps} className="text-green-600" />;
       case 'warning':
-        return <AlertTriangle {...iconProps} className="h-5 w-5 text-yellow-600" />;
+        return <AlertTriangle {...iconProps} className="text-yellow-600" />;
       case 'error':
-        return <AlertCircle {...iconProps} className="h-5 w-5 text-red-600" />;
+        return <AlertCircle {...iconProps} className="text-red-600" />;
       case 'info':
       default:
-        return <Info {...iconProps} className="h-5 w-5 text-blue-600" />;
+        return <Info {...iconProps} className="text-blue-600" />;
     }
   };
 
@@ -148,40 +149,26 @@ const AnnouncementBanner = ({ className = '' }) => {
                   </p>
                   
                   {/* Botão de ação */}
-                  {announcement.action && (
-                    <div className="mt-3">
-                      <button
-                        onClick={() => handleAnnouncementClick(announcement)}
-                        className="inline-flex items-center space-x-2 px-3 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-md text-sm font-medium transition-colors"
-                      >
-                        <span>{announcement.action.text || 'Saiba mais'}</span>
-                        <ExternalLink className="h-3 w-3" />
-                      </button>
-                    </div>
+                  {announcement.action?.text && announcement.action?.url && (
+                    <button
+                      onClick={() => handleAnnouncementClick(announcement)}
+                      className="mt-2 inline-flex items-center text-xs text-blue-700 hover:text-blue-800"
+                    >
+                      {announcement.action.text}
+                      <ExternalLink className="h-4 w-4 ml-1" />
+                    </button>
                   )}
                 </div>
 
-                {/* Botão de fechar */}
-                {announcement.is_dismissible && (
-                  <button
-                    onClick={() => dismissAnnouncement(announcement.id)}
-                    className="flex-shrink-0 p-1 hover:bg-black hover:bg-opacity-10 rounded transition-colors"
-                    aria-label="Dispensar anúncio"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
+                <button
+                  onClick={() => dismissAnnouncement(announcement.id)}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
-
-          {/* Indicador de prioridade */}
-          {announcement.priority >= 8 && (
-            <div className="mt-2 flex items-center space-x-1">
-              <div className="w-2 h-2 bg-current rounded-full animate-pulse"></div>
-              <span className="text-xs font-medium opacity-75">Alta prioridade</span>
-            </div>
-          )}
         </div>
       ))}
     </div>

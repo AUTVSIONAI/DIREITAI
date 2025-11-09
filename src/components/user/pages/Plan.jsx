@@ -3,27 +3,8 @@ import { Crown, Star, Zap, Check, X, Users, MessageSquare, Trophy, Shield, BarCh
 import { useAuth } from '../../../hooks/useAuth'
 import { apiRequest } from '../../../utils/apiClient'
 import { useNavigate } from 'react-router-dom'
-import { Line } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
-)
+import LazyChart from '../../common/LazyChart'
+import { paymentsService } from '../../../services/payments'
 
 const Plan = () => {
   const { userProfile } = useAuth()
@@ -267,14 +248,10 @@ const Plan = () => {
     try {
       setProcessingPayment(true)
       
-      // Criar sessão de checkout do Stripe
-      const response = await apiRequest('/payments/checkout', 'POST', {
-        planId: selectedUpgrade.id
-      })
-      
-      if (response.success && response.data.url) {
-        // Redirecionar para o checkout do Stripe
-        window.location.href = response.data.url
+      // Usar serviço de pagamentos para incluir affiliate_code automaticamente
+      const session = await paymentsService.createCheckoutSession(selectedUpgrade.id)
+      if (session?.url) {
+        window.location.href = session.url
       } else {
         throw new Error('Erro ao criar sessão de pagamento')
       }
@@ -667,7 +644,7 @@ const Plan = () => {
                       Histórico de Uso
                     </h3>
                     <div className="h-80">
-                      <Line data={chartData} options={chartOptions} />
+                      <LazyChart data={chartData} options={chartOptions} />
                     </div>
                   </div>
                 )}

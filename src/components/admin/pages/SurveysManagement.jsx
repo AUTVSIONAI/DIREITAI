@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { apiClient } from '../../../lib/api.ts'
+import { apiClient, API_CONFIG } from '../../../lib/api.ts'
 import { Plus, Search, Filter, Edit, Trash2, Eye, BarChart3, Users, Calendar, AlertCircle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
@@ -391,16 +391,40 @@ const CreateSurveyModal = ({ survey, onClose, onSuccess }) => {
         apiClient.setAuthToken(token)
       }
       
-      const surveyData = {
+      // Obter user_id do Supabase e enviar como created_by apenas para backend local
+      let createdBy = null
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        createdBy = user?.id || null
+      } catch {}
+      const isLocalApi = API_CONFIG.BASE_URL.includes('localhost:5120') || API_CONFIG.BASE_URL.includes('127.0.0.1:5120') || API_CONFIG.BASE_URL.startsWith('/api')
+      
+      const surveyDataBase = {
         titulo: formData.titulo,
         descricao: formData.descricao,
         tipo: formData.tipo,
         publico_alvo: formData.publico_alvo,
         data_expiracao: formData.expiracao || null,
-        opcoes: formData.opcoes.filter(op => {
-          const texto = typeof op === 'string' ? op : op?.texto || ''
-          return texto.trim().length > 0
-        }).map(op => typeof op === 'string' ? op : op.texto)
+        expiracao: formData.expiracao ? new Date(`${formData.expiracao}T23:59:59Z`).toISOString() : null,
+        opcoes: formData.opcoes
+          .map(op => (typeof op === 'string' ? op : op?.texto || ''))
+          .map(t => t.trim())
+          .filter(t => t.length > 0)
+          .map(texto => ({ texto }))
+      }
+
+      const surveyData = {
+        ...surveyDataBase,
+        ...(isLocalApi && createdBy ? { created_by: createdBy } : {})
+      }
+      console.log('[SurveysManagement] Payload de envio:', {
+        ...surveyData,
+        // Evitar logar dados sensíveis; mostrar apenas formatos
+        expiracao: surveyData.expiracao,
+        opcoes: Array.isArray(surveyData.opcoes) ? surveyData.opcoes.map(o => (typeof o === 'string' ? o : o?.texto || '')) : []
+      })
+      if (isLocalApi && createdBy) {
+        console.log('[SurveysManagement] created_by atribuído:', createdBy)
       }
       
       const response = survey 
@@ -411,11 +435,30 @@ const CreateSurveyModal = ({ survey, onClose, onSuccess }) => {
         toast.success(survey ? 'Pesquisa atualizada com sucesso' : 'Pesquisa criada com sucesso')
         onSuccess()
       } else {
-        throw new Error('Erro ao salvar pesquisa')
+        const serverMsg = response?.error?.message || response?.message || 'Erro ao salvar pesquisa'
+        throw new Error(serverMsg)
       }
     } catch (error) {
-      console.error('Erro ao salvar pesquisa:', error)
-      toast.error('Erro ao salvar pesquisa')
+      const respData = error && error.response && error.response.data
+      const code = (respData && respData.code) || (error && error.code)
+      const serverMessage = (
+        (respData && respData.error && respData.error.message) ||
+        (respData && respData.message) ||
+        (typeof respData === 'string' ? respData : null) ||
+        (error && error.message)
+      )
+      if (code === '42501' || /permission denied/i.test(String(serverMessage))) {
+        toast.error('Permissão negada no backend ao acessar a tabela "users".')
+      } else {
+        toast.error(serverMessage ? `Erro (${code || 'desconhecido'}): ${serverMessage}` : 'Erro ao salvar pesquisa')
+      }
+      const status = error && error.response && error.response.status
+      const url = (error && error.config && error.config.url) || '/surveys'
+      const dataStr = (respData && typeof respData === 'object') ? JSON.stringify(respData, null, 2) : String(respData || '')
+      console.error('[SurveysManagement] Erro ao salvar pesquisa:', `status=${status} code=${code} url=${url} msg=${serverMessage || ''}`)
+      if (dataStr) {
+        console.error('[SurveysManagement] Resposta do servidor:', dataStr)
+      }
     } finally {
       setLoading(false)
     }

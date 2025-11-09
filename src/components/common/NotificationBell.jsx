@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, X, Check, ExternalLink, Clock, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
 import { NotificationsService } from '../../services/notifications';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 
 const NotificationBell = ({ className = '' }) => {
   const { user } = useAuth();
@@ -29,15 +29,16 @@ const NotificationBell = ({ className = '' }) => {
     
     try {
       setLoading(true);
-      const response = await NotificationsService.getUserNotifications({
-        limit: 10,
-        page: 1
-      });
-      
+
+      // Remover timeout artificial e confiar no cliente API
+      const response = await NotificationsService.getUserNotifications({}, 1, 10);
       setNotifications(response.notifications || []);
-      setUnreadCount(response.unread_count || 0);
+      setUnreadCount(response.unreadCount || 0);
     } catch (error) {
-      console.error('Erro ao carregar notificações:', error);
+      console.warn('Erro ao carregar notificações (tratado):', error?.message || error);
+      // Em caso de erro, não mostrar notificações
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
     }
@@ -60,23 +61,6 @@ const NotificationBell = ({ className = '' }) => {
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
       console.error('Erro ao marcar notificação como lida:', error);
-    }
-  };
-
-  // Marcar todas como lidas
-  const markAllAsRead = async () => {
-    try {
-      const unreadNotifications = notifications.filter(n => !n.is_read);
-      await Promise.all(
-        unreadNotifications.map(n => NotificationsService.markNotificationAsRead(n.id))
-      );
-      
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
-      );
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Erro ao marcar todas as notificações como lidas:', error);
     }
   };
 
@@ -129,57 +113,50 @@ const NotificationBell = ({ className = '' }) => {
     }
   };
 
-  // Formatação de tempo relativo
-  const formatTimeAgo = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInMinutes = Math.floor((now - date) / (1000 * 60));
-    
-    if (diffInMinutes < 1) return 'Agora';
-    if (diffInMinutes < 60) return `${diffInMinutes}m atrás`;
-    
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours}h atrás`;
-    
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d atrás`;
-    
-    return date.toLocaleDateString('pt-BR');
+  // Formatar tempo relativo
+  const formatTimeAgo = (timestamp) => {
+    try {
+      const now = new Date();
+      const then = new Date(timestamp);
+      const diff = Math.floor((now - then) / 1000);
+      if (diff < 60) return `${diff}s atrás`;
+      const minutes = Math.floor(diff / 60);
+      if (minutes < 60) return `${minutes}m atrás`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h atrás`;
+      const days = Math.floor(hours / 24);
+      return `${days}d atrás`;
+    } catch {
+      return '';
+    }
   };
-
-  if (!user) return null;
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
-      {/* Botão de notificações */}
+      {/* Botão do sino */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-        aria-label="Notificações"
+        className="relative p-2 rounded-full hover:bg-gray-100 focus:outline-none"
+        aria-label="Abrir notificações"
       >
-        <Bell className="h-6 w-6" />
+        <Bell className="h-5 w-5 text-gray-600" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-            {unreadCount > 99 ? '99+' : unreadCount}
+          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
+            {unreadCount}
           </span>
         )}
       </button>
 
-      {/* Dropdown de notificações */}
+      {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-60 max-h-96 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
           {/* Header */}
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Notificações</h3>
-            <div className="flex items-center space-x-2">
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllAsRead}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Marcar todas como lidas
-                </button>
-              )}
+          <div className="px-4 py-3 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Notificações</h3>
+                <p className="text-xs text-gray-500">Atualizações e alertas importantes</p>
+              </div>
               <button
                 onClick={() => setIsOpen(false)}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded"

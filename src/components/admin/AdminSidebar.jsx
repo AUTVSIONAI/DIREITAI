@@ -128,6 +128,12 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
       icon: TrendingUp,
       current: location.pathname === '/admin/reports'
     },
+   {
+     name: 'Afiliados',
+     href: '/admin/affiliates',
+     icon: TrendingUp,
+     current: location.pathname === '/admin/affiliates'
+   },
     {
       name: 'Logs da API',
       href: '/admin/logs',

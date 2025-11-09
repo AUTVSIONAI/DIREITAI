@@ -31,7 +31,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { path: '/dashboard/profile', icon: User, label: 'Perfil' },
     { path: '/politicians', icon: UserCheck, label: 'Políticos' },
     { path: '/blog', icon: BookOpen, label: 'Blog Patriota' },
-    { path: '/quiz-constituicao', icon: Brain, label: 'Quiz da Constituição' },
+    { path: '/quizzes', icon: Brain, label: 'Quizzes' },
+    // Removido item duplicado: { path: '/quiz-constituicao', icon: Brain, label: 'Quiz da Constituição' },
     { path: '/pesquisas', icon: BarChart3, label: 'Pesquisas DireitaJá' },
     { path: '/resultados', icon: TrendingUp, label: 'Resultados' },
     { path: '/verdade-ou-fake', icon: Shield, label: 'Verdade ou Fake' },
@@ -43,6 +44,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { path: '/dashboard/store', icon: ShoppingBag, label: 'Loja' },
       { path: '/dashboard/achievements', icon: Award, label: 'Conquistas' },
     { path: '/dashboard/plan', icon: Crown, label: 'Plano' },
+
+    { path: '/dashboard/affiliates', icon: Activity, label: 'Afiliados' }
   ]
 
   return (

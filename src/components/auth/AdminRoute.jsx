@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth } from '../../contexts/AuthContext';
 import { isAdmin } from '../../lib/supabase'
 import { Loader2, Shield } from 'lucide-react'
 

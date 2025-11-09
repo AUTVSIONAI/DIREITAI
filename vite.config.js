@@ -15,7 +15,23 @@ export default defineConfig({
     port: 5121,
     host: true,
     open: true,
-    cors: true,
+    cors: {
+      origin: [
+        'http://localhost:5121',
+        'http://localhost:5122',
+        'http://localhost:5123',
+        'http://localhost:5124',
+        'http://127.0.0.1:5121',
+        'http://127.0.0.1:5122',
+        'http://127.0.0.1:5123',
+        'http://127.0.0.1:5124',
+        'https://direitaai.com',
+        'https://www.direitaai.com'
+      ],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:5120',
@@ -29,22 +45,64 @@ export default defineConfig({
   preview: {
     port: 4173,
     host: true,
+    cors: {
+      origin: [
+        'http://localhost:5121',
+        'http://localhost:5122',
+        'http://localhost:5123',
+        'http://localhost:5124',
+        'http://127.0.0.1:5121',
+        'http://127.0.0.1:5122',
+        'http://127.0.0.1:5123',
+        'http://127.0.0.1:5124',
+        'http://localhost:4173',
+        'http://127.0.0.1:4173',
+        'https://direitaai.com',
+        'https://www.direitaai.com'
+      ],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+    },
   },
   
-  // Configurações de build otimizadas para Vercel
+  // Configurações de build otimizadas para performance
   build: {
     outDir: 'dist',
-    sourcemap: true, // Habilitar sourcemaps para debug
-    target: 'es2015',
-    chunkSizeWarningLimit: 1000,
+    sourcemap: false, // Desabilitar sourcemaps em produção para reduzir tamanho
+    target: 'es2020',
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       external: [],
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          axios: ['axios'],
+          // Core React
+          'react-vendor': ['react', 'react-dom'],
+          // Routing
+          'router': ['react-router-dom'],
+          // HTTP Client
+          'http-client': ['axios'],
+          // UI Components
+          'ui-components': ['@headlessui/react', '@heroicons/react/24/outline', '@heroicons/react/24/solid'],
+          // Supabase
+          'supabase': ['@supabase/supabase-js'],
+          // Maps (large dependency)
+          'maps': ['mapbox-gl'],
+          // Utils
+          'utils': ['date-fns', 'clsx'],
         },
+        // Otimizar nomes de arquivos
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+      },
+    },
+    // Configurações de minificação
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.log em produção
+        drop_debugger: true,
       },
     },
   },
@@ -88,7 +146,13 @@ export default defineConfig({
       '@heroicons/react/24/outline',
       '@heroicons/react/24/solid',
       '@supabase/supabase-js',
+      'axios',
+      'date-fns',
+      'clsx',
+      'mapbox-gl',
+      'react-map-gl',
     ],
+    // Não excluir mapbox-gl; precisamos que o Vite o pré-compile
   },
   
 

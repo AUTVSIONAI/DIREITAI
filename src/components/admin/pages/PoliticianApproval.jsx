@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../../../lib/api';
+import { agentGenerationService } from '../../../services/agentGeneration';
 import { 
   User, 
   MapPin, 
@@ -110,6 +111,21 @@ const PoliticianApproval = () => {
     setReason('');
   };
 
+  // Função para criar agente automaticamente
+  const createAgentForPolitician = async (politician) => {
+    try {
+      const result = await agentGenerationService.createAgentForPolitician(politician);
+      if (result.success) {
+        console.log(`Agente criado automaticamente para ${politician.name}`);
+      } else {
+        console.error(`Erro ao criar agente para ${politician.name}:`, result.error);
+      }
+    } catch (error) {
+      console.error('Erro ao criar agente automaticamente:', error);
+      // Não interrompe o fluxo principal se falhar
+    }
+  };
+
   const confirmAction = async () => {
     if (!selectedPolitician) return;
     
@@ -128,6 +144,11 @@ const PoliticianApproval = () => {
       const response = await apiClient.post(endpoint, payload);
       
       if (response.data.success) {
+        // Se aprovado, criar agente automaticamente
+        if (actionType === 'approve') {
+          await createAgentForPolitician(selectedPolitician);
+        }
+        
         alert(`Político ${actionType === 'approve' ? 'aprovado' : 'rejeitado'} com sucesso!`);
         setShowModal(false);
         fetchStats();

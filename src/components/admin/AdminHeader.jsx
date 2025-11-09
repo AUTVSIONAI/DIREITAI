@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Menu, Search, LogOut, Settings, User, Shield } from 'lucide-react'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase'
 import NotificationBell from '../common/NotificationBell'
 

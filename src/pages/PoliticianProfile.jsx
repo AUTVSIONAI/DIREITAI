@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiClient } from '../lib/api';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 import { PoliticiansService } from '../services/politicians';
 import { 
   ArrowLeft, 
@@ -27,6 +27,7 @@ import {
   Info
 } from 'lucide-react';
 import { getPoliticianPhotoUrl } from '../utils/imageUtils';
+import { supabase } from '../lib/supabase';
 
 // Função para formatar datas
 const formatDate = (dateString) => {
@@ -108,25 +109,97 @@ const PoliticianProfile = () => {
   };
 
   const fetchRatings = async () => {
+    setRatingsLoading(true)
     try {
-      setRatingsLoading(true);
-      const response = await apiClient.get(`/politicians/${id}/ratings?page=${ratingsPage}&sort=${ratingsSort}`);
-      if (response.data.success) {
-        setRatings(response.data.data);
-        setRatingStats(response.data.stats);
-        setRatingsPagination(response.data.pagination);
+      const response = await apiClient.get(`/politicians/${id}/ratings`, {
+        params: { page: ratingsPage, sort: ratingsSort }
+      })
+      const ratingsList = response?.data?.data || []
+      let enriched = Array.isArray(ratingsList) ? [...ratingsList] : []
+      if (!enriched.some(r => r && r.users)) {
+        const userIds = [...new Set(enriched.map(r => r?.user_id).filter(Boolean))]
+        if (userIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('id, full_name, name, username, email, avatar_url')
+            .in('id', userIds)
+          const usersById = Object.fromEntries((usersData || []).map(u => [u.id, u]))
+          enriched = enriched.map(r => ({ ...r, users: usersById[r?.user_id] || r.users || null }))
+        }
       }
+      setRatings(enriched)
+      // Atualiza estatísticas de avaliação
+      const total = enriched.length
+      const sum = enriched.reduce((acc, r) => acc + (Number(r.rating) || 0), 0)
+      const avg = total > 0 ? Number((sum / total).toFixed(1)) : 0
+      const distribution = { 5:0, 4:0, 3:0, 2:0, 1:0 }
+      enriched.forEach(r => {
+        const s = Number(r.rating) || 0
+        if (distribution[s] !== undefined) distribution[s] += 1
+      })
+      setRatingStats({ total, distribution, average_rating: avg })
+      // Paginação do backend se disponível
+      setRatingsPagination(response?.data?.pagination || null)
+      setRatingsLoading(false)
     } catch (error) {
-      console.error('Erro ao carregar avaliações:', error);
-    } finally {
-      setRatingsLoading(false);
+      console.warn('Falha ao buscar ratings via API, tentando Supabase:', error)
+      try {
+        const { data, error: sbError } = await supabase
+          .from('politician_ratings')
+          .select('*')
+          .eq('politician_id', id)
+          .order('created_at', { ascending: false })
+        if (sbError) throw sbError
+        let list = Array.isArray(data) ? data : []
+        const userIds = [...new Set(list.map(r => r?.user_id).filter(Boolean))]
+        if (userIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('id, full_name, name, username, email, avatar_url')
+            .in('id', userIds)
+          const usersById = Object.fromEntries((usersData || []).map(u => [u.id, u]))
+          list = list.map(r => ({ ...r, users: usersById[r?.user_id] || null }))
+        }
+        setRatings(list)
+        // Estatísticas calculadas localmente
+        const total = list.length
+        const sum = list.reduce((acc, r) => acc + (Number(r.rating) || 0), 0)
+        const avg = total > 0 ? Number((sum / total).toFixed(1)) : 0
+        const distribution = { 5:0, 4:0, 3:0, 2:0, 1:0 }
+        list.forEach(r => {
+          const s = Number(r.rating) || 0
+          if (distribution[s] !== undefined) distribution[s] += 1
+        })
+        setRatingStats({ total, distribution, average_rating: avg })
+        setRatingsPagination({ page: 1, pages: 1, per_page: total })
+      } catch (sbErr) {
+        console.error('Erro ao buscar ratings no Supabase:', sbErr)
+        setRatings([])
+        setRatingStats({ total: 0, distribution: {5:0,4:0,3:0,2:0,1:0}, average_rating: 0 })
+        setRatingsPagination(null)
+      } finally {
+        setRatingsLoading(false)
+      }
     }
-  };
+  }
 
   const fetchUserRating = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) {
+        // Fallback Supabase: usuário autenticado via Supabase
+        const { data: { user: sbUser } } = await supabase.auth.getUser();
+        if (!sbUser) return;
+        const { data, error: sbErr } = await supabase
+          .from('politician_ratings')
+          .select('*')
+          .eq('politician_id', id)
+          .eq('user_id', sbUser.id)
+          .limit(1)
+          .maybeSingle();
+        if (!sbErr && data) setUserRating(data);
+        return;
+      }
 
       const response = await apiClient.get(`/politicians/${id}/user-rating`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -135,7 +208,21 @@ const PoliticianProfile = () => {
         setUserRating(response.data.data);
       }
     } catch (error) {
-      console.error('Erro ao carregar avaliação do usuário:', error);
+      console.error('Erro ao carregar avaliação do usuário (API), tentando Supabase:', error);
+      try {
+        const { data: { user: sbUser } } = await supabase.auth.getUser();
+        if (!sbUser) return;
+        const { data, error: sbErr } = await supabase
+          .from('politician_ratings')
+          .select('*')
+          .eq('politician_id', id)
+          .eq('user_id', sbUser.id)
+          .limit(1)
+          .maybeSingle();
+        if (!sbErr && data) setUserRating(data);
+      } catch (sbErr2) {
+        console.error('Fallback Supabase falhou ao carregar avaliação do usuário:', sbErr2);
+      }
     }
   };
 
@@ -234,7 +321,7 @@ const PoliticianProfile = () => {
       const method = userRating ? 'put' : 'post';
       const response = await apiClient[method](`/politicians/${id}/ratings`, {
         rating: newRating,
-        comment: newComment
+        comment: newComment || null
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -248,7 +335,40 @@ const PoliticianProfile = () => {
         fetchPolitician(); // Atualizar estatísticas
       }
     } catch (error) {
-      console.error('Erro ao enviar avaliação:', error);
+      console.error('Erro ao enviar avaliação (API), tentando Supabase:', error);
+      try {
+        const { data: { user: sbUser } } = await supabase.auth.getUser();
+        if (!sbUser) throw new Error('Usuário não autenticado no Supabase');
+        // Buscar existente
+        const { data: existing, error: findErr } = await supabase
+          .from('politician_ratings')
+          .select('id')
+          .eq('politician_id', id)
+          .eq('user_id', sbUser.id)
+          .limit(1)
+          .maybeSingle();
+        if (findErr && findErr.code !== 'PGRST116') throw findErr;
+        if (existing && existing.id) {
+          const { error: updErr } = await supabase
+            .from('politician_ratings')
+            .update({ rating: newRating, comment: newComment || null })
+            .eq('id', existing.id);
+          if (updErr) throw updErr;
+        } else {
+          const { error: insErr } = await supabase
+            .from('politician_ratings')
+            .insert({ politician_id: id, user_id: sbUser.id, rating: newRating, comment: newComment || null });
+          if (insErr) throw insErr;
+        }
+        setShowRatingModal(false);
+        setNewRating(0);
+        setNewComment('');
+        fetchUserRating();
+        fetchRatings();
+        fetchPolitician();
+      } catch (sbErr) {
+        console.error('Fallback Supabase falhou ao enviar avaliação:', sbErr);
+      }
     } finally {
       setSubmittingRating(false);
     }
@@ -267,7 +387,30 @@ const PoliticianProfile = () => {
       fetchRatings();
       fetchPolitician();
     } catch (error) {
-      console.error('Erro ao deletar avaliação:', error);
+      console.error('Erro ao deletar avaliação (API), tentando Supabase:', error);
+      try {
+        const { data: { user: sbUser } } = await supabase.auth.getUser();
+        if (!sbUser) return;
+        const { data: existing, error: findErr } = await supabase
+          .from('politician_ratings')
+          .select('id')
+          .eq('politician_id', id)
+          .eq('user_id', sbUser.id)
+          .limit(1)
+          .maybeSingle();
+        if (!findErr && existing && existing.id) {
+          const { error: delErr } = await supabase
+            .from('politician_ratings')
+            .delete()
+            .eq('id', existing.id);
+          if (delErr) throw delErr;
+          setUserRating(null);
+          fetchRatings();
+          fetchPolitician();
+        }
+      } catch (sbErr2) {
+        console.error('Fallback Supabase falhou ao deletar avaliação:', sbErr2);
+      }
     }
   };
 
@@ -287,12 +430,22 @@ const PoliticianProfile = () => {
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('pt-BR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+      year: 'numeric', month: 'short', day: 'numeric'
+    })
+  }
 
+  // Helpers de exibição para nome de usuário em avaliações
+  const getUserDisplayName = (user) => {
+    if (!user) return null
+    return user.full_name || user.name || user.username || (user.email ? user.email.split('@')[0] : null)
+  }
+  const getRatingUserName = (rating) => {
+    return getUserDisplayName(rating.users) || 'Usuário anônimo'
+  }
+  const getRatingUserInitial = (rating) => {
+    const name = getRatingUserName(rating)
+    return name ? name.charAt(0).toUpperCase() : '?'
+  }
   const openRatingModal = () => {
     if (userRating) {
       setNewRating(userRating.rating);
@@ -414,7 +567,7 @@ const PoliticianProfile = () => {
                           <Star
                             key={star}
                             className={`w-6 h-6 ${
-                              star <= Math.round(politician.average_rating || 0)
+                              star <= Math.round(Number(ratingStats?.average_rating || 0))
                                 ? 'text-yellow-400 fill-current'
                                 : 'text-gray-300'
                             }`}
@@ -422,10 +575,10 @@ const PoliticianProfile = () => {
                         ))}
                       </div>
                       <span className="text-lg font-semibold text-gray-700">
-                        {politician.average_rating ? politician.average_rating.toFixed(1) : '0.0'}
+                        {Number(ratingStats?.average_rating || 0).toFixed(1)}
                       </span>
                       <span className="text-gray-500">
-                        ({politician.total_votes || 0} {politician.total_votes === 1 ? 'avaliação' : 'avaliações'})
+                        ({ratingStats?.total ?? 0} {(ratingStats?.total ?? 0) === 1 ? 'avaliação' : 'avaliações'})
                       </span>
                     </div>
 
@@ -909,7 +1062,7 @@ const PoliticianProfile = () => {
                 {/* Análise de Funcionários Fantasma */}
                 {transparencyData?.staff?.ghost_employee_indicators && transparencyData.staff.ghost_employee_indicators.length > 0 && (
                   <div className="mt-6 pt-6 border-t border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                       <AlertTriangle className="w-5 h-5 text-red-600" />
                       Análise de Funcionários Fantasma
                     </h3>
@@ -1021,39 +1174,22 @@ const PoliticianProfile = () => {
                               className="w-10 h-10 rounded-full object-cover"
                             />
                           ) : (
-                            <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-                              <span className="text-gray-600 font-semibold">
-                                {rating.users?.full_name?.charAt(0) || '?'}
-                              </span>
+                            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                              {getRatingUserInitial(rating)}
                             </div>
                           )}
                         </div>
-                        
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="font-semibold text-gray-900">
-                              {rating.users?.full_name || 'Usuário'}
-                            </span>
-                            <div className="flex items-center">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <Star
-                                  key={star}
-                                  className={`w-4 h-4 ${
-                                    star <= rating.rating
-                                      ? 'text-yellow-400 fill-current'
-                                      : 'text-gray-300'
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                            <span className="text-sm text-gray-500">
-                              {formatDate(rating.created_at)}
-                            </span>
+                            <span className="font-medium text-gray-900">{getRatingUserName(rating)}</span>
+                            <span className="text-sm text-gray-500">{formatDate(rating.created_at)}</span>
                           </div>
-                          
-                          {rating.comment && (
-                            <p className="text-gray-700">{rating.comment}</p>
-                          )}
+                          <div className="flex items-center gap-1 mb-2">
+                            {[...Array(rating.rating || 0)].map((_, i) => (
+                              <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                            ))}
+                          </div>
+                          <p className="text-gray-700">{rating.comment}</p>
                         </div>
                       </div>
                     </div>

@@ -75,25 +75,63 @@ export class LiveMapService {
   }
 
   /**
-   * Subscribe to real-time updates (using polling for now)
+   * Subscribe to real-time updates with adaptive polling
    */
   static subscribeToUpdates(
     callback: (stats: RealTimeStats) => void,
-    interval: number = 30000 // 30 seconds
+    options: {
+      activeInterval?: number; // Interval when page is visible (default: 30s)
+      inactiveInterval?: number; // Interval when page is hidden (default: 2min)
+      maxInactiveTime?: number; // Max time without update when hidden (default: 5min)
+    } = {}
   ): () => void {
-    const intervalId = setInterval(async () => {
-      try {
-        const response = await this.getRealTimeStats();
-        if (response.success && response.data) {
-          callback(response.data);
+    const {
+      activeInterval = 30000,
+      inactiveInterval = 120000,
+      maxInactiveTime = 300000
+    } = options;
+    
+    let intervalId: NodeJS.Timeout;
+    let lastUpdate = Date.now();
+    
+    const startPolling = () => {
+      const currentInterval = document.hidden ? inactiveInterval : activeInterval;
+      
+      intervalId = setInterval(async () => {
+        try {
+          // Only fetch if page is visible or if too much time has passed
+          const shouldUpdate = !document.hidden || 
+                              (Date.now() - lastUpdate) > maxInactiveTime;
+          
+          if (shouldUpdate) {
+            const response = await this.getRealTimeStats();
+            if (response.success && response.data) {
+              callback(response.data);
+              lastUpdate = Date.now();
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching real-time stats:', error);
         }
-      } catch (error) {
-        console.error('Error fetching real-time stats:', error);
-      }
-    }, interval);
-
+      }, currentInterval);
+    };
+    
+    const handleVisibilityChange = () => {
+      clearInterval(intervalId);
+      startPolling();
+    };
+    
+    // Start initial polling
+    startPolling();
+    
+    // Listen for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
     // Return cleanup function
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }
 }
 

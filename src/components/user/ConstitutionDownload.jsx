@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, CheckCircle, BookOpen, Award } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 import { GamificationService } from '../../services/gamification';
 import { ConstitutionService } from '../../services/constitution';
 import { supabase } from '../../lib/supabase';
@@ -71,6 +71,7 @@ const ConstitutionDownload = () => {
         return;
       }
       
+      console.log('🔍 ConstitutionDownload - userProfile completo:', userProfile);
       console.log('🔍 ConstitutionDownload - Verificando status para userId:', userId);
       console.log('🔍 ConstitutionDownload - API URL:', `${API_BASE_URL}/constitution-downloads/users/${userId}/status`);
       console.log('📱 ConstitutionDownload - localStorage antes da verificação:', localStorage.getItem('constituicao_baixada'));
@@ -253,7 +254,12 @@ const ConstitutionDownload = () => {
             </div>
             {/* Botão de debug - remover em produção */}
             <button
-              onClick={clearCacheAndRecheck}
+              onClick={async () => {
+                console.log('🔄 Forçando verificação...');
+                setIsDownloaded(false);
+                localStorage.removeItem('constituicao_baixada');
+                await checkDownloadStatus();
+              }}
               className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded border"
               title="Forçar verificação (debug)"
             >

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api';
+import { useDebounce } from '../hooks/useUtils.ts';
 import { 
   Search, 
   Filter, 
@@ -29,6 +30,10 @@ const Politicians = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [useRealData, setUseRealData] = useState(false);
+
+  // Debounce search term para evitar muitas requisições
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   const brazilianStates = [
     'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -51,7 +56,14 @@ const Politicians = () => {
 
   useEffect(() => {
     fetchPoliticians();
-  }, [currentPage, selectedState, selectedParty, selectedPosition, searchTerm]);
+  }, [currentPage, selectedState, selectedParty, selectedPosition, debouncedSearchTerm]);
+
+  // Resetar página quando busca mudar
+  useEffect(() => {
+    if (debouncedSearchTerm !== searchTerm) {
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchTerm]);
 
   const fetchPoliticians = async () => {
     try {
@@ -63,18 +75,48 @@ const Politicians = () => {
 
       if (selectedState) params.append('state', selectedState);
       if (selectedParty) params.append('party', selectedParty);
-      if (selectedPosition) params.append('position', selectedPosition);
-      if (searchTerm) params.append('search', searchTerm);
-      
-      // Usar dados reais para deputados federais
-      if (selectedPosition === 'Deputado Federal' || selectedPosition === 'deputado') {
+
+      const useReal = useRealData && (
+        selectedPosition === 'Deputado Federal' ||
+        (selectedPosition || '').toLowerCase().includes('deputado')
+      );
+      if (useReal) {
         params.append('use_real_data', 'true');
+        params.append('position', 'deputado');
+      } else {
+        if (selectedPosition) params.append('position', selectedPosition);
       }
+
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
 
       const response = await apiClient.get(`/politicians?${params.toString()}`);
       
       if (response.data.success) {
-        setPoliticians(response.data.data);
+        let list = response.data.data || [];
+        // Enriquecer com ratings quando vierem de dados oficiais (Câmara)
+        if (response.data.source === 'camara_oficial' && Array.isArray(list) && list.length > 0) {
+          try {
+            const enriched = await Promise.all(
+              list.map(async (p) => {
+                try {
+                  const statsRes = await apiClient.get(`/ratings/stats/${p.id}`);
+                  const stats = statsRes?.data?.data;
+                  return {
+                    ...p,
+                    average_rating: stats?.average_rating || 0,
+                    total_votes: stats?.total_votes || 0,
+                  };
+                } catch {
+                  return { ...p, average_rating: 0, total_votes: 0 };
+                }
+              })
+            );
+            list = enriched;
+          } catch (e) {
+            console.warn('Falha ao enriquecer ratings para dados oficiais:', e);
+          }
+        }
+        setPoliticians(list);
         setTotalPages(response.data.pagination.pages);
       }
     } catch (error) {
@@ -236,6 +278,23 @@ const Politicians = () => {
                     ))}
                   </select>
                 </div>
+
+                {/* Toggle Dados Oficiais (aparece para Deputado Federal) */}
+                {(selectedPosition === 'Deputado Federal') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Dados oficiais
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={useRealData}
+                        onChange={(e) => { setUseRealData(e.target.checked); setCurrentPage(1); }}
+                      />
+                      <span className="text-sm text-gray-600">Usar dados oficiais (Câmara)</span>
+                    </label>
+                  </div>
+                )}
 
                 {/* Botão Limpar */}
                 <div className="flex items-end">

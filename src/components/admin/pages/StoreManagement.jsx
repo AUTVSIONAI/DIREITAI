@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Loader2
 } from 'lucide-react';
+import { useDebounce } from '../../../hooks/useUtils.ts';
 import { storeManagementService } from '../../../services';
 
 const StoreManagement = () => {
@@ -58,6 +59,10 @@ const StoreManagement = () => {
     status: 'all',
     paymentStatus: 'all'
   })
+
+  // Debounce search terms para evitar muitas requisições
+  const debouncedProductSearch = useDebounce(productFilters.search, 300)
+  const debouncedOrderSearch = useDebounce(orderFilters.search, 300)
   
   // Estados para modais e abas
   const [activeTab, setActiveTab] = useState('products')
@@ -69,11 +74,19 @@ const StoreManagement = () => {
     stock_quantity: '',
     category: '',
     status: 'active',
-    featured: false
+    featured: false,
+    warehouse_location: 'Estoque Principal',
+    // novos campos
+    type: 'physical',
+    download_url: '',
+    affiliate_enabled: false,
+    affiliate_rate_percent: 0,
   })
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
+  const [pdfFile, setPdfFile] = useState(null)
+  const [uploadingPdf, setUploadingPdf] = useState(false)
   
   // Estados para modal de categoria
   const [showCategoryModal, setShowCategoryModal] = useState(false)
@@ -95,7 +108,7 @@ const StoreManagement = () => {
       setStoreStats(statsData)
       
       const categoriesData = await storeManagementService.getCategories()
-      setCategories(categoriesData)
+      setCategories(Array.isArray(categoriesData) ? categoriesData : [])
     } catch (err) {
       console.error('Erro ao carregar dados da loja:', err)
       setError('Erro ao carregar dados da loja')
@@ -122,12 +135,16 @@ const StoreManagement = () => {
       category: product.category || '',
       status: product.status || 'active',
       featured: product.featured || false,
-      warehouse_location: product.warehouse_location || 'Estoque Principal'
+      warehouse_location: product.warehouse_location || 'Estoque Principal',
+      // novos campos
+      type: product.type || 'physical',
+      download_url: product.download_url || '',
+      affiliate_enabled: !!product.affiliate_enabled,
+      affiliate_rate_percent: product.affiliate_rate_percent ?? 0,
     })
     setImagePreview(product.image || null)
     setShowProductModal(true)
-  }
-
+  };
   const handleDeleteProduct = async (product) => {
     if (window.confirm(`Tem certeza que deseja excluir o produto "${product.name}"? Esta ação não pode ser desfeita.`)) {
       try {
@@ -155,48 +172,107 @@ const StoreManagement = () => {
     }
   }
 
+  const handlePdfChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      if (file.type === 'application/pdf') {
+        setPdfFile(file)
+      } else {
+        alert('Por favor, selecione um arquivo PDF válido (application/pdf)')
+      }
+    }
+  }
+
   const uploadProductImage = async () => {
     if (!imageFile) return null
-    
     try {
       setUploadingImage(true)
       const formData = new FormData()
+      // enviar com ambos os nomes de campo para compatibilidade
       formData.append('image', imageFile)
-      
+      formData.append('file', imageFile)
       const response = await storeManagementService.uploadProductImage(formData)
       return response.data.imageUrl
     } catch (error) {
       console.error('Erro ao fazer upload da imagem:', error)
-      throw new Error('Falha no upload da imagem')
+      alert('Falha no upload da imagem. Salvaremos o produto sem imagem.')
+      return null
     } finally {
       setUploadingImage(false)
     }
   }
 
+  const uploadDigitalFile = async () => {
+    if (!pdfFile) return null
+    try {
+      setUploadingPdf(true)
+      const formData = new FormData()
+      // enviar com ambos os nomes de campo para compatibilidade
+      formData.append('file', pdfFile)
+      formData.append('pdf', pdfFile)
+      const response = await storeManagementService.uploadProductFile(formData)
+      return response.data.fileUrl
+    } catch (error) {
+      console.error('Erro ao fazer upload do PDF:', error)
+      alert('Falha no upload do PDF. Salvaremos o produto sem download.')
+      return null
+    } finally {
+      setUploadingPdf(false)
+    }
+  }
+
   const handleSubmitProduct = async (e) => {
     e.preventDefault()
-    
     try {
+      // validação mínima: nome e preço obrigatórios; categoria com fallback
+      const name = (productForm.name || '').trim()
+      const priceVal = Number(productForm.price)
+      if (!name) {
+        alert('Informe o nome do produto.')
+        return
+      }
+      if (!isFinite(priceVal)) {
+        alert('Informe um preço válido para o produto.')
+        return
+      }
+      const categoryVal = (productForm.category || '').trim()
+      const categoryFinal = categoryVal || 'geral'
+
       let imageUrl = null
-      
-      // Upload da imagem se houver uma nova
       if (imageFile) {
-        imageUrl = await uploadProductImage()
+        const uploaded = await uploadProductImage()
+        if (uploaded) {
+          imageUrl = uploaded
+        } else if (editingProduct && editingProduct.image) {
+          imageUrl = editingProduct.image
+        } else {
+          imageUrl = null
+        }
       } else if (editingProduct && editingProduct.image) {
-        // Manter a imagem existente se estiver editando e não houver nova imagem
         imageUrl = editingProduct.image
       } else if (imagePreview && !imageFile) {
-        // Usar o preview se não houver arquivo mas houver preview (caso de edição)
         imageUrl = imagePreview
       }
-      
+
+      let downloadUrl = productForm.type === 'digital' ? (productForm.download_url || '') : ''
+      if (productForm.type === 'digital' && pdfFile) {
+        const uploadedUrl = await uploadDigitalFile()
+        downloadUrl = uploadedUrl || downloadUrl
+      }
+
       const productData = {
         ...productForm,
-        price: parseFloat(productForm.price),
-        stock_quantity: parseInt(productForm.stock_quantity),
-        image: imageUrl
+        name,
+        price: priceVal,
+        stock_quantity: Number(productForm.stock_quantity) || 0,
+        category: categoryFinal,
+        image: imageUrl,
+        type: productForm.type,
+        download_url: productForm.type === 'digital' ? downloadUrl : '',
+        affiliate_enabled: !!productForm.affiliate_enabled,
+        affiliate_rate_percent: Number(productForm.affiliate_rate_percent) || 0,
       }
-      
+
       if (editingProduct) {
         await storeManagementService.updateProduct(editingProduct.id, productData)
         alert('Produto atualizado com sucesso!')
@@ -204,8 +280,7 @@ const StoreManagement = () => {
         await storeManagementService.createProduct(productData)
         alert('Produto criado com sucesso!')
       }
-      
-      // Resetar formulário e fechar modal
+
       setShowProductModal(false)
       setEditingProduct(null)
       setProductForm({
@@ -220,12 +295,13 @@ const StoreManagement = () => {
       })
       setImageFile(null)
       setImagePreview(null)
-      
-      // Recarregar dados
+      setPdfFile(null)
+
       await loadData()
     } catch (error) {
       console.error('Erro ao salvar produto:', error)
-      alert('Erro ao salvar produto. Tente novamente.')
+      const msg = error?.message || 'Erro ao salvar produto. Tente novamente.'
+      alert(msg)
     }
   }
 
@@ -284,8 +360,8 @@ const StoreManagement = () => {
 
   // Funções de filtragem
   const filteredProducts = Array.isArray(products) ? products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(productFilters.search.toLowerCase()) ||
-                         product.description.toLowerCase().includes(productFilters.search.toLowerCase())
+    const matchesSearch = product.name.toLowerCase().includes(debouncedProductSearch.toLowerCase()) ||
+                         product.description.toLowerCase().includes(debouncedProductSearch.toLowerCase())
     const matchesCategory = productFilters.category === 'all' || product.category === productFilters.category
     const matchesStatus = productFilters.status === 'all' || product.status === productFilters.status
     
@@ -293,9 +369,9 @@ const StoreManagement = () => {
   }) : []
 
   const filteredOrders = Array.isArray(orders) ? orders.filter(order => {
-    const matchesSearch = order.id.toString().includes(orderFilters.search) ||
-                         order.customer?.name?.toLowerCase().includes(orderFilters.search.toLowerCase()) ||
-                         order.customer?.email?.toLowerCase().includes(orderFilters.search.toLowerCase())
+    const matchesSearch = order.id.toString().includes(debouncedOrderSearch) ||
+                         order.customer?.name?.toLowerCase().includes(debouncedOrderSearch.toLowerCase()) ||
+                         order.customer?.email?.toLowerCase().includes(debouncedOrderSearch.toLowerCase())
     const matchesStatus = orderFilters.status === 'all' || order.status === orderFilters.status
     const matchesPaymentStatus = orderFilters.paymentStatus === 'all' || order.paymentStatus === orderFilters.paymentStatus
     
@@ -513,9 +589,12 @@ const StoreManagement = () => {
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="all">Todas as Categorias</option>
-                  {Array.isArray(categories) && categories.map(category => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
+                  {(Array.isArray(categories) ? categories.filter(Boolean) : []).map(cat => {
+                    const value = (typeof cat === 'object' && cat !== null) ? (cat.id ?? cat.name ?? '') : cat;
+                    const label = (typeof cat === 'object' && cat !== null) ? (cat.name ?? String(value)) : String(cat);
+                    const key = String(value || label);
+                    return (<option key={key} value={value}>{label}</option>);
+                  })}
                 </select>
                 <select
                   value={productFilters.status}
@@ -1070,11 +1149,22 @@ const StoreManagement = () => {
                       required
                     >
                       <option value="">Selecione uma categoria</option>
-                      {Array.isArray(categories) && categories.map(category => (
-                        <option key={category.id || category} value={category.id || category}>
-                          {category.name || category}
-                        </option>
-                      ))}
+                      {Array.isArray(categories) && categories.filter(Boolean).map((category, idx) => {
+                        const key = typeof category === 'object' && category !== null
+                          ? (category.id ?? category.name ?? `cat-${idx}`)
+                          : (category ?? `cat-${idx}`)
+                        const value = typeof category === 'object' && category !== null
+                          ? (category.id ?? category.name ?? '')
+                          : (category ?? '')
+                        const label = typeof category === 'object' && category !== null
+                          ? (category.name ?? category.id ?? `Categoria ${idx + 1}`)
+                          : category
+                        return (
+                          <option key={String(key)} value={String(value)}>
+                            {String(label)}
+                          </option>
+                        )
+                      })}
                     </select>
                     <button
                       type="button"
@@ -1084,6 +1174,11 @@ const StoreManagement = () => {
                     >
                       <Plus className="w-4 h-4" />
                     </button>
+                    {
+                      (!Array.isArray(categories) || categories.length === 0) && (
+                        <span className="text-xs text-gray-500 ml-2">Nenhuma categoria cadastrada. Clique em "+" para criar.</span>
+                      )
+                    }
                   </div>
                 </div>
                 <div>
@@ -1109,6 +1204,68 @@ const StoreManagement = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Ex: Estoque Principal, Depósito A, Prateleira 1-A"
                 />
+              </div>
+
+              {/* Campos de produto digital e afiliação */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Tipo do produto</label>
+                  <select
+                    className="mt-1 w-full border rounded p-2"
+                    value={productForm.type}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, type: e.target.value }))}
+                  >
+                    <option value="physical">Físico</option>
+                    <option value="digital">Digital</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Afiliação habilitada</label>
+                  <input
+                    type="checkbox"
+                    className="mt-2"
+                    checked={!!productForm.affiliate_enabled}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, affiliate_enabled: e.target.checked }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Taxa de comissão (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="mt-1 w-full border rounded p-2"
+                    value={productForm.affiliate_rate_percent}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, affiliate_rate_percent: e.target.value }))}
+                  />
+                </div>
+                {productForm.type === 'digital' && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700">URL de download (Digital)</label>
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      className="mt-1 w-full border rounded p-2"
+                      value={productForm.download_url}
+                      onChange={(e) => setProductForm(prev => ({ ...prev, download_url: e.target.value }))}
+                    />
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-gray-700">PDF do produto</label>
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={handlePdfChange}
+                        className="mt-1 w-full border rounded p-2"
+                      />
+                      {pdfFile && (
+                        <p className="text-xs text-gray-600 mt-1">Selecionado: {pdfFile.name}</p>
+                      )}
+                      {uploadingPdf && (
+                        <p className="text-xs text-primary-600 mt-1">Enviando PDF...</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center">

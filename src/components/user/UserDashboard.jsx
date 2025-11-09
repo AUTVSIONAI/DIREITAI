@@ -1,23 +1,29 @@
-import React, { useState } from 'react'
+import React, { useState, Suspense, lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
-import Profile from './pages/Profile'
-import UnifiedAI from './pages/UnifiedAI.jsx'
-import CheckIn from './pages/CheckIn'
-import Ranking from './pages/Ranking'
-import Store from './pages/Store'
-import Achievements from './pages/Achievements'
-import Plan from './pages/Plan'
-import Overview from './pages/Overview'
-import StoreSuccess from './pages/StoreSuccess'
-import PaymentSuccess from './pages/PaymentSuccess'
-import Politicians from '../../pages/Politicians'
-import Blog from '../../pages/Blog'
-import BlogPost from '../../pages/BlogPost'
-import AgentChat from '../../pages/AgentChat'
-import Agents from './pages/Agents'
-import EventMap from './pages/EventMap'
+
+// Componente de loading para páginas internas
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  </div>
+)
+
+// Lazy loading das páginas do dashboard
+const Overview = lazy(() => import('./pages/Overview'))
+const Profile = lazy(() => import('./pages/Profile'))
+const UnifiedAI = lazy(() => import('./pages/UnifiedAI.jsx'))
+const CheckIn = lazy(() => import('./pages/CheckIn'))
+const Ranking = lazy(() => import('./pages/Ranking'))
+const Store = lazy(() => import('./pages/Store'))
+const Achievements = lazy(() => import('./pages/Achievements'))
+const Plan = lazy(() => import('./pages/Plan'))
+const StoreSuccess = lazy(() => import('./pages/StoreSuccess'))
+const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'))
+const Agents = lazy(() => import('./pages/Agents'))
+const EventMap = lazy(() => import('./pages/EventMap'))
+const Affiliates = lazy(() => import('./pages/Affiliates'))
 
 
 const UserDashboard = () => {
@@ -35,7 +41,8 @@ const UserDashboard = () => {
         
         {/* Page Content */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
-          <Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
             <Route path="/" element={<Overview />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/direitagpt" element={<UnifiedAI />} />
@@ -49,8 +56,10 @@ const UserDashboard = () => {
             <Route path="/achievements" element={<Achievements />} />
             <Route path="/plan" element={<Plan />} />
             <Route path="/events" element={<EventMap />} />
+            <Route path="/affiliates" element={<Affiliates />} />
 
-          </Routes>
+            </Routes>
+          </Suspense>
         </main>
       </div>
       

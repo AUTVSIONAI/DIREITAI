@@ -1,4 +1,5 @@
 import { apiClient } from "../lib/api";
+import axios from 'axios'
 
 export interface Product {
   id: number;
@@ -99,8 +100,24 @@ class StoreManagementService {
       ...(filters?.search && { search: filters.search })
     });
 
-    const response = await apiClient.get(`/admin/store/products?${params}`);
-    return response.data;
+    try {
+      const response = await apiClient.get(`/admin/store/products?${params}`);
+      const data = response.data as any;
+      const products = data?.products || data?.data?.products || data?.data || [];
+      const total = data?.total || data?.data?.total || (Array.isArray(products) ? products.length : 0);
+      const totalPages = data?.totalPages || data?.data?.totalPages || 1;
+      const pageNum = data?.page || data?.data?.page || page;
+      return { products, total, page: pageNum, totalPages };
+    } catch (err: any) {
+      // Fallback para endpoint público caso o admin falhe
+      const fallback = await apiClient.get(`/store/products?${params}`);
+      const fdata = fallback.data as any;
+      const products = fdata?.products || fdata?.data?.products || fdata?.data || [];
+      const total = fdata?.total || fdata?.data?.total || (Array.isArray(products) ? products.length : 0);
+      const totalPages = fdata?.totalPages || fdata?.data?.totalPages || 1;
+      const pageNum = fdata?.page || fdata?.data?.page || page;
+      return { products, total, page: pageNum, totalPages };
+    }
   }
 
   async getProduct(id: number): Promise<Product> {
@@ -110,12 +127,26 @@ class StoreManagementService {
 
   async createProduct(product: Omit<Product, 'id' | 'createdAt' | 'sold' | 'rating' | 'reviews'>): Promise<Product> {
     const response = await apiClient.post('/admin/store/products', product);
-    return response.data;
+    const status = (response as any)?.status || 200;
+    const success = (response as any)?.success ?? (status < 400);
+    const payload: any = response.data;
+    if (!success) {
+      const msg = payload?.error || payload?.message || 'Falha ao criar produto';
+      throw new Error(msg);
+    }
+    return payload?.product || payload?.data || payload;
   }
 
   async updateProduct(id: number, product: Partial<Product>): Promise<Product> {
     const response = await apiClient.put(`/admin/store/products/${id}`, product);
-    return response.data;
+    const status = (response as any)?.status || 200;
+    const success = (response as any)?.success ?? (status < 400);
+    const payload: any = response.data;
+    if (!success) {
+      const msg = payload?.error || payload?.message || 'Falha ao atualizar produto';
+      throw new Error(msg);
+    }
+    return payload?.product || payload?.data || payload;
   }
 
   async deleteProduct(id: number): Promise<void> {
@@ -133,14 +164,23 @@ class StoreManagementService {
   }
 
   async uploadProductImage(formData: FormData): Promise<{ data: { imageUrl: string } }> {
-    const response = await apiClient.post('/upload/product-image', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
-    return { data: { imageUrl: response.data.data.url } };
+    const response = await apiClient.post('/store/upload/image', formData, {
+      onUploadProgress: undefined,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    const payload: any = response.data
+    const url = payload?.data?.url || payload?.url || payload?.data?.imageUrl || payload?.imageUrl || ''
+    return { data: { imageUrl: url } }
   }
-
+  async uploadProductFile(formData: FormData) {
+    const response = await apiClient.post('/store/upload/file', formData, {
+      onUploadProgress: undefined,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    const payload: any = response.data
+    const url = payload?.data?.url || payload?.url || payload?.data?.fileUrl || payload?.fileUrl || ''
+    return { data: { fileUrl: url } }
+  }
   // Orders
   async getOrders(filters?: OrderFilters, page = 1, limit = 20): Promise<{
     orders: Order[];
@@ -195,13 +235,47 @@ class StoreManagementService {
 
   // Categories
   async getCategories(): Promise<{ id: string; name: string; count: number }[]> {
-    const response = await apiClient.get('/admin/store/categories');
-    return response.data;
+    try {
+      const response = await apiClient.get('/admin/store/categories');
+      const data = response.data
+      // aceitar diferentes formatos de resposta
+      if (Array.isArray(data)) return data
+      if (Array.isArray(data?.categories)) return data.categories
+      if (Array.isArray(data?.data?.categories)) return data.data.categories
+      // se vier em formato inesperado, tenta fallback
+      throw new Error('Formato inesperado de categorias')
+    } catch (err) {
+      // Fallback para endpoint público
+      const fallback = await apiClient.get('/store/categories');
+      const fdata = fallback.data as any
+      const cats: string[] = fdata?.categories || fdata?.data?.categories || []
+      if (Array.isArray(cats)) {
+        return cats.map((c: any) => ({ id: String(c.id || c), name: c.name || String(c), count: Number(c.count || 0) }))
+      }
+      return []
+    }
   }
 
   async createCategory(name: string): Promise<{ id: string; name: string; count: number }> {
-    const response = await apiClient.post('/admin/store/categories', { name });
-    return response.data.category;
+    // aceitar diferentes formatos de payload
+    const payloads = [
+      { name },
+      { category: { name } },
+    ]
+    let lastError: any = null
+    for (const body of payloads) {
+      try {
+        const response = await apiClient.post('/admin/store/categories', body);
+        const res = response.data
+        // aceitar diferentes formatos de resposta
+        return res?.category || res?.data?.category || res
+      } catch (err) {
+        lastError = err
+        // tenta próximo formato
+        continue
+      }
+    }
+    throw lastError
   }
 
   // Export

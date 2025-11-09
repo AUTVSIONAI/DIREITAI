@@ -1,5 +1,4 @@
-import { useContext } from 'react';
-import { AuthContext } from '../contexts/AuthContext';
+import { useAuth as useAuthProvider } from '../contexts/AuthContext';
 import type { UserProfile, LoginCredentials, RegisterData, UpdateProfileData } from '../types/auth';
 
 /**
@@ -7,13 +6,7 @@ import type { UserProfile, LoginCredentials, RegisterData, UpdateProfileData } f
  * @returns Contexto de autenticação com estado do usuário e funções de auth
  */
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  
-  if (!context) {
-    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
-  }
-  
-  return context;
+  return useAuthProvider();
 };
 
 /**
@@ -42,7 +35,7 @@ export const useHasPermission = (permission: string): boolean => {
  */
 export const useHasRole = (role: string): boolean => {
   const { user } = useAuth();
-  return user?.role === role || user?.roles?.includes(role) ?? false;
+  return (user?.role === role || user?.roles?.includes(role)) ?? false;
 };
 
 /**

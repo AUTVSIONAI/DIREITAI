@@ -50,8 +50,10 @@ const AgentChat = () => {
       // Buscar agente do político
       const agentResponse = await apiClient.get(`/agents?politician_id=${politicianId}`);
       
-      if (agentResponse.data.success && agentResponse.data.data.length > 0) {
-        const agentData = agentResponse.data.data[0];
+      const payload = agentResponse?.data;
+      const list = Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload) ? payload : []);
+      if (list.length > 0) {
+        const agentData = list[0];
         setAgent(agentData);
         setPolitician(agentData.politicians);
         
@@ -59,7 +61,7 @@ const AgentChat = () => {
         setMessages([{
           id: 'welcome',
           type: 'agent',
-          content: `Olá! Eu sou ${agentData.politicians.name}, ${agentData.politicians.position}. Como posso ajudá-lo hoje? Fique à vontade para me perguntar sobre minhas propostas, posicionamentos políticos ou qualquer questão relacionada ao meu trabalho.`,
+          content: `Olá! Eu sou ${agentData.politicians?.name || 'o agente'}${agentData.politicians?.position ? `, ${agentData.politicians.position}` : ''}. Como posso ajudá-lo hoje?`,
           timestamp: new Date().toISOString()
         }]);
       } else {
@@ -97,25 +99,33 @@ const AgentChat = () => {
         session_id: sessionId
       });
 
-      if (response.data.success) {
+      const payload = response?.data || {};
+      const messageText =
+        typeof payload.response === 'string'
+          ? payload.response
+          : (payload.data && typeof payload.data.message === 'string')
+          ? payload.data.message
+          : (typeof payload.message === 'string' ? payload.message : '');
+
+      if (messageText) {
         const agentMessage = {
           id: `agent_${Date.now()}`,
           type: 'agent',
-          content: response.data.data.message,
+          content: messageText,
           timestamp: new Date().toISOString(),
-          response_time: response.data.data.response_time_ms,
-          fallback: response.data.data.fallback
+          response_time: payload.data?.response_time_ms ?? payload.response_time_ms,
+          fallback: payload.data?.fallback ?? payload.fallback
         };
 
         setMessages(prev => [...prev, agentMessage]);
-        setLastBotMessage(response.data.data.message);
+        setLastBotMessage(messageText);
         
         // Auto-falar a resposta da IA
         if (voiceControlsRef.current) {
-          voiceControlsRef.current.speakMessage(response.data.data.message);
+          voiceControlsRef.current.speakMessage(messageText);
         }
       } else {
-        throw new Error('Erro na resposta da API');
+        throw new Error('Resposta da API sem mensagem de conteúdo');
       }
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
@@ -288,7 +298,7 @@ const AgentChat = () => {
                 <div
                   className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                     message.type === 'user'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-gray-100 text-gray-900'
                       : message.error
                       ? 'bg-red-100 text-red-800 border border-red-200'
                       : 'bg-gray-100 text-gray-900'

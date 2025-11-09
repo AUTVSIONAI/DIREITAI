@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Sparkles, Image, Video, MessageSquare, Quote, Download, Copy, Share2, Wand2, RefreshCw, Save, Eye, EyeOff } from 'lucide-react'
-import { useAuth } from '../../../hooks/useAuth'
+import { useAuth } from '../../../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { apiClient } from '../../../lib/api'
 

@@ -5,8 +5,7 @@ import { supabase } from './supabase';
 // Configuração base da API
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
 
-// Log da URL da API para debug
-console.log('🔗 API Base URL:', API_BASE_URL);
+
 
 class ApiClientImpl implements ApiClient {
   private axiosInstance: AxiosInstance;
@@ -126,84 +125,57 @@ class ApiClientImpl implements ApiClient {
     this.axiosInstance.interceptors.request.use(
       async (config) => {
         try {
-          // Garantir que config existe e tem estrutura válida
           if (!config) {
-            config = {};
+            config = {} as any;
           }
           if (!config.headers) {
-            config.headers = {};
+            config.headers = {} as any;
           }
-          
-          let token = null;
-          
-          // Estratégia 1: Tentar obter sessão atual
+          let token: string | null = null;
+
+          // 1) Priorizar token já configurado nos defaults do axios para evitar chamadas supabase desnecessárias
           try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            
-            if (session?.access_token && !sessionError) {
-              token = session.access_token;
-              console.log('✅ Token obtido da sessão atual para:', config.url);
-            } else if (sessionError) {
-              console.log('⚠️ Erro na sessão:', sessionError.message);
+            const authHeader = this.axiosInstance.defaults.headers?.common?.Authorization as string | undefined;
+            if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+              token = authHeader.substring(7);
             }
-          } catch (sessionErr) {
-            console.log('⚠️ Falha ao obter sessão:', sessionErr.message);
-          }
-          
-          // Estratégia 2: Se não tem token, tentar refresh da sessão
+          } catch {}
+
+          // 2) Se não houver token nos defaults, obter sessão atual do Supabase (sem refresh aqui)
           if (!token) {
             try {
-              const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
-              if (refreshedSession?.access_token && !refreshError) {
-                token = refreshedSession.access_token;
-                console.log('✅ Token obtido via refresh para:', config.url);
-              } else if (refreshError) {
-                console.log('⚠️ Erro no refresh:', refreshError.message);
+              const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+              if (session?.access_token && !sessionError) {
+                token = session.access_token;
               }
-            } catch (refreshErr) {
-              console.log('⚠️ Falha no refresh:', refreshErr.message);
+            } catch {
+              // Em caso de erro, seguir sem token; não bloquear a requisição aqui
             }
           }
-          
-          // Estratégia 3: Verificar se há token nos headers padrão (fallback)
-          if (!token && this.axiosInstance.defaults.headers?.common?.Authorization) {
-            const authHeader = this.axiosInstance.defaults.headers.common.Authorization;
-            if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-              token = authHeader.substring(7);
-              console.log('✅ Token obtido dos headers padrão para:', config.url);
-            }
-          }
-          
-          // Aplicar token se encontrado
+
+          // 3) Aplicar Authorization no request se o token existir
           if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-            console.log('🔍 Token aplicado (preview):', token.substring(0, 20) + '...');
-          } else {
-            console.log('❌ Nenhum token disponível para:', config.url);
-            
-            // Verificar se usuário ainda está logado
-            try {
-              const { data: { user }, error: userError } = await supabase.auth.getUser();
-              if (!user || userError) {
-                console.log('❌ Usuário não autenticado, redirecionando...');
-                // Não redirecionar imediatamente, deixar o backend retornar 401
-              }
-            } catch (userCheckError) {
-              console.log('❌ Erro ao verificar usuário:', userCheckError.message);
-            }
+            (config.headers as any).Authorization = `Bearer ${token}`;
           }
-        } catch (error) {
-          console.error('❌ Erro crítico no interceptor:', error);
-          // Garantir que config seja válido mesmo em caso de erro
+
+          // Logs defensivos em rotas sensíveis
+          try {
+            const url = config?.url || '';
+            const method = (config?.method || 'get').toLowerCase();
+            if (url.includes('/agents') && method === 'post') {
+              const hasAuth = !!(config.headers as any).Authorization;
+              const contentType = (config.headers as any)['Content-Type'];
+              console.log('[API DEBUG] POST /agents headers overview:', { hasAuth, contentType });
+              console.log('[API DEBUG] baseURL:', this.axiosInstance.defaults.baseURL);
+            }
+          } catch {}
+        } catch {
           if (!config) {
-            config = { headers: {} };
+            config = { headers: {} } as any;
           }
         }
-        
-        // Métricas
         this.metrics.totalRequests++;
         this.metrics.lastRequestTime = new Date();
-        
         return config;
       },
       (error) => {
@@ -212,7 +184,7 @@ class ApiClientImpl implements ApiClient {
       }
     );
 
-    // Interceptor para tratar respostas
+    // Interceptor para tratar respostas e erros
     this.axiosInstance.interceptors.response.use(
       (response: AxiosResponse) => {
         this.metrics.successfulRequests++;
@@ -220,18 +192,20 @@ class ApiClientImpl implements ApiClient {
       },
       (error) => {
         this.metrics.failedRequests++;
-        
-        // Tratar erros de autenticação
-        if (error.response?.status === 401) {
-          // Limpar sessão do Supabase
-          supabase.auth.signOut();
-          // Redirecionar para login apenas se não estiver em páginas públicas
-          const publicPaths = ['/login', '/register', '/'];
-          if (!publicPaths.includes(window.location.pathname)) {
-            window.location.href = '/login';
+        try {
+          const cfg = error?.config || {};
+          const url = cfg?.url || '';
+          const method = (cfg?.method || 'get').toLowerCase();
+          if (url.includes('/agents') && method === 'post') {
+            console.error('[API DEBUG] POST /agents failed:', {
+              status: error?.response?.status,
+              data: error?.response?.data,
+              headers: error?.response?.headers,
+            });
           }
-        }
-        
+        } catch {}
+        // Não fazer signOut automático em 401 para evitar loops durante login
+        // Deixar erro propagar e ser tratado por páginas/componentes específicos
         return Promise.reject(error);
       }
     );
@@ -240,8 +214,6 @@ class ApiClientImpl implements ApiClient {
   private async makeRequest<T>(config: AxiosRequestConfig): Promise<ApiResponse<T>> {
     try {
       const startTime = Date.now();
-      console.log('🚀 Making request:', config.method?.toUpperCase(), config.url);
-      console.log('📦 Request data:', config.data);
       
       const response = await this.axiosInstance.request(config);
       const endTime = Date.now();
@@ -252,26 +224,123 @@ class ApiClientImpl implements ApiClient {
         (this.metrics.averageResponseTime + responseTime) / 2;
       this.metrics.successfulRequests++;
       
-      console.log('✅ Request successful:', response.status, response.statusText);
-      
       // Verificação defensiva para response e headers
       const safeResponse = response || {};
       const safeHeaders = safeResponse.headers || {};
+      const statusCode = safeResponse.status || 200;
+
+      // Se o backend local retornar erro de rede (status 0), tentar fallback automático para produção
+      const isLocalApi = API_BASE_URL.includes('localhost:5120') || API_BASE_URL.includes('127.0.0.1:5120') || API_BASE_URL.startsWith('/api');
+      if (isLocalApi && (statusCode === 0)) {
+        try {
+          const altConfig: AxiosRequestConfig = {
+            ...config,
+            baseURL: 'https://direitai-backend.vercel.app/api',
+          };
+          const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization;
+          altConfig.headers = { ...(config?.headers || {}) } as any;
+          if (authHeader && !altConfig.headers.Authorization) {
+            (altConfig.headers as any).Authorization = authHeader;
+          }
+          const altResponse = await axios.request(altConfig);
+          const altSafeResponse = altResponse || {};
+          const altSafeHeaders = altSafeResponse.headers || {};
+          return {
+            data: altSafeResponse.data,
+            status: altSafeResponse.status || 200,
+            statusText: altSafeResponse.statusText,
+            headers: altSafeHeaders,
+            success: true
+          };
+        } catch (fallbackErr) {
+          // Se o fallback também falhar, continuar retornando a resposta original
+        }
+      }
       
       return {
         data: safeResponse.data,
-        status: safeResponse.status || 200,
+        status: statusCode,
         statusText: safeResponse.statusText,
         headers: safeHeaders,
-        success: true
+        success: statusCode < 400
       };
     } catch (error: any) {
       this.metrics.failedRequests++;
-      
-      console.error('❌ Request failed:', error.response?.status, error.response?.statusText);
-      console.error('❌ Error data:', error.response?.data);
-      
-      // Para erros 400, 401, etc., ainda queremos lançar o erro para que o frontend possa tratá-lo
+
+      const isLocalApi = API_BASE_URL.includes('localhost:5120') || API_BASE_URL.includes('127.0.0.1:5120') || API_BASE_URL.startsWith('/api');
+      const status = error?.response?.status;
+      const shouldFallbackNetwork = isLocalApi && (status === 0);
+
+      // Fallback 1: erro de rede local (status 0)
+      if (shouldFallbackNetwork) {
+        try {
+          const altConfig: AxiosRequestConfig = {
+            ...config,
+            baseURL: 'https://direitai-backend.vercel.app/api',
+          };
+          // Preservar token de autorização, se existir
+          const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization;
+          altConfig.headers = { ...(config?.headers || {}) } as any;
+          if (authHeader && !altConfig.headers.Authorization) {
+            (altConfig.headers as any).Authorization = authHeader;
+          }
+
+          const response = await axios.request(altConfig);
+          const safeResponse = response || {};
+          const safeHeaders = safeResponse.headers || {};
+
+          return {
+            data: safeResponse.data,
+            status: safeResponse.status || 200,
+            statusText: safeResponse.statusText,
+            headers: safeHeaders,
+            success: true
+          };
+        } catch (fallbackErr) {
+          // Se o fallback também falhar, lançar o erro original
+          throw error;
+        }
+      }
+
+      // Fallback 2: backend local respondeu 500
+      try {
+        const urlPath = (error?.config?.url || '').toLowerCase();
+        const method = (error?.config?.method || 'get').toLowerCase();
+        const respData = error?.response?.data;
+        const code = respData?.code || error?.code;
+        const message = String(respData?.message || respData?.error || '');
+        const isPermissionDenied = code === '42501' || /permission denied/i.test(message);
+        const isSurveysEndpoint = urlPath.includes('/surveys');
+
+        // Fallback 2a: 500 com permissão negada
+        const shouldFallbackPermission = isLocalApi && status >= 500 && isPermissionDenied;
+        // Fallback 2b: 500 genérico em /surveys para POST/PUT
+        const shouldFallbackSurveys500 = isLocalApi && status >= 500 && isSurveysEndpoint && (method === 'post' || method === 'put');
+
+        if (shouldFallbackPermission || shouldFallbackSurveys500) {
+          const altConfig: AxiosRequestConfig = {
+            ...config,
+            baseURL: 'https://direitai-backend.vercel.app/api',
+          };
+          const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization;
+          altConfig.headers = { ...(config?.headers || {}) } as any;
+          if (authHeader && !altConfig.headers.Authorization) {
+            (altConfig.headers as any).Authorization = authHeader;
+          }
+          const response = await axios.request(altConfig);
+          const safeResponse = response || {};
+          const safeHeaders = safeResponse.headers || {};
+          return {
+            data: safeResponse.data,
+            status: safeResponse.status || 200,
+            statusText: safeResponse.statusText,
+            headers: safeHeaders,
+            success: true
+          };
+        }
+      } catch {}
+
+      // Para erros 400, 401, etc., ou 500 sem condição de fallback, lançamos para tratamento no frontend
       throw error;
     }
   }

@@ -6,7 +6,7 @@ import {
   getRSVPStatusColor,
   getRSVPStatusIcon
 } from '../../types/rsvp';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface RSVPParticipantsListProps {
   type: 'event' | 'manifestation';

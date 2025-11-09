@@ -33,8 +33,17 @@ const Overview = () => {
     const fetchOverviewData = async () => {
       try {
         setLoading(true);
-        const data = await AdminService.getOverview();
-        const stats = data.statistics || {};
+        
+        // Timeout para evitar travamento
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout na requisição')), 10000)
+        );
+        
+        const dataPromise = AdminService.getOverview();
+        
+        const data = await Promise.race([dataPromise, timeoutPromise]);
+        
+        const stats = data?.statistics || {};
         setStats({
           activeUsers: stats.activeUsers || 0,
           todayCheckins: stats.checkinsToday || 0,
@@ -43,12 +52,26 @@ const Overview = () => {
           aiConversations: stats.aiConversationsToday || 0,
           moderatedContent: stats.pendingModeration || 0
         });
-        setRecentEvents(data.recentEvents || []);
-        setTopCities(data.topCities || []);
-        setRecentActivities(data.recentActivities || []);
+        setRecentEvents(data?.recentEvents || []);
+        setTopCities(data?.topCities || []);
+        setRecentActivities(data?.recentActivities || []);
       } catch (err) {
         console.error('Erro ao carregar dados do overview:', err);
-        setError('Erro ao carregar dados');
+        
+        // Usar dados mock em caso de erro
+        setStats({
+          activeUsers: 1250,
+          todayCheckins: 89,
+          activeEvents: 12,
+          monthlyRevenue: 15420,
+          aiConversations: 234,
+          moderatedContent: 5
+        });
+        setRecentEvents([]);
+        setTopCities([]);
+        setRecentActivities([]);
+        
+        setError('Usando dados de demonstração (API indisponível)');
       } finally {
         setLoading(false);
       }

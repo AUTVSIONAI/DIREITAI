@@ -38,12 +38,19 @@ const Agents = () => {
   const fetchAgents = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/agents');
-      if (response.data.success) {
-        setAgents(response.data.data || []);
-      } else {
-        setAgents(response.data || []);
+      let list = [];
+      try {
+        const response = await apiClient.get('/agents?limit=1000&page=1');
+        list = response.data?.data || response.data || [];
+        console.log('Agentes carregados (user) via paginação:', Array.isArray(list) ? list.length : 0);
+      } catch (err) {
+        const status = err?.response?.status;
+        console.warn('Falha ao buscar com paginação, tentando fallback /agents. Status:', status);
+        const response = await apiClient.get('/agents');
+        list = response.data?.data || response.data || [];
+        console.log('Agentes carregados (user) via fallback:', Array.isArray(list) ? list.length : 0);
       }
+      setAgents(list);
     } catch (error) {
       console.error('Erro ao carregar agentes:', error);
       setAgents([]);
@@ -53,11 +60,17 @@ const Agents = () => {
   };
 
   const filteredAgents = agents.filter(agent => {
-    const matchesSearch = agent.politicians?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         agent.name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const hasPoliticianName = typeof agent.politicians?.name === 'string'
+    const hasAgentName = typeof agent.name === 'string'
+    const matchesSearch = !searchTerm || (
+      (hasPoliticianName && agent.politicians.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (hasAgentName && agent.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
     const matchesState = !selectedState || agent.politicians?.state === selectedState;
     const matchesParty = !selectedParty || agent.politicians?.party === selectedParty;
-    return matchesSearch && matchesState && matchesParty && agent.is_active;
+    // Mostrar agentes mesmo que a flag is_active não venha explícita; só exclui se for false
+    const isVisible = agent.is_active !== false;
+    return matchesSearch && matchesState && matchesParty && isVisible;
   });
 
   if (loading) {

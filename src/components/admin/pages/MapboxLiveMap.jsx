@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Map, { Marker, Popup, Source, Layer } from 'react-map-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import { LazyMap, LazyMarker, LazyPopup, LazySource, LazyLayer } from '../../common/LazyMapbox';
+import { useDebounce } from '../../../hooks/useUtils.ts';
 import { apiClient } from '../../../lib/api';
 import { MapPin, Calendar, Users, Filter, X } from 'lucide-react';
-
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const MapboxLiveMap = () => {
   const [viewState, setViewState] = useState({
@@ -27,13 +25,16 @@ const MapboxLiveMap = () => {
     dateFrom: '',
     dateTo: ''
   });
+
+  // Debounce filters para evitar muitas requisições
+  const debouncedFilters = useDebounce(filters, 500);
   
   const mapRef = useRef();
   
   // Carregar dados iniciais
   useEffect(() => {
     loadMapData();
-  }, [filters]);
+  }, [debouncedFilters]);
   
   const loadMapData = async () => {
     try {
@@ -42,10 +43,10 @@ const MapboxLiveMap = () => {
       
       // Construir query params
       const params = new URLSearchParams();
-      if (filters.city) params.append('city', filters.city);
-      if (filters.state) params.append('state', filters.state);
-      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-      if (filters.dateTo) params.append('dateTo', filters.dateTo);
+      if (debouncedFilters.city) params.append('city', debouncedFilters.city);
+      if (debouncedFilters.state) params.append('state', debouncedFilters.state);
+      if (debouncedFilters.dateFrom) params.append('dateFrom', debouncedFilters.dateFrom);
+      if (debouncedFilters.dateTo) params.append('dateTo', debouncedFilters.dateTo);
       
       // Carregar eventos e check-ins em paralelo
       const [eventsResponse, checkinsResponse] = await Promise.all([
@@ -167,19 +168,7 @@ const MapboxLiveMap = () => {
     });
   };
   
-  if (!MAPBOX_TOKEN) {
-    return (
-      <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
-        <div className="text-center">
-          <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600">Token do Mapbox não configurado</p>
-          <p className="text-sm text-gray-500 mt-2">
-            Configure VITE_MAPBOX_TOKEN no arquivo .env
-          </p>
-        </div>
-      </div>
-    );
-  }
+
   
   return (
     <div className="space-y-6">
@@ -339,90 +328,86 @@ const MapboxLiveMap = () => {
           </div>
         )}
         
-        <div className="h-96 md:h-[600px]">
-          <Map
-            ref={mapRef}
-            {...viewState}
-            onMove={evt => setViewState(evt.viewState)}
-            mapboxAccessToken={MAPBOX_TOKEN}
-            style={{ width: '100%', height: '100%' }}
-            mapStyle="mapbox://styles/mapbox/streets-v12"
-            attributionControl={false}
-          >
-            {/* Heatmap de check-ins */}
-            {generateHeatmapData() && (
-              <Source id="checkins" type="geojson" data={generateHeatmapData()}>
-                <Layer {...heatmapLayer} />
-              </Source>
-            )}
-            
-            {/* Marcadores de eventos */}
-            {events.map((event) => (
-              <Marker
-                key={event.event_id}
-                longitude={event.longitude}
-                latitude={event.latitude}
-                anchor="bottom"
-                onClick={e => {
-                  e.originalEvent.stopPropagation();
-                  setSelectedEvent(event);
-                }}
-              >
-                <div className="bg-red-500 text-white p-2 rounded-full shadow-lg cursor-pointer hover:bg-red-600 transition-colors">
-                  <Calendar className="h-4 w-4" />
-                </div>
-              </Marker>
-            ))}
-            
-            {/* Popup do evento selecionado */}
-            {selectedEvent && (
-              <Popup
-                longitude={selectedEvent.longitude}
-                latitude={selectedEvent.latitude}
-                anchor="top"
-                onClose={() => setSelectedEvent(null)}
-                className="max-w-sm"
-              >
-                <div className="p-4">
-                  <h3 className="font-bold text-lg mb-2">{selectedEvent.title}</h3>
-                  
-                  {selectedEvent.description && (
-                    <p className="text-gray-600 mb-3 text-sm">
-                      {selectedEvent.description}
-                    </p>
-                  )}
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-gray-500" />
-                      <span>{selectedEvent.city}, {selectedEvent.state}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-gray-500" />
-                      <span>{formatDate(selectedEvent.date)}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-gray-500" />
-                      <span>{selectedEvent.confirmed_count || 0} confirmados</span>
-                    </div>
+        <LazyMap
+          ref={mapRef}
+          {...viewState}
+          onMove={evt => setViewState(evt.viewState)}
+          height="600px"
+          attributionControl={false}
+        >
+          {/* Heatmap de check-ins */}
+          {generateHeatmapData() && (
+            <LazySource id="checkins" type="geojson" data={generateHeatmapData()}>
+              <LazyLayer {...heatmapLayer} />
+            </LazySource>
+          )}
+          
+          {/* Marcadores de eventos */}
+          {events.map((event) => (
+            <LazyMarker
+              key={event.event_id}
+              longitude={event.longitude}
+              latitude={event.latitude}
+              anchor="bottom"
+              onClick={e => {
+                e.originalEvent.stopPropagation();
+                setSelectedEvent(event);
+              }}
+            >
+              <div className="bg-red-500 text-white p-2 rounded-full shadow-lg cursor-pointer hover:bg-red-600 transition-colors">
+                <Calendar className="h-4 w-4" />
+              </div>
+            </LazyMarker>
+          ))}
+          
+          {/* Popup do evento selecionado */}
+          {selectedEvent && (
+            <LazyPopup
+              longitude={selectedEvent.longitude}
+              latitude={selectedEvent.latitude}
+              anchor="top"
+              onClose={() => setSelectedEvent(null)}
+              className="max-w-sm"
+            >
+              <div className="p-4">
+                <h3 className="font-bold text-lg mb-2">{selectedEvent.title}</h3>
+                
+                {selectedEvent.description && (
+                  <p className="text-gray-600 mb-3 text-sm">
+                    {selectedEvent.description}
+                  </p>
+                )}
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-gray-500" />
+                    <span>{selectedEvent.city}, {selectedEvent.state}</span>
                   </div>
                   
-                  <button
-                    onClick={() => {
-                      // Implementar navegação para detalhes do evento
-                      console.log('Ver detalhes do evento:', selectedEvent.event_id);
-                    }}
-                    className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-                  >
-                    Ver Detalhes
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                    <span>{formatDate(selectedEvent.date)}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-gray-500" />
+                    <span>{selectedEvent.confirmed_count || 0} confirmados</span>
+                  </div>
                 </div>
-              </Popup>
-            )}
-          </Map>
-        </div>
+                
+                <button
+                  onClick={() => {
+                    // Implementar navegação para detalhes do evento
+                    console.log('Ver detalhes do evento:', selectedEvent.event_id);
+                  }}
+                  className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                >
+                  Ver Detalhes
+                </button>
+              </div>
+            </LazyPopup>
+          )}
+        </LazyMap>
       </div>
       
       {/* Legenda */}

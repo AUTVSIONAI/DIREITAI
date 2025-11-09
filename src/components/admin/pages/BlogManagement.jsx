@@ -28,7 +28,14 @@ const BlogManagement = () => {
   const fetchPosts = async () => {
     try {
       setLoading(true)
-      const response = await apiClient.get('/blog')
+      const params = {}
+      if (filterStatus) {
+        params.status = filterStatus
+      }
+      if (searchTerm) {
+        params.search = searchTerm
+      }
+      const response = await apiClient.get('/admin/blog', { params })
       setPosts(response.data.data || [])
     } catch (error) {
       console.error('Erro ao carregar posts:', error)
@@ -218,22 +225,23 @@ const BlogManagement = () => {
               <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por título ou conteúdo..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onKeyDown={(e) => { if (e.key === 'Enter') fetchPosts() }}
+                placeholder="Buscar por título ou conteúdo"
+                className="pl-10 pr-4 py-2 border rounded-lg w-full"
               />
             </div>
           </div>
-          <div className="w-48">
+          <div>
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onChange={(e) => { setFilterStatus(e.target.value); fetchPosts(); }}
+              className="border rounded-lg py-2 px-3"
             >
-              <option value="">Todos os status</option>
-              <option value="draft">Rascunho</option>
-              <option value="published">Publicado</option>
+              <option value="">Todos</option>
+              <option value="published">Publicados</option>
+              <option value="draft">Rascunhos</option>
             </select>
           </div>
         </div>

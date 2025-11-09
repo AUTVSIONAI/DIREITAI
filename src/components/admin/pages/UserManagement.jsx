@@ -19,6 +19,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { AdminService } from '../../../services/admin';
+import { useSearchParams } from 'react-router-dom'
 
 const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -57,17 +58,76 @@ const UserManagement = () => {
 
   // Carregar usuários ao montar o componente
   useEffect(() => {
-    loadUsers();
-  }, []);
+     loadUsers();
+   }, []);
 
-  // Recarregar quando filtros mudarem
+  const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      loadUsers();
-    }, 500); // Debounce de 500ms
-    
-    return () => clearTimeout(timeoutId);
-  }, [selectedPlan, selectedStatus, searchTerm]);
+    const params = new URLSearchParams(searchParams.toString());
+    const qp = params.get('search');
+    if (qp && qp !== searchTerm) {
+      setSearchTerm(qp);
+    }
+    const qs = params.get('status');
+    const validStatus = ['all', 'active', 'inactive', 'banned'];
+    if (qs) {
+      if (validStatus.includes(qs)) {
+        if (qs !== selectedStatus) setSelectedStatus(qs);
+      } else {
+        // normaliza inválido
+        if (selectedStatus !== 'all') setSelectedStatus('all');
+        params.delete('status');
+        setSearchParams(params);
+      }
+    }
+    const qpPlan = params.get('plan');
+    const validPlans = ['all', 'gratuito', 'engajado', 'premium'];
+    if (qpPlan) {
+      if (validPlans.includes(qpPlan)) {
+        if (qpPlan !== selectedPlan) setSelectedPlan(qpPlan);
+      } else {
+        // normaliza inválido
+        if (selectedPlan !== 'all') setSelectedPlan('all');
+        params.delete('plan');
+        setSearchParams(params);
+      }
+    }
+  }, [searchParams]);
+
+  // Sincroniza URL quando filtros mudam
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    let changed = false;
+
+    const currentSearch = params.get('search') || '';
+    const desiredSearch = searchTerm || '';
+    if (desiredSearch) {
+      if (currentSearch !== desiredSearch) { params.set('search', desiredSearch); changed = true; }
+    } else if (currentSearch) { params.delete('search'); changed = true; }
+
+    const currentStatus = params.get('status') || '';
+    const desiredStatus = selectedStatus;
+    if (desiredStatus && desiredStatus !== 'all') {
+      if (currentStatus !== desiredStatus) { params.set('status', desiredStatus); changed = true; }
+    } else if (currentStatus) { params.delete('status'); changed = true; }
+
+    const currentPlan = params.get('plan') || '';
+    const desiredPlan = selectedPlan;
+    if (desiredPlan && desiredPlan !== 'all') {
+      if (currentPlan !== desiredPlan) { params.set('plan', desiredPlan); changed = true; }
+    } else if (currentPlan) { params.delete('plan'); changed = true; }
+
+    if (changed) setSearchParams(params);
+  }, [searchTerm, selectedStatus, selectedPlan]);
+ 
+   // Recarregar quando filtros mudarem
+   useEffect(() => {
+     const timeoutId = setTimeout(() => {
+       loadUsers();
+     }, 500); // Debounce de 500ms
+     
+     return () => clearTimeout(timeoutId);
+   }, [selectedPlan, selectedStatus, searchTerm]);
 
 
 

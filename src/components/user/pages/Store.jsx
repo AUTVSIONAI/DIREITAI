@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react'
-import { ShoppingCart, Search, Star, Truck, Shield, Loader2, X } from 'lucide-react'
+import { ShoppingCart, Search, Star, Truck, Shield, Loader2, X, Link as LinkIcon, CheckCircle, ArrowLeft } from 'lucide-react'
 import { apiClient } from '../../../lib/api'
 import { StoreService } from '../../../services/store'
+import { getMyAffiliateProfile, recordAffiliateClick } from '../../../services/affiliates'
+import { useAuth } from '../../../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 const Store = () => {
+  const navigate = useNavigate()
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
@@ -12,6 +16,48 @@ const Store = () => {
   const [showCart, setShowCart] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [copiedProductId, setCopiedProductId] = useState(null)
+  const { userProfile } = useAuth()
+  const [affiliateProfile, setAffiliateProfile] = useState(null)
+
+  // Carregar perfil de afiliado do usuário
+  useEffect(() => {
+    const loadAffiliate = async () => {
+      if (!userProfile?.id) {
+        setAffiliateProfile(null)
+        return
+      }
+      try {
+        const p = await getMyAffiliateProfile(userProfile.id)
+        setAffiliateProfile(p)
+      } catch (err) {
+        console.warn('Falha ao carregar perfil de afiliado:', err)
+        setAffiliateProfile(null)
+      }
+    }
+    loadAffiliate()
+  }, [userProfile?.id])
+
+  // Flag: usuário é afiliado ativo
+  const status = (affiliateProfile?.status || '').toLowerCase()
+  const isAffiliateActive = !!(affiliateProfile?.code && (affiliateProfile?.is_active || status === 'active'))
+
+  // Geração de link de afiliado por produto
+  const copyAffiliateLink = async (product) => {
+    if (!isAffiliateActive) return
+    const link = `${window.location.origin}/store?aff=${affiliateProfile.code}&product=${encodeURIComponent(product.id)}`
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedProductId(product.id)
+      setTimeout(() => setCopiedProductId(null), 1500)
+      // Registrar evento de geração/cópia de link como clique do afiliado
+      try {
+        await recordAffiliateClick(affiliateProfile.code, '/store', userProfile?.id)
+      } catch (err) {
+        console.warn('Falha ao registrar clique de afiliado:', err)
+      }
+    } catch {}
+  }
 
   // Carregar produtos e categorias da API
   useEffect(() => {
@@ -58,7 +104,8 @@ const Store = () => {
       reviews: apiProduct.reviews || 0,
       inStock: (apiProduct.stock_quantity || 0) > 0 && apiProduct.status === 'active',
       badge: apiProduct.featured ? 'Destaque' : null,
-      stock: apiProduct.stock_quantity || 0
+      stock: apiProduct.stock_quantity || 0,
+      tags: apiProduct.tags || []
     }
   }
 
@@ -140,9 +187,30 @@ const Store = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Loja Patriota</h2>
-          <p className="text-gray-600">Produtos exclusivos para conservadores</p>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => {
+              const ref = document.referrer
+              try {
+                if (ref) {
+                  const u = new URL(ref)
+                  if (u.origin === window.location.origin) {
+                    navigate(u.pathname + u.search + u.hash, { replace: true })
+                    return
+                  }
+                }
+              } catch {}
+              navigate('/dashboard', { replace: true })
+            }}
+            className="flex items-center space-x-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Voltar</span>
+          </button>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Loja Patriota</h2>
+            <p className="text-gray-600">Produtos exclusivos para conservadores</p>
+          </div>
         </div>
         <button
           onClick={() => setShowCart(!showCart)}
@@ -157,6 +225,18 @@ const Store = () => {
           )}
         </button>
       </div>
+
+      {/* Banner para afiliados ativos */}
+      {isAffiliateActive && (
+        <div className="mt-4 p-3 border border-green-200 bg-green-50 text-green-800 rounded">
+          <div className="flex items-center">
+            <CheckCircle className="h-4 w-4 mr-2" />
+            <span>
+              Você é um afiliado ativo. Gere links de produtos com o botão "Gerar link de afiliado" e compartilhe para acumular comissões.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Loading State */}
       {loading && (
@@ -229,6 +309,11 @@ const Store = () => {
                       {product.badge}
                     </span>
                   )}
+                  {isAffiliateActive && (
+                    <span className="absolute top-2 right-2 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 flex items-center">
+                      <CheckCircle className="h-3 w-3 mr-1" /> Afiliado
+                    </span>
+                  )}
                   {!product.inStock && (
                     <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                       <span className="text-white font-medium">Esgotado</span>
@@ -238,20 +323,14 @@ const Store = () => {
                 <div className="p-4">
                   <h3 className="font-semibold text-gray-900 mb-2">{product.name}</h3>
                   <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
-                  
-                  {product.rating > 0 && (
-                    <div className="flex items-center mb-2">
-                      <div className="flex">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            className={`h-4 w-4 ${
-                              star <= product.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <span className="text-sm text-gray-600 ml-1">({product.reviews})</span>
+                  {isAffiliateActive && (
+                    <div className="flex items-center mb-3">
+                      <button
+                        onClick={() => copyAffiliateLink(product)}
+                        className="px-3 py-1 border border-green-600 text-green-700 text-xs rounded hover:bg-green-50 flex items-center"
+                      >
+                        <LinkIcon className="h-3 w-3 mr-1" /> {copiedProductId === product.id ? 'Link copiado!' : 'Gerar link de afiliado'}
+                      </button>
                     </div>
                   )}
                   

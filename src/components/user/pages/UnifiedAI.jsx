@@ -309,7 +309,7 @@ const UnifiedAI = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400"></div>
       </div>
     )
   }
@@ -355,8 +355,8 @@ const UnifiedAI = () => {
           {/* Header do Chat */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <div className="flex items-center space-x-3">
-              <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
-                <Bot className="h-5 w-5 text-blue-600" />
+              <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-lg">
+                <Bot className="h-5 w-5 text-gray-600" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900">DireitaIA Chat</h3>
@@ -390,16 +390,9 @@ const UnifiedAI = () => {
                 <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                     message.type === 'user' 
-                      ? 'bg-blue-600 text-white' 
+                      ? 'bg-gray-100 text-gray-900' 
                       : 'bg-gray-100 text-gray-900'
                   }`}>
-                    <div className="flex items-center space-x-2 mb-1">
-                      {message.type === 'user' ? (
-                        <User className="h-3 w-3" />
-                      ) : (
-                        <Bot className="h-3 w-3" />
-                      )}
-                    </div>
                     <p className="text-sm">{message.content}</p>
                     {message.type === 'bot' && (
                       <button
@@ -444,13 +437,13 @@ const UnifiedAI = () => {
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                 placeholder="Digite sua mensagem..."
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
                 disabled={isTyping}
               />
               <button
                 onClick={handleSendMessage}
                 disabled={isTyping || !inputMessage.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Send className="h-4 w-4" />
               </button>

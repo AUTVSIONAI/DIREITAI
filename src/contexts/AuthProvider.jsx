@@ -1,133 +1,150 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { supabase, getCurrentUser, resendConfirmation } from '../lib/supabase'
+import { supabase, resendConfirmation } from '../lib/supabase'
+import { apiClient } from '../lib/api'
 import { AuthContext } from './AuthContext'
 
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  
-  // Timeout de segurança para garantir que loading nunca fique infinito
-  React.useEffect(() => {
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 5000); // 5 segundos
-    
-    return () => clearTimeout(timeout);
-  }, [])
+  const [fetchingProfile, setFetchingProfile] = useState(false)
 
-  const fetchUserProfile = async (currentUser) => {
+  const fetchUserProfile = useCallback(async (currentUser) => {
+    if (!currentUser) {
+      setUserProfile(null);
+      return;
+    }
+
+    if (fetchingProfile) {
+      return;
+    }
+
     try {
-      console.log('🔍 AuthProvider - Buscando perfil para auth_id:', currentUser.id);
-      
-      // Buscar o perfil real do usuário na tabela users usando auth_id
-      const { data: dbUser, error: dbError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('auth_id', currentUser.id)
-        .single();
-      
-      if (dbError || !dbUser) {
-        console.error('❌ AuthProvider - Usuário não encontrado na tabela users:', dbError?.message);
-        // Fallback para dados básicos do auth se não encontrar na tabela users
-        const basicProfile = {
-          id: currentUser.id, // Usar auth_id como fallback
+      setFetchingProfile(true);
+
+      const cacheKey = `user_profile_${currentUser.id}`;
+      const cachedProfile = sessionStorage.getItem(cacheKey);
+      const cacheTime = sessionStorage.getItem(`${cacheKey}_time`);
+
+      if (cachedProfile && cacheTime && (Date.now() - parseInt(cacheTime)) < 300000) {
+        const parsedProfile = JSON.parse(cachedProfile);
+        setUserProfile(parsedProfile);
+        return;
+      }
+
+      let dbUser = null
+      try {
+        const resp = await apiClient.get('/auth/me')
+        dbUser = resp?.data?.profile || null
+      } catch (e) {
+        console.warn('Falha ao obter perfil via backend:', e?.message || e)
+      }
+
+      let finalProfile;
+
+      if (!dbUser) {
+        finalProfile = {
+          id: currentUser.id,
           auth_id: currentUser.id,
           full_name: currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.username || 'Usuário',
           username: currentUser?.user_metadata?.username || '',
           email: currentUser?.email || '',
           avatar_url: currentUser?.user_metadata?.avatar_url || null,
           is_admin: currentUser?.email === 'admin@direitai.com',
-          email_confirmed_at: currentUser?.email === 'admin@direitai.com' ? new Date().toISOString() : currentUser?.email_confirmed_at
+          email_confirmed_at: currentUser?.email_confirmed_at
         };
-        setUserProfile(basicProfile);
-        setLoading(false);
-        return;
+      } else {
+        finalProfile = {
+          id: dbUser.id,
+          auth_id: currentUser.id,
+          full_name: dbUser.full_name || currentUser?.user_metadata?.full_name || 'Usuário',
+          username: dbUser.username || currentUser?.user_metadata?.username || '',
+          email: dbUser.email || currentUser?.email || '',
+          avatar_url: dbUser.avatar_url || currentUser?.user_metadata?.avatar_url || null,
+          is_admin: dbUser.is_admin || currentUser?.email === 'admin@direitai.com',
+          email_confirmed_at: currentUser?.email_confirmed_at,
+          plan: dbUser.plan || 'gratuito',
+          points: dbUser.points || 0,
+          role: dbUser.role || (dbUser.is_admin ? 'admin' : 'user')
+        };
       }
-      
-      console.log('✅ AuthProvider - Usuário encontrado na tabela users:', dbUser.email, 'ID da tabela users:', dbUser.id, 'auth_id:', dbUser.auth_id);
-      
-      // Usar dados reais da tabela users
-      const realProfile = {
-        id: dbUser.id, // ID da tabela users (importante para foreign keys)
-        auth_id: currentUser.id, // ID do auth.users
-        full_name: dbUser.full_name || currentUser?.user_metadata?.full_name || 'Usuário',
-        username: dbUser.username || currentUser?.user_metadata?.username || '',
-        email: dbUser.email || currentUser?.email || '',
-        avatar_url: dbUser.avatar_url || currentUser?.user_metadata?.avatar_url || null,
-        is_admin: dbUser.is_admin || currentUser?.email === 'admin@direitai.com',
-        email_confirmed_at: currentUser?.email_confirmed_at,
-        plan: dbUser.plan || 'gratuito',
-        points: dbUser.points || 0,
-        role: dbUser.role || (dbUser.is_admin ? 'admin' : 'user')
-      };
-      
-      console.log('🔍 AuthProvider - Definindo userProfile.id como:', realProfile.id);
-      setUserProfile(realProfile);
-      setLoading(false);
+
+      sessionStorage.setItem(cacheKey, JSON.stringify(finalProfile));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      setUserProfile(finalProfile);
     } catch (error) {
-      console.error('❌ Erro ao definir perfil:', error);
-      setLoading(false);
+      console.error('Erro ao buscar/criar perfil do usuário:', error);
+    } finally {
+      setFetchingProfile(false);
     }
-  };
+  }, [fetchingProfile]);
 
   useEffect(() => {
     let mounted = true;
-    
-    const initializeAuth = async () => {
-      try {
-        const currentUser = await getCurrentUser();
-        
-        if (mounted) {
-          if (currentUser) {
-            setUser(currentUser);
-            await fetchUserProfile(currentUser);
-          } else {
-            setUser(null);
-            setUserProfile(null);
-            setLoading(false);
-          }
+
+    const handleAuthStateChange = async (event, session) => {
+      if (!mounted) return;
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) {
+          setUser(session.user);
+          setLoading(false);
+          fetchUserProfile(session.user);
         }
-      } catch (error) {
-        if (mounted) {
+      } else if (event === 'SIGNED_OUT') {
+        if (user?.id) {
+          const cacheKey = `user_profile_${user.id}`;
+          sessionStorage.removeItem(cacheKey);
+          sessionStorage.removeItem(`${cacheKey}_time`);
+        }
+
+        setUser(null);
+        setUserProfile(null);
+        setLoading(false);
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+
+    const initializeAuth = async () => {
+      if (!mounted) return;
+
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error || !mounted) {
+          if (mounted) setLoading(false);
+          return;
+        }
+
+        if (session?.user) {
+          setUser(session.user);
+          setLoading(false);
+          fetchUserProfile(session.user);
+        } else {
           setUser(null);
           setUserProfile(null);
-          setLoading(false);
+          if (mounted) setLoading(false);
         }
+      } catch (error) {
+        console.error('Erro na inicialização da autenticação:', error);
+        if (mounted) setLoading(false);
       }
     };
 
     initializeAuth();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-      
-      if (event === 'TOKEN_REFRESHED') {
-        return;
-      }
-      
-      if (session?.user) {
-        setUser(session.user);
-        await fetchUserProfile(session.user);
-      } else {
-        setUser(null);
-        setUserProfile(null);
-        setLoading(false);
-      }
-    });
-
     return () => {
       mounted = false;
       subscription?.unsubscribe();
     };
-  }, [])
+  }, [fetchUserProfile])
 
   const refreshUserProfile = useCallback(async () => {
     if (user) {
       await fetchUserProfile(user);
     }
-  }, [user]);
+  }, [user, fetchUserProfile]);
 
   const value = {
     user,

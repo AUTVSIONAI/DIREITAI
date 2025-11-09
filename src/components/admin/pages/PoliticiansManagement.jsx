@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Search, Filter, UserCheck, Upload, Image, Eye, EyeOff } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Filter, UserCheck, Upload, Image, Eye, EyeOff, Copy } from 'lucide-react'
 import { apiClient } from '../../../lib/api'
 import { politiciansService } from '../../../services'
 import { getPoliticianPhotoUrl } from '../../../utils/imageUtils'
+import { agentGenerationService } from '../../../services/agentGeneration'
 
 const PoliticiansManagement = () => {
   const [politicians, setPoliticians] = useState([])
@@ -24,12 +25,21 @@ const PoliticiansManagement = () => {
     social_links: {
       twitter: '',
       instagram: '',
-      facebook: ''
+      facebook: '',
+      website: ''
     }
   })
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  // Lista de cargos permitidos (alinhado com cadastro público)
+  const allowedPositions = [
+    'Presidente', 'Vice-Presidente', 'Senador', 'Deputado Federal',
+    'Deputado Estadual', 'Governador', 'Vice-Governador', 'Prefeito',
+    'Vice-Prefeito', 'Vereador', 'Ministro', 'Secretário Estadual',
+    'Secretário Municipal'
+  ]
 
   useEffect(() => {
     fetchPoliticians()
@@ -38,7 +48,8 @@ const PoliticiansManagement = () => {
   const fetchPoliticians = async () => {
     try {
       setLoading(true)
-      const response = await apiClient.get('/politicians')
+      // Buscar apenas aprovados com limite alto para não perder recém-criados
+      const response = await apiClient.get('/politicians?status=approved&limit=1000&page=1')
       // A API retorna { data: [...], pagination: {...} }
       setPoliticians(response.data?.data || [])
     } catch (error) {
@@ -62,20 +73,76 @@ const PoliticiansManagement = () => {
         }
       }
       
+      // Definir nível com base no cargo e mapear município
+      const position = (formData.position || '').toLowerCase()
+      const level = ['vereador', 'prefeito'].includes(position)
+        ? 'municipal'
+        : ['deputado estadual', 'deputado_estadual', 'governador'].includes(position)
+        ? 'estadual'
+        : ['deputado', 'deputado federal', 'senador', 'presidente', 'vice-presidente'].includes(position)
+        ? 'federal'
+        : undefined
+
       const submitData = {
-        ...formData,
-        photo_url: photoUrl
+        name: formData.name,
+        party: formData.party,
+        position: formData.position,
+        city: formData.city,
+        state: formData.state,
+        photo_url: photoUrl,
+        bio: formData.short_bio || '',
+        social_media: {
+          twitter: formData.social_links?.twitter || '',
+          instagram: formData.social_links?.instagram || '',
+          facebook: formData.social_links?.facebook || '',
+          website: formData.social_links?.website || ''
+        },
+        source: 'manual',
+        status: 'approved',
+        ...(level ? { level } : {}),
+        ...(level === 'municipal' ? { municipality: formData.city } : {})
       }
       
+      let createdPolitician = null
       if (editingPolitician) {
-        await apiClient.put(`/politicians/${editingPolitician.id}`, submitData)
+        const resp = await apiClient.put(`/politicians/${editingPolitician.id}`, submitData)
+        createdPolitician = resp.data?.data || resp.data || null
       } else {
-        await apiClient.post('/politicians', submitData)
+        const resp = await apiClient.post('/politicians', submitData)
+        createdPolitician = resp.data?.data || resp.data || null
+        
+        // Após criação manual, gerar agente automaticamente
+        if (createdPolitician?.id) {
+          try {
+            console.log('Gerando agente automaticamente para político recém-criado:', {
+              id: createdPolitician.id,
+              name: createdPolitician.name,
+              position: createdPolitician.position,
+              party: createdPolitician.party
+            })
+            const agentResult = await agentGenerationService.createAgentForPolitician({
+              id: createdPolitician.id,
+              name: createdPolitician.name,
+              position: createdPolitician.position,
+              party: createdPolitician.party,
+              state: createdPolitician.state,
+              city: createdPolitician.city
+            })
+            if (agentResult.success) {
+              console.log('Agente criado automaticamente com sucesso:', agentResult)
+            } else {
+              console.warn('Falha ao criar agente de IA:', agentResult.error, agentResult)
+            }
+          } catch (agentErr) {
+            console.warn('Erro ao gerar agente automaticamente:', agentErr?.response?.data || agentErr)
+          }
+        }
       }
       fetchPoliticians()
       resetForm()
     } catch (error) {
-      console.error('Erro ao salvar político:', error)
+      console.error('Erro ao salvar político:', error?.response?.data || error)
+      alert('Erro ao salvar político. Verifique os campos e tente novamente.')
     }
   }
 
@@ -154,7 +221,8 @@ const PoliticiansManagement = () => {
       social_links: {
         twitter: '',
         instagram: '',
-        facebook: ''
+        facebook: '',
+        website: ''
       }
     })
     setPhotoFile(null)
@@ -173,10 +241,11 @@ const PoliticiansManagement = () => {
       country: politician.country || '',
       short_bio: politician.short_bio || '',
       photo_url: politician.photo_url || '',
-      social_links: politician.social_links || {
-        twitter: '',
-        instagram: '',
-        facebook: ''
+      social_links: {
+        twitter: politician.social_links?.twitter || '',
+        instagram: politician.social_links?.instagram || '',
+        facebook: politician.social_links?.facebook || '',
+        website: politician.social_links?.website || ''
       }
     })
     setPhotoPreview(politician.photo_url || '')
@@ -258,6 +327,9 @@ const PoliticiansManagement = () => {
                   Político
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Partido
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -297,6 +369,20 @@ const PoliticiansManagement = () => {
                           {politician.name}
                         </div>
                       </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <div className="flex items-center gap-2">
+                      <span>{politician.id ?? '—'}</span>
+                      {politician.id && (
+                        <button
+                          onClick={() => navigator.clipboard.writeText(String(politician.id)).then(() => alert('ID copiado'))}
+                          className="text-gray-500 hover:text-gray-700"
+                          title="Copiar ID"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -388,13 +474,17 @@ const PoliticiansManagement = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Cargo</label>
-                  <input
-                    type="text"
+                  <select
                     required
                     value={formData.position}
                     onChange={(e) => setFormData({...formData, position: e.target.value})}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
+                  >
+                    <option value="">Selecione o cargo</option>
+                    {allowedPositions.map(pos => (
+                      <option key={pos} value={pos}>{pos}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Cidade</label>
