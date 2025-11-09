@@ -98,6 +98,9 @@
     "zod": "^3.22.4",
     "zustand": "^4.4.7"
   },
+  "overrides": {
+    "@supabase/realtime-js": "2.15.6"
+  },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.1.4",
     "@testing-library/react": "^13.4.0",
