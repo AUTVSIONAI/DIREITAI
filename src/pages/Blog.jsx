@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { apiClient } from '../lib/api.ts';
+import { apiClient } from '../lib/api';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useDebounce } from '../hooks/useUtils.ts';
 import { 
   Search, Filter, Calendar, User, Eye, Tag, Heart, MessageCircle, 
   Share2, TrendingUp, Zap, Globe, ArrowLeft, Star, Clock
@@ -19,6 +20,9 @@ const Blog = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Debounce search term para evitar muitas requisições
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
   const popularTags = [
     'Política Nacional', 'Economia', 'Segurança Pública', 'Educação',
     'Saúde', 'Meio Ambiente', 'Direitos Humanos', 'Tecnologia',
@@ -28,7 +32,14 @@ const Blog = () => {
   useEffect(() => {
     fetchPosts();
     fetchPoliticians();
-  }, [currentPage, selectedPolitician, selectedTag, searchTerm]);
+  }, [currentPage, selectedPolitician, selectedTag, debouncedSearchTerm]);
+
+  // Resetar página quando busca mudar
+  useEffect(() => {
+    if (debouncedSearchTerm !== searchTerm) {
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchTerm]);
 
   const fetchPosts = async () => {
     try {
@@ -40,7 +51,7 @@ const Blog = () => {
 
       if (selectedPolitician) params.append('politician_id', selectedPolitician);
       if (selectedTag) params.append('tag', selectedTag);
-      if (searchTerm) params.append('search', searchTerm);
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
 
       const response = await apiClient.get(`/blog?${params.toString()}`);
       
@@ -304,11 +315,11 @@ const Blog = () => {
               <article key={post.id} className="group bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-500 border border-gray-200/50 hover:border-blue-300/50 transform hover:-translate-y-2">
                 {/* Imagem com overlay */}
                 {(post.cover_image_url || post.featured_image_url) && (
-                  <div className="relative h-56 overflow-hidden">
+                  <div className="relative h-56 overflow-hidden bg-black flex items-center justify-center">
                     <img
-                      src={post.cover_image_url || post.featured_image_url}
+                      src={resolveImageUrl(post.cover_image_url || post.featured_image_url)}
                       alt={post.title}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                      className="w-full h-full object-contain"
                     />
                     {/* Overlay gradiente */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>

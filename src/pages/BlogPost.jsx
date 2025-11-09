@@ -5,25 +5,48 @@ import {
   MessageCircle, Heart, ExternalLink, Send, ThumbsUp, TrendingUp, Clock
 } from 'lucide-react';
 import { apiClient } from '../lib/api';
+import { API_CONFIG } from '../lib/api';
+
+// Função util para obter origem do backend a partir da BASE_URL
+const API_ORIGIN = (API_CONFIG?.BASE_URL || '').replace(/\/(api)\/?$/, '');
 
 // Função para processar URLs de imagens no conteúdo HTML
 const processImageUrls = (content) => {
   if (!content) return content;
+  const origin = API_ORIGIN || 'https://direitai-backend.vercel.app';
   
   // Processar imagens com URLs relativas
   let processedContent = content
-    // URLs que começam com /uploads/ -> usar a URL base da API
-    .replace(/src="\/uploads\//g, 'src="https://direitai-backend.vercel.app/uploads/')
-    // URLs que começam com ./assets/ -> usar a URL do frontend
-    .replace(/src="\.\/assets\//g, 'src="http://localhost:5120/assets/')
-    // URLs que começam com /assets/ -> usar a URL do frontend
-    .replace(/src="\/assets\//g, 'src="http://localhost:5120/assets/')
-    // URLs que começam com ./images/ -> usar a URL do frontend
-    .replace(/src="\.\/images\//g, 'src="http://localhost:5120/images/')
-    // URLs que começam com /images/ -> usar a URL do frontend
-    .replace(/src="\/images\//g, 'src="http://localhost:5120/images/');
+    // URLs que começam com /uploads/ -> usar a URL base do backend
+    .replace(/src="\/uploads\//g, `src="${origin}/uploads/`)
+    // URLs que começam com ./assets/ -> usar a URL do backend
+    .replace(/src="\.\/assets\//g, `src="${origin}/assets/`)
+    // URLs que começam com /assets/ -> usar a URL do backend
+    .replace(/src="\/assets\//g, `src="${origin}/assets/`)
+    // URLs que começam com ./images/ -> usar a URL do backend
+    .replace(/src="\.\/images\//g, `src="${origin}/images/`)
+    // URLs que começam com /images/ -> usar a URL do backend
+    .replace(/src="\/images\//g, `src="${origin}/images/`)
+    // Garantir que imagens com URLs completas sejam preservadas
+    .replace(/<img([^>]*?)src="([^"]*?)"([^>]*?)>/g, (match, before, src, after) => {
+      if (src.startsWith('http://') || src.startsWith('https://')) {
+        return match;
+      }
+      // Para outras URLs relativas não tratadas, prefixar com origin
+      const normalized = src.startsWith('/') ? src : `/${src}`;
+      return `<img${before}src="${origin}${normalized}"${after}>`;
+    });
   
   return processedContent;
+};
+
+// Resolve URLs de imagens para suportar completas e relativas
+const resolveImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const origin = API_ORIGIN || 'https://direitai-backend.vercel.app';
+  if (url.startsWith('/')) return `${origin}${url}`;
+  return `${origin}/${url}`;
 };
 
 const BlogPost = () => {
@@ -111,6 +134,7 @@ const BlogPost = () => {
     try {
       const response = await apiClient.get(`/blog/${post.id}/comments`);
       setComments(response.data.comments || []);
+      setCommentsCount(response.data.comments?.length || 0);
     } catch (error) {
       console.error('Erro ao buscar comentários:', error);
       // Manter comentários simulados como fallback
@@ -208,6 +232,19 @@ const BlogPost = () => {
     });
   };
 
+  // Helper para obter nome amigável do autor do comentário
+  const getUserDisplayName = (user) => {
+    if (!user) return null;
+    return user.full_name || user.name || user.username || (user.email ? user.email.split('@')[0] : null);
+  };
+  const getCommentDisplayName = (comment) => {
+    return getUserDisplayName(comment.users) || comment.author || 'Usuário';
+  };
+  const getCommentInitial = (comment) => {
+    const name = getCommentDisplayName(comment);
+    return name ? name.charAt(0).toUpperCase() : 'U';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -287,11 +324,11 @@ const BlogPost = () => {
           <article className="lg:col-span-3">
             {/* Imagem de Destaque */}
             {(post.cover_image_url || post.featured_image_url) && (
-              <div className="relative h-64 md:h-96 overflow-hidden rounded-xl shadow-lg mb-8">
+              <div className="relative h-64 md:h-96 overflow-hidden rounded-xl shadow-lg mb-8 bg-black flex items-center justify-center">
                 <img
-                  src={`http://localhost:5120${post.cover_image_url || post.featured_image_url}`}
+                  src={resolveImageUrl(post.cover_image_url || post.featured_image_url)}
                   alt={post.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                   onError={(e) => {
                     console.log('❌ Erro ao carregar imagem:', e.target.src);
                     e.target.style.display = 'none';
@@ -504,12 +541,12 @@ const BlogPost = () => {
                       >
                         <div className="flex gap-3">
                           {relatedPost.cover_image_url && (
-                            <img
-                              src={relatedPost.cover_image_url}
-                              alt={relatedPost.title}
-                              className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
-                            />
-                          )}
+                        <img
+                          src={resolveImageUrl(relatedPost.cover_image_url)}
+                          alt={relatedPost.title}
+                          className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
+                        />
+                      )}
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium text-gray-900 group-hover:text-blue-600 line-clamp-2 text-sm mb-1">
                               {relatedPost.title}
@@ -616,11 +653,11 @@ const BlogPost = () => {
                     comments.map((comment) => (
                       <div key={comment.id} className="flex gap-4 p-4 bg-gray-50 rounded-lg">
                         <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                          {(comment.users?.name || comment.author || 'U').charAt(0).toUpperCase()}
+                          {getCommentInitial(comment)}
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="font-medium text-gray-900">{comment.users?.name || comment.author || 'Usuário'}</span>
+                            <span className="font-medium text-gray-900">{getCommentDisplayName(comment)}</span>
                             <span className="text-sm text-gray-500">
                               {formatDate(comment.created_at)}
                             </span>
