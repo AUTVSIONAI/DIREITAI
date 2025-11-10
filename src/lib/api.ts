@@ -9,9 +9,9 @@ const IS_PROD_SITE = IS_BROWSER && !/localhost|127\.0\.0\.1/i.test(window.locati
 const HAS_ENV_BASE = typeof RAW_API_BASE_URL === 'string' && RAW_API_BASE_URL.length > 0;
 // Em produção, preferimos usar `/api` (proxy no Vercel) quando nenhuma base foi configurada por env.
 // Em desenvolvimento/preview local, caímos para o backend público padrão.
-const API_BASE_URL = HAS_ENV_BASE
-  ? RAW_API_BASE_URL
-  : (IS_PROD_SITE ? '/api' : 'https://direitai-backend.vercel.app/api');
+const API_BASE_URL = IS_PROD_SITE
+  ? '/api'
+  : (HAS_ENV_BASE ? RAW_API_BASE_URL : 'https://direitai-backend.vercel.app/api');
 
 
 
