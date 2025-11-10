@@ -3,15 +3,15 @@ import { ApiClient, ApiResponse, RequestOptions, ApiMetrics, HealthCheck } from 
 import { supabase } from './supabase';
 
 // Configuração base da API
-const RAW_API_BASE_URL = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
+const RAW_API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
 const IS_BROWSER = typeof window !== 'undefined';
 const IS_PROD_SITE = IS_BROWSER && !/localhost|127\.0\.0\.1/i.test(window.location.hostname);
-const IS_LOCAL_TARGET = /localhost|127\.0\.0\.1/i.test(RAW_API_BASE_URL);
-const IS_RELATIVE_API = RAW_API_BASE_URL.startsWith('/api');
-// Evitar usar localhost ou rota relativa em produção
-const API_BASE_URL = (IS_PROD_SITE && (IS_LOCAL_TARGET || IS_RELATIVE_API))
-  ? 'https://direitai-backend.vercel.app/api'
-  : RAW_API_BASE_URL;
+const HAS_ENV_BASE = typeof RAW_API_BASE_URL === 'string' && RAW_API_BASE_URL.length > 0;
+// Em produção, preferimos usar `/api` (proxy no Vercel) quando nenhuma base foi configurada por env.
+// Em desenvolvimento/preview local, caímos para o backend público padrão.
+const API_BASE_URL = HAS_ENV_BASE
+  ? RAW_API_BASE_URL
+  : (IS_PROD_SITE ? '/api' : 'https://direitai-backend.vercel.app/api');
 
 
 
@@ -36,6 +36,7 @@ class ApiClientImpl implements ApiClient {
       this.axiosInstance = axios.create({
         baseURL: API_BASE_URL,
         timeout: 30000,
+        withCredentials: true,
         headers: {
           'Content-Type': 'application/json',
         },
