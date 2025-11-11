@@ -181,7 +181,7 @@ export class AuthService {
   static async updatePassword(data: PasswordUpdateData): Promise<{ success: boolean; error?: string }> {
     try {
       const { error } = await supabase.auth.updateUser({
-        password: data.newPassword
+        password: data.password
       });
 
       if (error) {

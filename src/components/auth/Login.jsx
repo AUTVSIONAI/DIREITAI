@@ -170,6 +170,17 @@ const Login = () => {
             </button>
           </div>
 
+          {isLogin && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => navigate('/forgot-password')}
+                className="text-gray-600 hover:text-primary-600 text-sm"
+              >
+                Esqueceu sua senha?
+              </button>
+            </div>
+          )}
+
 
         </div>
       </div>

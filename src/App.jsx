@@ -19,6 +19,8 @@ const LoadingSpinner = () => (
 const HomePage = lazy(() => import('./pages/HomePage.tsx'))
 const TestPage = lazy(() => import('./pages/TestPage.jsx'))
 const LoginPage = lazy(() => import('./pages/Auth/LoginPage'))
+const ForgotPasswordPage = lazy(() => import('./pages/Auth/ForgotPassword'))
+const ResetPasswordPage = lazy(() => import('./pages/Auth/ResetPassword'))
 const UserDashboard = lazy(() => import('./components/user/UserDashboard'))
 const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'))
 
@@ -121,6 +123,9 @@ const AppContent = () => {
           
           {/* Rota de login */}
           <Route path="/login" element={<LoginPage />} />
+          {/* Recuperação de senha */}
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           
           {/* Rotas do usuário */}
           <Route 

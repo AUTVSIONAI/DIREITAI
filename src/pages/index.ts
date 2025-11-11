@@ -5,6 +5,8 @@ export { default as HomePage } from './HomePage';
 
 export { default as LoginPage } from './Auth/LoginPage';
 export { default as RegisterPage } from './Auth/RegisterPage';
+export { default as ForgotPasswordPage } from './Auth/ForgotPassword';
+export { default as ResetPasswordPage } from './Auth/ResetPassword';
 
 // Dashboard Pages (to be created)
 // export { default as DashboardPage } from './Dashboard/DashboardPage';
