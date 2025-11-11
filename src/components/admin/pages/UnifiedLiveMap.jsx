@@ -21,12 +21,18 @@ import {
 } from 'lucide-react'
 import LiveMapService from '../../../services/liveMap'
 import { apiClient } from '../../../lib/api.ts'
+import { supabase } from '../../../lib/supabase.js'
 import { useAuth } from '../../../hooks/useAuth'
+import { useApiAuth } from '../../../hooks/useApiAuth.js'
 import RSVPButton from '../../common/RSVPButton'
 import ManifestationsService from '../../../services/manifestations'
 
 const UnifiedLiveMap = () => {
-  const { user } = useAuth()
+  const MAPBOX_TOKEN = import.meta.env?.VITE_MAPBOX_TOKEN
+  const { userProfile } = useAuth()
+  // Garantir que o apiClient tenha Authorization configurado
+  useApiAuth()
+  const [isAdmin, setIsAdmin] = useState(false)
   // Estados do mapa
   const [viewport, setViewport] = useState({
     latitude: -14.2350,
@@ -120,6 +126,47 @@ const UnifiedLiveMap = () => {
     loadMapData()
   }, [])
 
+  // Definir permissão de admin a partir do perfil local
+  useEffect(() => {
+    const localAdmin = userProfile?.role === 'admin' || userProfile?.is_admin === true
+    if (localAdmin !== undefined) {
+      setIsAdmin(!!localAdmin)
+    }
+  }, [userProfile])
+
+  // Verificar permissão de admin no backend
+  useEffect(() => {
+    const verifyAdmin = async () => {
+      try {
+        // Atualizar sessão/token antes de verificar no backend para evitar 401
+        try {
+          await supabase.auth.refreshSession()
+        } catch (refreshErr) {
+          console.warn('Falha ao atualizar sessão do Supabase:', refreshErr)
+        }
+        // Aplicar token após refresh
+        try {
+          const { data: sessionData } = await supabase.auth.getSession()
+          const token = sessionData?.session?.access_token
+          if (token) {
+            apiClient.setAuthToken(token)
+          }
+        } catch (authErr) {
+          console.warn('Falha ao obter sessão do Supabase antes de verificar admin:', authErr)
+        }
+
+        const resp = await apiClient.get('/auth/me')
+        const profile = resp?.data?.profile || resp?.data?.data?.profile || resp?.data
+        const adminRole = profile?.role === 'admin' || profile?.is_admin === true
+        setIsAdmin(!!adminRole)
+      } catch (err) {
+        // Se falhar, manter estado atual (possível admin via perfil local)
+        console.warn('Não foi possível verificar perfil admin no backend:', err)
+      }
+    }
+    verifyAdmin()
+  }, [])
+
   const loadMapData = async () => {
     try {
       setLoading(true)
@@ -154,8 +201,13 @@ const UnifiedLiveMap = () => {
   const fetchManifestations = async () => {
     try {
       const response = await apiClient.get('/manifestations')
-      if (response.data && response.data.data) {
+      if (response.success && response.data && response.data.data) {
         setManifestations(Array.isArray(response.data.data) ? response.data.data : [])
+      } else {
+        console.warn('Falha ao carregar manifestações:', {
+          status: response?.status,
+          data: response?.data
+        })
       }
     } catch (error) {
       console.error('Erro ao buscar manifestações:', error)
@@ -233,6 +285,13 @@ const UnifiedLiveMap = () => {
       return
     }
 
+    if (!MAPBOX_TOKEN) {
+      console.warn('VITE_MAPBOX_TOKEN ausente. Autocomplete de endereço desabilitado.')
+      setAddressSuggestions([])
+      setShowAddressSuggestions(false)
+      return
+    }
+
     try {
       const response = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&country=BR&types=place,locality,neighborhood,address&language=pt&limit=5`
@@ -276,8 +335,8 @@ const UnifiedLiveMap = () => {
       address: suggestion.place_name,
       city: city,
       state: state,
-      latitude: latitude.toString(),
-      longitude: longitude.toString()
+      latitude: latitude,
+      longitude: longitude
     }))
     
     setAddressSearch(suggestion.place_name)
@@ -296,9 +355,16 @@ const UnifiedLiveMap = () => {
   const generateManifestationCircles = () => {
     if (!manifestations || manifestations.length === 0) return null
 
-    const features = manifestations.map(manifestation => {
+    const features = manifestations
+      .map(manifestation => {
+        // Garantir valores numéricos para latitude/longitude
+        const lon = typeof manifestation.longitude === 'number' ? manifestation.longitude : parseFloat(manifestation.longitude)
+        const lat = typeof manifestation.latitude === 'number' ? manifestation.latitude : parseFloat(manifestation.latitude)
+
+        if (!isFinite(lat) || !isFinite(lon)) return null
+
       // Criar um círculo aproximado usando pontos
-      const center = [manifestation.longitude, manifestation.latitude]
+      const center = [lon, lat]
       const radiusInKm = manifestation.radius / 1000 // converter metros para km
       const points = 64 // número de pontos para formar o círculo
       const coordinates = []
@@ -306,7 +372,7 @@ const UnifiedLiveMap = () => {
       for (let i = 0; i < points; i++) {
         const angle = (i / points) * 2 * Math.PI
         const dx = radiusInKm * Math.cos(angle) / 111.32 // aproximação para graus
-        const dy = radiusInKm * Math.sin(angle) / (111.32 * Math.cos(manifestation.latitude * Math.PI / 180))
+        const dy = radiusInKm * Math.sin(angle) / (111.32 * Math.cos(lat * Math.PI / 180))
         coordinates.push([center[0] + dx, center[1] + dy])
       }
       coordinates.push(coordinates[0]) // fechar o polígono
@@ -324,6 +390,7 @@ const UnifiedLiveMap = () => {
         }
       }
     })
+      .filter(Boolean)
 
     return {
       type: 'FeatureCollection',
@@ -356,37 +423,69 @@ const UnifiedLiveMap = () => {
     e.preventDefault()
     
     try {
+      // Garantir token atualizado antes de qualquer chamada protegida
+      try {
+        // Atualizar sessão/token para reduzir chances de expiração
+        await supabase.auth.refreshSession()
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData?.session?.access_token
+        if (token) {
+          apiClient.setAuthToken(token)
+          console.log('[AUTH] Token aplicado antes de salvar manifestação:', token?.slice(0, 16) + '...')
+        } else {
+          console.warn('[AUTH] Nenhum token de sessão disponível antes do submit.')
+        }
+      } catch (authErr) {
+        console.warn('[AUTH] Falha ao obter sessão do Supabase antes do submit:', authErr)
+      }
+
+      // Bloquear usuários sem permissão
+      if (!isAdmin) {
+        console.warn('Admin não confirmado localmente; prosseguindo e delegando verificação ao backend.')
+      }
       // Validação básica
       if (!manifestationForm.name || !manifestationForm.city || !manifestationForm.latitude || !manifestationForm.longitude) {
         alert('Por favor, preencha todos os campos obrigatórios.')
         return
       }
 
+      // Alinhar payload com serviço antigo (não enviar created_by; backend deve definir)
       const manifestationData = {
         name: manifestationForm.name,
         description: manifestationForm.description,
         status: manifestationForm.status,
         city: manifestationForm.city,
         state: manifestationForm.state,
+        address: manifestationForm.address || undefined,
         latitude: parseFloat(manifestationForm.latitude),
         longitude: parseFloat(manifestationForm.longitude),
         radius: parseInt(manifestationForm.radius) || 500,
         start_date: manifestationForm.start_date || new Date().toISOString(),
         end_date: manifestationForm.end_date || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 horas depois
-        max_participants: manifestationForm.max_participants ? parseInt(manifestationForm.max_participants) : null,
-        created_by: user?.id
+        max_participants: manifestationForm.max_participants ? parseInt(manifestationForm.max_participants) : undefined
       }
 
       let response
       if (editingManifestation) {
-        // Atualizar manifestação existente
-        response = await apiClient.put(`/manifestations/${editingManifestation.id}`, manifestationData)
+        // Atualizar manifestação existente (via serviço)
+        response = await ManifestationsService.updateManifestation(editingManifestation.id, manifestationData)
       } else {
-        // Criar nova manifestação
-        response = await apiClient.post('/manifestations', manifestationData)
+        // Criar nova manifestação (via serviço)
+        response = await ManifestationsService.createManifestation(manifestationData)
       }
 
-      if (response.data) {
+      // Validar sucesso antes de continuar
+      if (!response?.success || (response?.status ?? 500) >= 400) {
+        const errMsg = response?.data?.message || response?.data?.error || 'Falha ao salvar manifestação (verifique permissões e autenticação).'
+        console.error('Erro ao salvar manifestação (API):', {
+          status: response?.status,
+          data: response?.data
+        })
+        alert(errMsg)
+        return
+      }
+
+      if (response?.data) {
         // Recarregar dados das manifestações e check-ins
         await fetchManifestations()
         await fetchUserCheckins()
@@ -1170,9 +1269,9 @@ const UnifiedLiveMap = () => {
                     onChange={(e) => updateFormField('status', e.target.value)}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                   >
-                    <option value="scheduled">Agendada</option>
                     <option value="active">Ativa</option>
-                    <option value="inactive">Inativa</option>
+                    <option value="cancelled">Cancelada</option>
+                    <option value="completed">Concluída</option>
                   </select>
                 </div>
               </div>

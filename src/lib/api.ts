@@ -7,11 +7,11 @@ const RAW_API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
 const IS_BROWSER = typeof window !== 'undefined';
 const IS_PROD_SITE = IS_BROWSER && !/localhost|127\.0\.0\.1/i.test(window.location.hostname);
 const HAS_ENV_BASE = typeof RAW_API_BASE_URL === 'string' && RAW_API_BASE_URL.length > 0;
-// Em produção, preferimos usar `/api` (proxy no Vercel) quando nenhuma base foi configurada por env.
-// Em desenvolvimento/preview local, caímos para o backend público padrão.
-const API_BASE_URL = IS_PROD_SITE
-  ? '/api'
-  : (HAS_ENV_BASE ? RAW_API_BASE_URL : 'https://direitai-backend.vercel.app/api');
+// Priorizar sempre VITE_API_URL quando estiver configurado, independente do ambiente.
+// Caso contrário: em produção usar "/api" (proxy no Vercel), e em preview/dev cair para backend público.
+const API_BASE_URL = HAS_ENV_BASE
+  ? RAW_API_BASE_URL
+  : (IS_PROD_SITE ? '/api' : 'https://direitai-backend.vercel.app/api');
 
 
 
@@ -36,7 +36,8 @@ class ApiClientImpl implements ApiClient {
       this.axiosInstance = axios.create({
         baseURL: API_BASE_URL,
         timeout: 30000,
-        withCredentials: true,
+        // Evitar enviar cookies em cross-origin para não disparar CORS com credenciais
+        withCredentials: false,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -130,10 +131,10 @@ class ApiClientImpl implements ApiClient {
   }
 
   private setupInterceptors() {
-    // Interceptor para adicionar token de autenticação
-    this.axiosInstance.interceptors.request.use(
-      async (config) => {
-        try {
+      // Interceptor para adicionar token de autenticação
+      this.axiosInstance.interceptors.request.use(
+        async (config) => {
+          try {
           if (!config) {
             config = {} as any;
           }
@@ -177,6 +178,19 @@ class ApiClientImpl implements ApiClient {
               console.log('[API DEBUG] POST /agents headers overview:', { hasAuth, contentType });
               console.log('[API DEBUG] baseURL:', this.axiosInstance.defaults.baseURL);
             }
+            if (url.includes('/auth/me')) {
+              const hasAuth = !!(config.headers as any).Authorization;
+              const authHeader = (config.headers as any).Authorization;
+              console.log('[API DEBUG] GET /auth/me headers:', { hasAuth, authHeaderPreview: typeof authHeader === 'string' ? authHeader.slice(0, 20) + '...' : null });
+              console.log('[API DEBUG] baseURL:', this.axiosInstance.defaults.baseURL);
+            }
+            if (url.includes('/manifestations') && method === 'post') {
+              const hasAuth = !!(config.headers as any).Authorization;
+              const authHeader = (config.headers as any).Authorization;
+              const contentType = (config.headers as any)['Content-Type'];
+              console.log('[API DEBUG] POST /manifestations headers:', { hasAuth, contentType, authHeaderPreview: typeof authHeader === 'string' ? authHeader.slice(0, 20) + '...' : null });
+              console.log('[API DEBUG] baseURL:', this.axiosInstance.defaults.baseURL);
+            }
           } catch {}
         } catch {
           if (!config) {
@@ -194,30 +208,62 @@ class ApiClientImpl implements ApiClient {
     );
 
     // Interceptor para tratar respostas e erros
-    this.axiosInstance.interceptors.response.use(
-      (response: AxiosResponse) => {
-        this.metrics.successfulRequests++;
-        return response;
-      },
-      (error) => {
-        this.metrics.failedRequests++;
-        try {
-          const cfg = error?.config || {};
-          const url = cfg?.url || '';
-          const method = (cfg?.method || 'get').toLowerCase();
-          if (url.includes('/agents') && method === 'post') {
-            console.error('[API DEBUG] POST /agents failed:', {
-              status: error?.response?.status,
-              data: error?.response?.data,
-              headers: error?.response?.headers,
-            });
-          }
-        } catch {}
-        // Não fazer signOut automático em 401 para evitar loops durante login
-        // Deixar erro propagar e ser tratado por páginas/componentes específicos
-        return Promise.reject(error);
-      }
-    );
+      this.axiosInstance.interceptors.response.use(
+        (response: AxiosResponse) => {
+          this.metrics.successfulRequests++;
+          return response;
+        },
+        async (error) => {
+          this.metrics.failedRequests++;
+          try {
+            const cfg = error?.config || {};
+            const url = cfg?.url || '';
+            const method = (cfg?.method || 'get').toLowerCase();
+            if (url.includes('/agents') && method === 'post') {
+              console.error('[API DEBUG] POST /agents failed:', {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                headers: error?.response?.headers,
+              });
+            }
+            if (url.includes('/manifestations') && method === 'post') {
+              console.error('[API DEBUG] POST /manifestations failed:', {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                headers: error?.response?.headers,
+              });
+            }
+            // Retry defensivo: em 401, tentar atualizar a sessão do Supabase e refazer a requisição uma vez
+            const status = error?.response?.status;
+            const isAuthCheck = url.includes('/auth/me');
+            const isProtectedPost = (method === 'post') && (url.includes('/manifestations') || url.includes('/agents'));
+            const shouldRetry = status === 401 && (isAuthCheck || isProtectedPost) && !cfg.__retryOnce;
+            if (shouldRetry) {
+              try {
+                await supabase.auth.refreshSession();
+                const { data: sessionData } = await supabase.auth.getSession();
+                const token = sessionData?.session?.access_token;
+                if (token) {
+                  // Atualizar defaults e cabeçalho da requisição original
+                  if (!this.axiosInstance.defaults.headers) this.axiosInstance.defaults.headers = {} as any;
+                  if (!this.axiosInstance.defaults.headers.common) this.axiosInstance.defaults.headers.common = {} as any;
+                  this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                  cfg.headers = { ...(cfg.headers || {}) } as any;
+                  (cfg.headers as any).Authorization = `Bearer ${token}`;
+                }
+              } catch (refreshErr) {
+                console.warn('Falha ao atualizar sessão durante retry 401:', refreshErr);
+              }
+              // Marcar para evitar loop infinito e refazer a requisição
+              (cfg as any).__retryOnce = true;
+              return this.axiosInstance.request(cfg);
+            }
+          } catch {}
+          // Não fazer signOut automático em 401 para evitar loops durante login
+          // Deixar erro propagar e ser tratado por páginas/componentes específicos
+          return Promise.reject(error);
+        }
+      );
   }
 
   private async makeRequest<T>(config: AxiosRequestConfig): Promise<ApiResponse<T>> {
@@ -278,6 +324,7 @@ class ApiClientImpl implements ApiClient {
 
       const isLocalApi = API_BASE_URL.includes('localhost:5120') || API_BASE_URL.includes('127.0.0.1:5120') || API_BASE_URL.startsWith('/api');
       const status = error?.response?.status;
+      const urlPath = (error?.config?.url || '').toLowerCase();
       const shouldFallbackNetwork = isLocalApi && (status === 0);
 
       // Fallback 1: erro de rede local (status 0)
@@ -313,7 +360,6 @@ class ApiClientImpl implements ApiClient {
 
       // Fallback 2: backend local respondeu 500
       try {
-        const urlPath = (error?.config?.url || '').toLowerCase();
         const method = (error?.config?.method || 'get').toLowerCase();
         const respData = error?.response?.data;
         const code = respData?.code || error?.code;
@@ -336,6 +382,38 @@ class ApiClientImpl implements ApiClient {
           if (authHeader && !altConfig.headers.Authorization) {
             (altConfig.headers as any).Authorization = authHeader;
           }
+          const response = await axios.request(altConfig);
+          const safeResponse = response || {};
+          const safeHeaders = safeResponse.headers || {};
+          return {
+            data: safeResponse.data,
+            status: safeResponse.status || 200,
+            statusText: safeResponse.statusText,
+            headers: safeHeaders,
+            success: true
+          };
+        }
+      } catch {}
+
+      // Fallback 3: 401 em endpoints críticos com API local -> tentar base de produção
+      try {
+        const method = (error?.config?.method || 'get').toLowerCase();
+        const isCritical401 = status === 401 && (
+          urlPath.includes('/auth/me') ||
+          (method === 'post' && urlPath.includes('/manifestations'))
+        );
+        const shouldFallback401 = isLocalApi && isCritical401 && !error?.config?.__fallback401Tried;
+        if (shouldFallback401) {
+          const altConfig: AxiosRequestConfig = {
+            ...config,
+            baseURL: 'https://direitai-backend.vercel.app/api',
+          };
+          const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization;
+          altConfig.headers = { ...(config?.headers || {}) } as any;
+          if (authHeader && !altConfig.headers.Authorization) {
+            (altConfig.headers as any).Authorization = authHeader;
+          }
+          (altConfig as any).__fallback401Tried = true;
           const response = await axios.request(altConfig);
           const safeResponse = response || {};
           const safeHeaders = safeResponse.headers || {};

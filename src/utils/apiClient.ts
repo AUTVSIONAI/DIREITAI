@@ -2,8 +2,9 @@
  * Cliente API centralizado para garantir URLs corretas em produção
  */
 import { supabase } from '../lib/supabase';
+import { API_CONFIG } from '../lib/api.ts';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
+const API_BASE_URL = API_CONFIG.BASE_URL;
 
 /**
  * Faz uma requisição para a API com a URL base correta e token de autenticação
