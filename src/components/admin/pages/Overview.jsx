@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { AdminService } from '../../../services/admin'
+import { FinancialReportsService, EventsService } from '../../../services'
+import AIMemoryService from '../../../services/aiMemory'
 import AnnouncementBanner from '../../common/AnnouncementBanner'
 import { 
   User, 
@@ -15,6 +17,20 @@ import {
 } from 'lucide-react'
 
 const Overview = () => {
+  const formatNumber = (val) => {
+    const num = Number(val ?? 0)
+    try {
+      return num.toLocaleString('pt-BR')
+    } catch {
+      return String(num)
+    }
+  }
+
+  const formatDate = (val) => {
+    if (!val) return '-'
+    const d = new Date(val)
+    return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('pt-BR')
+  }
   const [stats, setStats] = useState({
     activeUsers: 0,
     todayCheckins: 0,
@@ -38,23 +54,33 @@ const Overview = () => {
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Timeout na requisição')), 10000)
         );
-        
-        const dataPromise = AdminService.getOverview();
-        
-        const data = await Promise.race([dataPromise, timeoutPromise]);
-        
-        const stats = data?.statistics || {};
+        // Buscar overview administrativo e financeiro em paralelo
+        const adminOverviewPromise = AdminService.getOverview();
+        const financialOverviewPromise = FinancialReportsService.getOverview({ period: 'month' });
+        // Buscar contagem real de eventos ativos e estatísticas de conversas IA
+        const eventsActivePromise = EventsService.getEvents({ status: 'active' }, 1, 1).catch(() => null);
+        const aiStatsPromise = AIMemoryService.getConversationStats().catch(() => null);
+
+        const [adminOverview, financialOverview, eventsActive, aiStats] = await Promise.race([
+          Promise.all([adminOverviewPromise, financialOverviewPromise, eventsActivePromise, aiStatsPromise]),
+          timeoutPromise
+        ]);
+
+        const stats = adminOverview?.statistics || {};
         setStats({
           activeUsers: stats.activeUsers || 0,
           todayCheckins: stats.checkinsToday || 0,
-          activeEvents: stats.activeEvents || 0,
-          monthlyRevenue: stats.revenue?.thisMonth || 0,
-          aiConversations: stats.aiConversationsToday || 0,
+          // Usar contagem real de eventos ativos (fallback para adminOverview)
+          activeEvents: (eventsActive?.total ?? stats.activeEvents ?? 0),
+          // Usar receita real do Stripe para o card de Receita Mensal
+          monthlyRevenue: (financialOverview?.totalRevenue ?? stats.revenue?.thisMonth ?? 0),
+          // Usar estatísticas reais de conversas IA (fallback para adminOverview)
+          aiConversations: (aiStats?.total_conversations ?? stats.aiConversationsToday ?? 0),
           moderatedContent: stats.pendingModeration || 0
         });
-        setRecentEvents(data?.recentEvents || []);
-        setTopCities(data?.topCities || []);
-        setRecentActivities(data?.recentActivities || []);
+        setRecentEvents(adminOverview?.recentEvents || []);
+        setTopCities(adminOverview?.topCities || []);
+        setRecentActivities(adminOverview?.recentActivities || []);
       } catch (err) {
         console.error('Erro ao carregar dados do overview:', err);
         
@@ -83,7 +109,7 @@ const Overview = () => {
   const statsCards = [
     {
       name: 'Usuários Ativos',
-      value: stats.activeUsers.toLocaleString(),
+      value: formatNumber(stats.activeUsers),
       change: '+12%',
       changeType: 'increase',
       icon: User,
@@ -91,7 +117,7 @@ const Overview = () => {
     },
     {
       name: 'Check-ins Hoje',
-      value: stats.todayCheckins.toLocaleString(),
+      value: formatNumber(stats.todayCheckins),
       change: '+8%',
       changeType: 'increase',
       icon: MapPin,
@@ -99,7 +125,7 @@ const Overview = () => {
     },
     {
       name: 'Eventos Ativos',
-      value: stats.activeEvents.toLocaleString(),
+      value: formatNumber(stats.activeEvents),
       change: '+3',
       changeType: 'increase',
       icon: Calendar,
@@ -107,7 +133,7 @@ const Overview = () => {
     },
     {
       name: 'Receita Mensal',
-      value: `R$ ${stats.monthlyRevenue.toLocaleString()}`,
+      value: `R$ ${formatNumber(stats.monthlyRevenue)}`,
       change: '+15%',
       changeType: 'increase',
       icon: DollarSign,
@@ -115,7 +141,7 @@ const Overview = () => {
     },
     {
       name: 'Conversas IA',
-      value: stats.aiConversations.toLocaleString(),
+      value: formatNumber(stats.aiConversations),
       change: '+22%',
       changeType: 'increase',
       icon: MessageSquare,
@@ -123,7 +149,7 @@ const Overview = () => {
     },
     {
       name: 'Conteúdo Moderado',
-      value: stats.moderatedContent.toLocaleString(),
+      value: formatNumber(stats.moderatedContent),
       change: '-5%',
       changeType: 'decrease',
       icon: Shield,
@@ -242,21 +268,21 @@ const Overview = () => {
             </button>
           </div>
           <div className="space-y-4">
-            {recentEvents.map(event => (
-              <div key={event.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            {Array.isArray(recentEvents) && recentEvents.map(event => (
+              <div key={event.id ?? `${event.name ?? event.title ?? 'evt'}-${event.date ?? event.created_at ?? Math.random()}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex-1">
-                  <h4 className="font-medium text-gray-900">{event.name}</h4>
-                  <p className="text-sm text-gray-600">{event.location}</p>
-                  <p className="text-xs text-gray-500">{new Date(event.date).toLocaleDateString('pt-BR')}</p>
+                  <h4 className="font-medium text-gray-900">{event.name ?? event.title ?? 'Evento'}</h4>
+                  <p className="text-sm text-gray-600">{event.location ?? event.city ?? '-'}</p>
+                  <p className="text-xs text-gray-500">{formatDate(event.date ?? event.created_at)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">{event.checkins} check-ins</p>
+                  <p className="text-sm font-medium text-gray-900">{formatNumber(event.checkins ?? event.participants)} check-ins</p>
                   <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                     event.status === 'active' 
                       ? 'bg-green-100 text-green-800' 
                       : 'bg-gray-100 text-gray-800'
                   }`}>
-                    {event.status === 'active' ? 'Ativo' : 'Finalizado'}
+                    {event.status ? (event.status === 'active' ? 'Ativo' : 'Finalizado') : '—'}
                   </span>
                 </div>
               </div>
@@ -273,20 +299,20 @@ const Overview = () => {
             </button>
           </div>
           <div className="space-y-3">
-            {topCities.map((city, index) => (
-              <div key={`${city.city}-${city.state}`} className="flex items-center justify-between">
+            {Array.isArray(topCities) && topCities.map((city, index) => (
+              <div key={city.id ?? `${city.city ?? city.name ?? 'cidade'}-${city.state ?? city.uf ?? ''}-${index}` } className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-sm font-bold">
                     {index + 1}
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{city.city}</p>
-                    <p className="text-sm text-gray-600">{city.state}</p>
+                    <p className="font-medium text-gray-900">{city.city ?? city.name ?? '-'}</p>
+                    <p className="text-sm text-gray-600">{city.state ?? city.uf ?? ''}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-medium text-gray-900">{city.users.toLocaleString()}</p>
-                  <p className="text-sm text-green-600">{city.growth}</p>
+                  <p className="font-medium text-gray-900">{formatNumber(city.users ?? city.count ?? city.user_count)}</p>
+                  <p className="text-sm text-green-600">{city.growth ?? ''}</p>
                 </div>
               </div>
             ))}
@@ -305,7 +331,7 @@ const Overview = () => {
             </button>
           </div>
           <div className="space-y-4">
-            {recentActivities.map(activity => {
+            {Array.isArray(recentActivities) && recentActivities.map(activity => {
               const Icon = activity.icon || Activity
               return (
                 <div key={activity.id} className="flex items-start space-x-3">
@@ -313,8 +339,8 @@ const Overview = () => {
                     <Icon className="h-4 w-4 text-gray-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm text-gray-900">{activity.message}</p>
-                    <p className="text-xs text-gray-500">{activity.time}</p>
+                    <p className="text-sm text-gray-900">{activity.message ?? activity.description ?? activity.action}</p>
+                    <p className="text-xs text-gray-500">{formatDate(activity.time ?? activity.created_at ?? activity.timestamp)}</p>
                   </div>
                 </div>
               )
