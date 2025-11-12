@@ -65,7 +65,7 @@
     "highlight.js": "^11.9.0",
     "js-cookie": "^3.0.5",
     "leaflet": "^1.9.4",
-    "lucide-react": "^0.424.0",
+    "lucide-react": "0.415.0",
     "mapbox-gl": "^2.15.0",
     "postcss": "^8.4.31",
     "qrcode": "^1.5.3",
