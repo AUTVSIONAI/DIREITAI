@@ -16,6 +16,20 @@ const ResetPassword: React.FC = () => {
     // Verifica se há sessão de "recovery" após abrir link do email
     const checkRecoverySession = async () => {
       try {
+        // Em fluxo PKCE, o Supabase envia um "code" na URL para troca de sessão
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const type = params.get('type');
+
+        if (code) {
+          try {
+            await supabase.auth.exchangeCodeForSession({ code });
+          } catch (exErr: any) {
+            console.warn('Falha ao trocar code por sessão:', exErr?.message || exErr);
+          }
+        }
+
+        // Também é possível que a sessão já esteja presente (detectSessionInUrl=true trata hash tokens)
         const { data: { user }, error } = await supabase.auth.getUser();
         if (error) {
           console.warn('Erro ao obter usuário na recuperação:', error.message);
@@ -31,6 +45,18 @@ const ResetPassword: React.FC = () => {
       }
     };
     checkRecoverySession();
+
+    // Listener para eventos de auth (ex.: PASSWORD_RECOVERY)
+    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setReady(true);
+        setError(null);
+      }
+    });
+
+    return () => {
+      subscription?.subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
