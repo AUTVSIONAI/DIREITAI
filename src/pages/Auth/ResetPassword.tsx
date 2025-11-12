@@ -20,12 +20,40 @@ const ResetPassword: React.FC = () => {
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
         const type = params.get('type');
+        const tokenHash = params.get('token_hash');
 
+        // 1) PKCE: trocar code por sessão
         if (code) {
           try {
             await supabase.auth.exchangeCodeForSession({ code });
           } catch (exErr: any) {
             console.warn('Falha ao trocar code por sessão:', exErr?.message || exErr);
+          }
+        }
+
+        // 2) Link com token_hash (fluxo OTP): verificar para criar sessão
+        if (!code && tokenHash && (type === 'recovery' || type === 'email')) {
+          try {
+            const { error: otpErr } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' });
+            if (otpErr) {
+              console.warn('Falha ao verificar token_hash de recuperação:', otpErr.message);
+            }
+          } catch (verErr: any) {
+            console.warn('Erro ao verificar token_hash:', verErr?.message || verErr);
+          }
+        }
+
+        // 3) Fallback: tokens no hash (#access_token=...&refresh_token=...) caso detectSessionInUrl não processe
+        if (!code && !tokenHash && window.location.hash.includes('access_token') && window.location.hash.includes('refresh_token')) {
+          try {
+            const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+            const access_token = hash.get('access_token') || '';
+            const refresh_token = hash.get('refresh_token') || '';
+            if (access_token && refresh_token) {
+              await supabase.auth.setSession({ access_token, refresh_token });
+            }
+          } catch (hashErr: any) {
+            console.warn('Falha ao aplicar sessão a partir do hash:', hashErr?.message || hashErr);
           }
         }
 
@@ -48,7 +76,7 @@ const ResetPassword: React.FC = () => {
 
     // Listener para eventos de auth (ex.: PASSWORD_RECOVERY)
     const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setReady(true);
         setError(null);
       }
