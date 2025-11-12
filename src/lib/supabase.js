@@ -11,7 +11,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    flowType: 'pkce'
+    // Usar fluxo implícito para evitar exigência de code_verifier em links de email
+    flowType: 'implicit'
   },
   global: {
     headers: {
