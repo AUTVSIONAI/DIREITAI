@@ -2,8 +2,12 @@
  * Utilitários para manipulação de URLs de imagens
  */
 
-// Obter a base URL da API do ambiente
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api';
+// Obter a base URL da API do ambiente (evitar CORS em produção/preview)
+const IS_BROWSER = typeof window !== 'undefined';
+const IS_NON_LOCAL_SITE = IS_BROWSER && !/localhost|127\.0\.0\.1/i.test(window.location.hostname);
+const API_BASE_URL = IS_NON_LOCAL_SITE
+  ? '/api'
+  : (import.meta.env.VITE_API_URL || 'https://direitai-backend.vercel.app/api');
 
 /**
  * Converte uma URL relativa de imagem em URL absoluta

@@ -5,13 +5,13 @@ import { supabase } from './supabase';
 // Configuração base da API
 const RAW_API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
 const IS_BROWSER = typeof window !== 'undefined';
-const IS_PROD_SITE = IS_BROWSER && !/localhost|127\.0\.0\.1/i.test(window.location.hostname);
+const IS_NON_LOCAL_SITE = IS_BROWSER && !/localhost|127\.0\.0\.1/i.test(window.location.hostname);
 const HAS_ENV_BASE = typeof RAW_API_BASE_URL === 'string' && RAW_API_BASE_URL.length > 0;
 // Priorizar sempre VITE_API_URL quando estiver configurado, independente do ambiente.
 // Caso contrário: em produção usar "/api" (proxy no Vercel), e em preview/dev cair para backend público.
-const API_BASE_URL = HAS_ENV_BASE
-  ? RAW_API_BASE_URL
-  : (IS_PROD_SITE ? '/api' : 'https://direitai-backend.vercel.app/api');
+const API_BASE_URL = IS_NON_LOCAL_SITE
+  ? '/api'
+  : (HAS_ENV_BASE ? RAW_API_BASE_URL : 'https://direitai-backend.vercel.app/api');
 
 
 
