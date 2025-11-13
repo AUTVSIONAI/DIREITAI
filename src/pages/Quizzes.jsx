@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { Lock, Unlock, Brain, Target, Flag } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Lock, Unlock, Brain, Target, Flag, ArrowLeft } from 'lucide-react'
 import { useGamification } from '../hooks/useGamification'
 import GoalsService from '../services/goals'
 
@@ -48,6 +48,7 @@ const QuizCard = ({ title, description, to, locked, requirementLabel }) => (
 )
 
 export default function QuizzesPage() {
+  const navigate = useNavigate()
   const { userGoals, loading } = useGamification()
 
   const progress = useMemo(() => {
@@ -112,7 +113,11 @@ export default function QuizzesPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-6">
-        <div className="flex items-center gap-2 mb-6">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </button>
           <Flag className="h-6 w-6 text-primary-600" />
           <h1 className="text-2xl font-bold">Quizzes</h1>
         </div>

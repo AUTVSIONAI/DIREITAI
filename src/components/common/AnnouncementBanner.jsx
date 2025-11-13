@@ -7,24 +7,31 @@ const AnnouncementBanner = ({ className = '' }) => {
   const { user } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [locallyDismissed, setLocallyDismissed] = useState(() => {
+    try {
+      const raw = localStorage.getItem('dismissedAnnouncements');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Carregar anúncios ativos
   useEffect(() => {
     const loadAnnouncements = async () => {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
       try {
-        // Remover timeout artificial e confiar no cliente API
         const response = await NotificationsService.getAnnouncementBanners();
         const announcementsData = Array.isArray(response) ? response : [];
         setAnnouncements(announcementsData);
       } catch (error) {
-        console.warn('Erro ao carregar anúncios (tratado):', error?.message || error);
-        // Em caso de erro, não mostrar anúncios
-        setAnnouncements([]);
+        // Tratar 401/403 graciosamente para usuários não autenticados
+        if (error?.response?.status === 401 || error?.response?.status === 403) {
+          console.info('Anúncios requerem autenticação; ocultando para visitante.');
+          setAnnouncements([]);
+        } else {
+          console.warn('Erro ao carregar anúncios (tratado):', error?.message || error);
+          setAnnouncements([]);
+        }
       } finally {
         setLoading(false);
       }
@@ -39,7 +46,10 @@ const AnnouncementBanner = ({ className = '' }) => {
       await NotificationsService.dismissAnnouncementBanner(announcementId);
       setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
     } catch (error) {
-      console.error('Erro ao dispensar anúncio:', error);
+      const next = Array.from(new Set([...(locallyDismissed || []), announcementId]));
+      setLocallyDismissed(next);
+      try { localStorage.setItem('dismissedAnnouncements', JSON.stringify(next)); } catch {}
+      setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
     }
   };
 
@@ -91,8 +101,9 @@ const AnnouncementBanner = ({ className = '' }) => {
 
   // Verificar se o anúncio deve ser exibido
   const shouldShowAnnouncement = (announcement) => {
-    if (!announcement.is_active) return false;
-    
+    const isActive = announcement.is_active ?? announcement.active ?? true;
+    if (!isActive) return false;
+
     const now = new Date();
     
     // Verificar data de início
@@ -110,10 +121,11 @@ const AnnouncementBanner = ({ className = '' }) => {
     return true;
   };
 
-  if (loading || !user) return null;
+  if (loading) return null;
 
   // Filtrar anúncios que devem ser exibidos
   const visibleAnnouncements = announcements
+    .filter(a => !locallyDismissed?.includes?.(a.id))
     .filter(shouldShowAnnouncement)
     .sort((a, b) => b.priority - a.priority); // Ordenar por prioridade (maior primeiro)
 
