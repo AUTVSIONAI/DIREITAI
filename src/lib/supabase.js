@@ -91,11 +91,20 @@ export const signIn = async (email, password) => {
 // Função para fazer cadastro
 export const signUp = async (email, password, userData = {}) => {
   try {
+    // Normalizar metadados com defaults seguros (ajuda triggers e perfis)
+    const usernameDefault = (userData?.username && String(userData.username).trim()) || String(email).split('@')[0];
+    const fullNameDefault = (userData?.full_name || userData?.fullName || '').trim() || usernameDefault;
+    const normalized = {
+      username: usernameDefault,
+      full_name: fullNameDefault,
+      origin: 'web'
+    };
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: userData
+        data: { ...normalized, ...userData }
       }
     })
     if (error) throw error

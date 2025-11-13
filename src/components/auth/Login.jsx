@@ -25,9 +25,14 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!email || !password) {
       setError('Por favor, preencha todos os campos')
+      return
+    }
+
+    if (!isLogin && !username) {
+      setError('Por favor, informe um nome de usuário')
       return
     }
 
@@ -35,35 +40,55 @@ const Login = () => {
     setError('')
 
     try {
-      const signInPromise = supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      if (isLogin) {
+        const signInPromise = supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
 
-      const { data, error } = await withTimeout(signInPromise)
+        const { data, error } = await withTimeout(signInPromise)
 
-      if (error) {
-        setError(error.message)
-        setLoading(false)
-        return
-      }
-      
-      const { data: sessionData } = await supabase.auth.getSession()
-      const accessToken = sessionData?.session?.access_token
-      if (accessToken) {
-        apiClient.setAuthToken(accessToken)
+        if (error) {
+          setError(error.message)
+          setLoading(false)
+          return
+        }
+
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData?.session?.access_token
+        if (accessToken) {
+          apiClient.setAuthToken(accessToken)
+        } else {
+          console.warn('Login realizado, mas sessão não contém access_token')
+        }
+
+        const userEmail = data?.user?.email
+        if (userEmail === 'admin@direitai.com') {
+          navigate('/admin')
+        } else {
+          navigate('/dashboard')
+        }
       } else {
-        console.warn('Login realizado, mas sessão não contém access_token')
+        // Cadastro de usuário (inclui full_name padrão para evitar erros em triggers)
+        const signUpPromise = signUp(email, password, { username, full_name: username })
+        const { data, error } = await withTimeout(signUpPromise)
+
+        if (error) {
+          setError(error.message)
+          setLoading(false)
+          return
+        }
+
+        // Se a confirmação de email estiver habilitada, não haverá sessão
+        const sessionToken = data?.session?.access_token
+        if (sessionToken) {
+          apiClient.setAuthToken(sessionToken)
+          navigate('/dashboard')
+        } else {
+          // Feedback amigável de sucesso de cadastro sem sessão
+          setError('Cadastro realizado! Verifique seu email para confirmar a conta e depois faça login.')
+        }
       }
-      
-      // Navegação simples baseada no email do usuário logado
-      const userEmail = data?.user?.email
-      if (userEmail === 'admin@direitai.com') {
-        navigate('/admin')
-      } else {
-        navigate('/dashboard')
-      }
-      
     } catch (error) {
       setError(`Erro: ${error.message}`)
     } finally {
