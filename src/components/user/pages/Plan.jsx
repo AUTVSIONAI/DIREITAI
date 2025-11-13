@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { Crown, Star, Zap, Check, X, Users, MessageSquare, Trophy, Shield, BarChart3, TrendingUp, Calendar, Sparkles } from 'lucide-react'
+import { Crown, Star, Zap, Check, X, Users, MessageSquare, Trophy, Shield, BarChart3, TrendingUp, Calendar, Sparkles, CreditCard } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 import { apiRequest } from '../../../utils/apiClient'
 import { useNavigate } from 'react-router-dom'
 import LazyChart from '../../common/LazyChart'
 import { paymentsService } from '../../../services/payments'
+import CreditPurchase from '../pages/CreditPurchase'
 
 const Plan = () => {
   const { userProfile } = useAuth()
@@ -21,6 +22,9 @@ const Plan = () => {
   const [planInfo, setPlanInfo] = useState(null)
   const [usageLoading, setUsageLoading] = useState(false)
   const [creativeAIStats, setCreativeAIStats] = useState(null)
+  const [creditsBalance, setCreditsBalance] = useState(null)
+  const [showCreditPurchase, setShowCreditPurchase] = useState(false)
+  const [creditType, setCreditType] = useState('fake_news_check')
 
   // Planos de fallback
   const fallbackPlans = [
@@ -45,6 +49,24 @@ const Plan = () => {
         'Sem acesso premium',
         'Suporte básico'
       ]
+    },
+    {
+      id: 'patriota',
+      name: 'Patriota',
+      monthlyPrice: 9.90,
+      yearlyPrice: 99.00,
+      icon: Star,
+      color: 'blue',
+      popular: false,
+      features: [
+        'Chat DireitaGPT ilimitado',
+        'IA Criativa: até 10 textos por dia',
+        'Detector de Fake News: 2 análises por dia',
+        '1 agente político',
+        'Ranking local',
+        'Suporte básico'
+      ],
+      limitations: []
     },
     {
       id: 'cidadao',
@@ -180,11 +202,12 @@ const Plan = () => {
     
     setUsageLoading(true)
     try {
-      const [statsResponse, historyResponse, planResponse, creativeAIResponse] = await Promise.all([
+      const [statsResponse, historyResponse, planResponse, creativeAIResponse, creditsResponse] = await Promise.all([
         apiRequest('/api/users/usage-stats'),
         apiRequest('/api/users/usage-history'),
         apiRequest('/api/users/plan-info'),
-        apiRequest('/api/ai/creative-ai/usage')
+        apiRequest('/api/ai/creative-ai/usage'),
+        apiRequest('/api/payments/credits/balance')
       ])
       
       // Corrigir acesso aos dados da resposta da API
@@ -192,12 +215,14 @@ const Plan = () => {
       setUsageHistory(historyResponse?.success && Array.isArray(historyResponse.data?.history) ? historyResponse.data.history : [])
       setPlanInfo(planResponse?.success ? planResponse.data : null)
       setCreativeAIStats(creativeAIResponse?.success ? creativeAIResponse.data : null)
+      setCreditsBalance(creditsResponse?.success ? (creditsResponse.data?.credits || creditsResponse.data) : null)
     } catch (error) {
       console.error('Erro ao carregar dados de uso:', error)
       setUsageStats(null)
       setUsageHistory([])
       setPlanInfo(null)
       setCreativeAIStats(null)
+      setCreditsBalance(null)
     } finally {
       setUsageLoading(false)
     }
@@ -214,16 +239,54 @@ const Plan = () => {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const response = await apiRequest('/plans')
-        if (response && Array.isArray(response)) {
-          const transformedPlans = response.map(plan => ({
+        const resp = await apiRequest('/plans')
+
+        // Suporta ambas respostas: { success, data: [] } e [] diretamente
+        const plansFromApi = (resp && resp.success && Array.isArray(resp.data))
+          ? resp.data
+          : (Array.isArray(resp) ? resp : null)
+
+        let finalPlans
+        if (plansFromApi) {
+          finalPlans = plansFromApi.map(plan => ({
             ...plan,
             icon: plan.icon === 'Crown' ? Crown : plan.icon === 'Star' ? Star : Users
           }))
-          setPlans(transformedPlans)
         } else {
-          setPlans(fallbackPlans)
+          finalPlans = [...fallbackPlans]
         }
+
+        // Garante a presença do plano Patriota (R$ 9,90)
+        const hasPatriota = finalPlans.some(p => p.id === 'patriota')
+        if (!hasPatriota) {
+          const patriotaPlan = {
+            id: 'patriota',
+            name: 'Patriota',
+            monthlyPrice: 9.90,
+            yearlyPrice: 99.00,
+            icon: Star,
+            color: 'blue',
+            popular: false,
+            features: [
+              'Chat DireitaGPT ilimitado',
+              'IA Criativa: até 10 textos por dia',
+              'Detector de Fake News: 2 análises por dia',
+              '1 agente político',
+              'Ranking local',
+              'Suporte básico'
+            ],
+            limitations: []
+          }
+          // Inserir após o plano gratuito, se existir
+          const freeIndex = finalPlans.findIndex(p => p.id === 'gratuito')
+          if (freeIndex >= 0) {
+            finalPlans.splice(freeIndex + 1, 0, patriotaPlan)
+          } else {
+            finalPlans.unshift(patriotaPlan)
+          }
+        }
+
+        setPlans(finalPlans)
       } catch (error) {
         console.error('Erro ao buscar planos:', error)
         setPlans(fallbackPlans)
@@ -492,32 +555,37 @@ const Plan = () => {
             ) : (
               <>
                 {/* Informações do plano atual */}
-                {planInfo && (
-                  <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          Plano Atual: {planInfo.name}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {planInfo.billingCycle === 'yearly' ? 'Anual' : 'Mensal'} - 
-                          Próxima cobrança: {planInfo.nextBilling ? 
-                            new Date(planInfo.nextBilling).toLocaleDateString('pt-BR') : 
-                            'Não aplicável'
-                          }
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-gray-900">
-                          {formatPrice(planInfo.price)}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          /{planInfo.billingCycle === 'yearly' ? 'ano' : 'mês'}
-                        </p>
-                      </div>
+                <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Plano Atual: {planInfo?.name || (userProfile?.plan ? {
+                          gratuito: 'Patriota Gratuito',
+                          patriota: 'Patriota',
+                          cidadao: 'Patriota Cidadão',
+                          premium: 'Patriota Premium',
+                          pro: 'Patriota Pro',
+                          elite: 'Patriota Elite'
+                        }[userProfile.plan] : 'N/A')}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {(planInfo?.billingCycle || 'monthly') === 'yearly' ? 'Anual' : 'Mensal'} - 
+                        Próxima cobrança: {planInfo?.nextBilling ? 
+                          new Date(planInfo.nextBilling).toLocaleDateString('pt-BR') : 
+                          'Não aplicável'
+                        }
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {planInfo?.price ? formatPrice(planInfo.price) : '--'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        /{(planInfo?.billingCycle || 'monthly') === 'yearly' ? 'ano' : 'mês'}
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
 
                 {/* Estatísticas de uso */}
                 {usageStats && (
@@ -634,6 +702,33 @@ const Plan = () => {
                         </div>
                       </div>
                     </div>
+
+                    {/* Créditos Avulsos */}
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0">
+                            <CreditCard className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="ml-4">
+                            <p className="text-sm font-medium text-gray-500">Créditos Avulsos</p>
+                            <p className="text-sm text-gray-700 mt-2">
+                              Fake News: <span className="font-semibold">{creditsBalance?.fake_news_check?.active_credits ?? 0}</span> •
+                              {' '}IA Criativa: <span className="font-semibold">{creditsBalance?.ai_creative_message?.active_credits ?? 0}</span> •
+                              {' '}Agentes: <span className="font-semibold">{creditsBalance?.political_agent_conversation?.active_credits ?? 0}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div>
+                          <button
+                            onClick={() => { setCreditType('fake_news_check'); setShowCreditPurchase(true); }}
+                            className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                          >
+                            Comprar créditos
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -672,6 +767,20 @@ const Plan = () => {
                           • Seu plano será renovado em breve. Verifique se está satisfeito com seu plano atual.
                         </p>
                       )}
+                      <div className="pt-2 flex gap-3">
+                        <button
+                          onClick={() => setShowCreditPurchase(true)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          Comprar créditos
+                        </button>
+                        <button
+                          onClick={() => navigate('/dashboard/plan')}
+                          className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors text-sm"
+                        >
+                          Ver planos
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -717,6 +826,14 @@ const Plan = () => {
           </div>
         )}
       </div>
+      {/* Modal de compra de créditos */}
+      {showCreditPurchase && (
+        <CreditPurchase
+          isOpen={showCreditPurchase}
+          onClose={() => setShowCreditPurchase(false)}
+          creditType={creditType}
+        />
+      )}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AlertTriangle, CreditCard, Crown, Zap, X, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CreditPurchase from '../pages/CreditPurchase';
+import { paymentsService } from '../../../services';
 
 const LimitReached = ({ 
   isOpen, 
@@ -12,6 +13,8 @@ const LimitReached = ({
 }) => {
   const navigate = useNavigate();
   const [showCreditPurchase, setShowCreditPurchase] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState('');
 
   const getLimitInfo = () => {
     const info = {
@@ -29,7 +32,7 @@ const LimitReached = ({
         icon: Zap,
         color: 'yellow',
         creditType: 'ai_creative_message',
-        creditPrice: 'R$ 0,50'
+        creditPrice: 'R$ 1,50'
       },
       political_agents: {
         title: 'Limite de Agentes Políticos Atingido',
@@ -37,94 +40,44 @@ const LimitReached = ({
         icon: Crown,
         color: 'purple',
         creditType: 'political_agent_conversation',
-        creditPrice: 'R$ 1,00'
+        creditPrice: 'R$ 1,50'
       }
     };
     return info[limitType] || info.fake_news;
   };
 
   const getUpgradeOptions = () => {
-    const plans = {
-      gratuito: [
-        {
-          id: 'engajado',
-          name: 'Patriota Engajado',
-          price: 'R$ 29,90/mês',
-          benefits: {
-            fake_news: '5 análises por dia',
-            ai_creative: '20 mensagens por dia',
-            political_agents: '3 conversas por dia'
-          },
-          highlight: true
-        },
-        {
-          id: 'lider',
-          name: 'Patriota Líder',
-          price: 'R$ 59,90/mês',
-          benefits: {
-            fake_news: '10 análises por dia',
-            ai_creative: '50 mensagens por dia',
-            political_agents: 'Ilimitado'
-          }
-        },
-        {
-          id: 'supremo',
-          name: 'Patriota Supremo',
-          price: 'R$ 89,90/mês',
-          benefits: {
-            fake_news: '20 análises por dia',
-            ai_creative: 'Ilimitado',
-            political_agents: 'Ilimitado'
-          }
-        }
-      ],
-      engajado: [
-        {
-          id: 'lider',
-          name: 'Patriota Líder',
-          price: 'R$ 59,90/mês',
-          benefits: {
-            fake_news: '10 análises por dia',
-            ai_creative: '50 mensagens por dia',
-            political_agents: 'Ilimitado'
-          },
-          highlight: true
-        },
-        {
-          id: 'supremo',
-          name: 'Patriota Supremo',
-          price: 'R$ 89,90/mês',
-          benefits: {
-            fake_news: '20 análises por dia',
-            ai_creative: 'Ilimitado',
-            political_agents: 'Ilimitado'
-          }
-        }
-      ],
-      lider: [
-        {
-          id: 'supremo',
-          name: 'Patriota Supremo',
-          price: 'R$ 89,90/mês',
-          benefits: {
-            fake_news: '20 análises por dia',
-            ai_creative: 'Ilimitado',
-            political_agents: 'Ilimitado'
-          },
-          highlight: true
-        }
-      ]
-    };
-    return plans[currentPlan] || [];
+    // Mostrar sempre todos os planos disponíveis
+    const allPlans = [
+      { id: 'patriota', name: 'Patriota', price: 'R$ 9,90/mês', benefits: { fake_news: '2 análises por dia', ai_creative: '10 mensagens por dia', political_agents: '1 conversa por dia' }, highlight: true },
+      { id: 'cidadao', name: 'Patriota Cidadão', price: 'R$ 19,90/mês', benefits: { fake_news: '5 análises por dia', ai_creative: '20 mensagens por dia', political_agents: '3 conversas por dia' } },
+      { id: 'premium', name: 'Patriota Premium', price: 'R$ 39,90/mês', benefits: { fake_news: '10 análises por dia', ai_creative: '50 mensagens por dia', political_agents: 'Ilimitado' } },
+      { id: 'pro', name: 'Patriota Pro', price: 'R$ 69,90/mês', benefits: { fake_news: '20 análises por dia', ai_creative: 'Ilimitado', political_agents: 'Ilimitado' } },
+      { id: 'elite', name: 'Patriota Elite', price: 'R$ 119,90/mês', benefits: { fake_news: '30 análises por dia', ai_creative: 'Ilimitado', political_agents: 'Ilimitado' } }
+    ];
+    return allPlans;
   };
 
   const limitInfo = getLimitInfo();
   const upgradeOptions = getUpgradeOptions();
   const IconComponent = limitInfo.icon;
 
-  const handleUpgrade = (planId) => {
-    navigate('/plans');
-    onClose();
+  const handleUpgrade = async (planId) => {
+    setUpgradeError('');
+    setUpgrading(true);
+    try {
+      const session = await paymentsService.createCheckoutSession(planId);
+      if (session?.url) {
+        window.location.href = session.url;
+      } else {
+        throw new Error('Sessão de checkout indisponível');
+      }
+    } catch (err) {
+      console.error('Erro ao iniciar upgrade:', err);
+      setUpgradeError('Não foi possível iniciar o checkout. Tente novamente.');
+    } finally {
+      setUpgrading(false);
+    }
   };
 
   const handleBuyCredits = () => {
@@ -202,6 +155,11 @@ const LimitReached = ({
               {upgradeOptions.length > 0 && (
                 <div>
                   <h3 className="font-medium text-gray-900 mb-3">Ou faça upgrade do seu plano:</h3>
+                  {upgradeError && (
+                    <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                      {upgradeError}
+                    </div>
+                  )}
                   <div className="space-y-3">
                     {upgradeOptions.map((plan) => (
                       <div
@@ -234,13 +192,14 @@ const LimitReached = ({
                           </div>
                           <button
                             onClick={() => handleUpgrade(plan.id)}
+                            disabled={upgrading}
                             className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
                               plan.highlight
-                                ? 'bg-green-600 text-white hover:bg-green-700'
-                                : 'bg-gray-600 text-white hover:bg-gray-700'
+                                ? `bg-green-600 text-white ${upgrading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-green-700'}`
+                                : `bg-gray-600 text-white ${upgrading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-700'}`
                             }`}
                           >
-                            Upgrade
+                            {upgrading ? 'Abrindo checkout...' : 'Upgrade'}
                             <ArrowRight className="w-4 h-4" />
                           </button>
                         </div>
