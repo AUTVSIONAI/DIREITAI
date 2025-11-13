@@ -246,7 +246,7 @@ const UsageLimits = () => {
             Você atingiu o limite do seu plano atual. Faça upgrade para continuar usando.
           </p>
           <button 
-            onClick={() => navigate('/plan')}
+            onClick={() => navigate('/dashboard/plan')}
             className="text-xs bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700 transition-colors"
           >
             Ver Planos

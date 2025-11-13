@@ -54,7 +54,7 @@ const UserDashboard = () => {
             <Route path="/store/success" element={<StoreSuccess />} />
             <Route path="/payment/success" element={<PaymentSuccess />} />
             <Route path="/achievements" element={<Achievements />} />
-            <Route path="/plan" element={<Plan />} />
+            <Route path="plan" element={<Plan />} />
             <Route path="/events" element={<EventMap />} />
             <Route path="/affiliates" element={<Affiliates />} />
 
