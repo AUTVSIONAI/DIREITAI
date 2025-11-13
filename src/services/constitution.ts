@@ -40,6 +40,9 @@ export class ConstitutionService {
   static async registerDownload(userId: string): Promise<RegisterDownloadResponse> {
     try {
       const response = await apiClient.post(`/constitution/download/${userId}`);
+      if (!response.success) {
+        throw new Error(String((response.data as any)?.error || 'Falha ao registrar download'));
+      }
       return response.data;
     } catch (error) {
       console.error('Erro ao registrar download:', error);
