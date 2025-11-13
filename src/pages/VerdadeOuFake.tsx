@@ -202,18 +202,31 @@ const VerdadeOuFake = () => {
     setResult(null);
     setFeedbackGiven(false);
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        setError('Sessão expirada. Faça login novamente.');
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.access_token) {
+      setError('Sessão expirada. Faça login novamente.');
+      return;
+    }
+
+    const usageCheck = await apiRequest('users/usage-stats');
+    if (usageCheck.success) {
+      const remaining = usageCheck.data?.usage?.fake_news_analyses?.remaining;
+      const limit = usageCheck.data?.usage?.fake_news_analyses?.limit;
+      const used = usageCheck.data?.usage?.fake_news_analyses?.used;
+      if (typeof remaining === 'number' && remaining === 0) {
+        setLimitInfo({ limit, used });
+        setShowLimitModal(true);
+        setIsAnalyzing(false);
         return;
       }
+    }
 
-      const response = await apiRequest('fake-news/analyze', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
+    const response = await apiRequest('fake-news/analyze', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           content,
