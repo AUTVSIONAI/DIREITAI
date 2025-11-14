@@ -50,6 +50,11 @@ const AuthProvider = ({ children }) => {
           username: currentUser?.user_metadata?.username || '',
           email: currentUser?.email || '',
           avatar_url: currentUser?.user_metadata?.avatar_url || null,
+          bio: currentUser?.user_metadata?.bio || '',
+          city: currentUser?.user_metadata?.city || '',
+          state: currentUser?.user_metadata?.state || '',
+          phone: currentUser?.user_metadata?.phone || '',
+          birth_date: currentUser?.user_metadata?.birth_date || '',
           is_admin: currentUser?.email === 'admin@direitai.com',
           email_confirmed_at: currentUser?.email_confirmed_at
         };
@@ -61,6 +66,11 @@ const AuthProvider = ({ children }) => {
           username: dbUser.username || currentUser?.user_metadata?.username || '',
           email: dbUser.email || currentUser?.email || '',
           avatar_url: dbUser.avatar_url || currentUser?.user_metadata?.avatar_url || null,
+          bio: dbUser.bio ?? currentUser?.user_metadata?.bio ?? '',
+          city: dbUser.city ?? currentUser?.user_metadata?.city ?? '',
+          state: dbUser.state ?? currentUser?.user_metadata?.state ?? '',
+          phone: dbUser.phone ?? currentUser?.user_metadata?.phone ?? '',
+          birth_date: dbUser.birth_date ?? currentUser?.user_metadata?.birth_date ?? '',
           is_admin: dbUser.is_admin || currentUser?.email === 'admin@direitai.com',
           email_confirmed_at: currentUser?.email_confirmed_at,
           plan: dbUser.plan || 'gratuito',
@@ -154,6 +164,11 @@ const AuthProvider = ({ children }) => {
 
   const refreshUserProfile = useCallback(async () => {
     if (user) {
+      const cacheKey = `user_profile_${user.id}`;
+      try {
+        sessionStorage.removeItem(cacheKey);
+        sessionStorage.removeItem(`${cacheKey}_time`);
+      } catch {}
       await fetchUserProfile(user);
     }
   }, [user, fetchUserProfile]);
