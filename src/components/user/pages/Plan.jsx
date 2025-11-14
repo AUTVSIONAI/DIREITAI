@@ -235,25 +235,25 @@ const Plan = () => {
     }
   }, [activeTab])
 
-  // Buscar planos disponíveis para checkout (alinhado com pagamentos)
+  // Buscar planos públicos (controlados pelo Admin)
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const availablePlans = await paymentsService.getPlans()
+        const resp = await apiRequest('/plans')
+        const plansFromApi = (resp && resp.success && Array.isArray(resp.data))
+          ? resp.data
+          : (Array.isArray(resp) ? resp : null)
 
-        const finalPlans = Array.isArray(availablePlans) && availablePlans.length > 0
-          ? availablePlans.map(plan => ({
+        const finalPlans = plansFromApi
+          ? plansFromApi.map(plan => ({
               ...plan,
-              monthlyPrice: plan.price,
-              icon: plan.popular ? Crown : Star,
-              color: plan.popular ? 'purple' : 'blue',
-              features: Array.isArray(plan.features) ? plan.features : [],
+              icon: plan.icon === 'Crown' ? Crown : plan.icon === 'Star' ? Star : Users
             }))
           : [...fallbackPlans]
 
         setPlans(finalPlans)
       } catch (error) {
-        console.error('Erro ao buscar planos de pagamentos:', error)
+        console.error('Erro ao buscar planos:', error)
         setPlans(fallbackPlans)
       } finally {
         setLoading(false)
