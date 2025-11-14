@@ -9,7 +9,7 @@ import {
   InformationCircleIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
-import { AdminService } from '../../../services/admin';
+import { NotificationsService } from '../../../services/notifications';
 
 const Announcements = () => {
   const [announcements, setAnnouncements] = useState([]);
@@ -26,65 +26,69 @@ const Announcements = () => {
     expiresAt: '',
     isActive: true
   });
+  const [filters, setFilters] = useState({ status: 'all', startDate: '', endDate: '' });
+  const [statsById, setStatsById] = useState({});
+  const [loadingStatsId, setLoadingStatsId] = useState(null);
+
+  // Helpers de mapeamento
+  const mapPriorityToUI = (p) => {
+    if (!p) return 'normal';
+    switch (p) {
+      case 'high':
+      case 'urgent':
+        return 'high';
+      case 'low':
+        return 'low';
+      default:
+        return 'normal';
+    }
+  };
+
+  const mapPriorityToAdmin = (p) => {
+    switch (p) {
+      case 'high':
+        return 'high';
+      case 'low':
+        return 'low';
+      default:
+        return 'medium';
+    }
+  };
+
+  const toUI = (a) => ({
+    id: a.id,
+    title: a.title,
+    content: a.message || a.content || '',
+    type: a.type || 'info',
+    priority: mapPriorityToUI(a.priority),
+    targetAudience: a.target_audience?.type || a.targetAudience || 'all',
+    isActive: Boolean(a.is_active ?? a.active ?? true),
+    createdAt: a.created_at ? new Date(a.created_at) : new Date(),
+    expiresAt: a.end_date ? new Date(a.end_date) : null,
+    author: a.created_by?.username || a.author || 'Admin'
+  });
+
+  const toAdminPayload = (fd) => ({
+    title: fd.title,
+    message: fd.content,
+    type: fd.type,
+    priority: mapPriorityToAdmin(fd.priority),
+    target_audience: { type: fd.targetAudience || 'all' },
+    end_date: fd.expiresAt ? new Date(fd.expiresAt).toISOString() : undefined,
+    is_active: fd.isActive
+  });
 
   // Função para carregar anúncios da API
   const loadAnnouncements = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // Simular chamada da API - substituir por AdminService.getAnnouncements() quando disponível
-      const response = await new Promise(resolve => {
-        setTimeout(() => {
-          resolve({
-            success: true,
-            announcements: [
-              {
-                id: 1,
-                title: 'Manutenção Programada do Sistema',
-                content: 'O sistema passará por manutenção programada no dia 15/12 das 02:00 às 04:00. Durante este período, alguns serviços podem ficar indisponíveis.',
-                type: 'warning',
-                priority: 'high',
-                targetAudience: 'all',
-                isActive: true,
-                createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
-                expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
-                author: 'Admin Sistema'
-              },
-              {
-                id: 2,
-                title: 'Nova Funcionalidade: Chat com IA Jurídica',
-                content: 'Estamos felizes em anunciar o lançamento da nossa nova funcionalidade de chat com IA especializada em direito. Experimente agora!',
-                type: 'success',
-                priority: 'normal',
-                targetAudience: 'users',
-                isActive: true,
-                createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
-                expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
-                author: 'Equipe de Produto'
-              },
-              {
-                id: 3,
-                title: 'Atualização dos Termos de Uso',
-                content: 'Nossos termos de uso foram atualizados. Por favor, revise as mudanças em sua próxima sessão.',
-                type: 'info',
-                priority: 'low',
-                targetAudience: 'all',
-                isActive: true,
-                createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3),
-                expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 60),
-                author: 'Departamento Jurídico'
-              }
-            ]
-          });
-        }, 1000);
-      });
-      
-      if (response.success) {
-        setAnnouncements(response.announcements || []);
-      } else {
-        throw new Error('Falha ao carregar anúncios');
-      }
+      const params =
+        filters.status === 'all'
+          ? {}
+          : { active: filters.status === 'active' };
+      const data = await NotificationsService.listAdminAnnouncements(params);
+      setAnnouncements((data || []).map(toUI));
     } catch (err) {
       console.error('Erro ao carregar anúncios:', err);
       setError('Erro ao carregar anúncios. Tente novamente.');
@@ -96,31 +100,30 @@ const Announcements = () => {
 
   useEffect(() => {
     loadAnnouncements();
-  }, []);
+  }, [filters.status]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (editingAnnouncement) {
-      // Atualizar anúncio existente
-      setAnnouncements(prev => prev.map(ann => 
-        ann.id === editingAnnouncement.id 
-          ? { ...ann, ...formData, updatedAt: new Date() }
-          : ann
-      ));
-    } else {
-      // Criar novo anúncio
-      const newAnnouncement = {
-        id: Date.now(),
-        ...formData,
-        createdAt: new Date(),
-        author: 'Admin Atual',
-        expiresAt: formData.expiresAt ? new Date(formData.expiresAt) : null
-      };
-      setAnnouncements(prev => [newAnnouncement, ...prev]);
+    try {
+      if (editingAnnouncement) {
+        const updated = await NotificationsService.updateAdminAnnouncement(
+          editingAnnouncement.id,
+          toAdminPayload(formData)
+        );
+        setAnnouncements(prev => prev.map(ann =>
+          ann.id === editingAnnouncement.id ? toUI(updated) : ann
+        ));
+      } else {
+        const created = await NotificationsService.createAdminAnnouncement(
+          toAdminPayload(formData)
+        );
+        setAnnouncements(prev => [toUI(created), ...prev]);
+      }
+      resetForm();
+    } catch (err) {
+      console.error('Erro ao salvar anúncio:', err);
+      setError('Não foi possível salvar o anúncio. Verifique os dados e tente novamente.');
     }
-
-    resetForm();
   };
 
   const resetForm = () => {
@@ -151,17 +154,59 @@ const Announcements = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm('Tem certeza que deseja excluir este anúncio?')) {
+  const handleDelete = async (id) => {
+    if (!window.confirm('Tem certeza que deseja excluir este anúncio?')) return;
+    try {
+      await NotificationsService.deleteAdminAnnouncement(id);
       setAnnouncements(prev => prev.filter(ann => ann.id !== id));
+    } catch (err) {
+      console.error('Erro ao excluir anúncio:', err);
+      setError('Falha ao excluir anúncio. Tente novamente.');
     }
   };
 
-  const toggleActive = (id) => {
-    setAnnouncements(prev => prev.map(ann => 
-      ann.id === id ? { ...ann, isActive: !ann.isActive } : ann
-    ));
+  const toggleActive = async (id) => {
+    try {
+      const current = announcements.find(a => a.id === id);
+      const res = await NotificationsService.toggleAdminAnnouncementActive(
+        id,
+        { active: !current?.isActive }
+      );
+      const newActive = typeof res.active === 'boolean' ? res.active : !current?.isActive;
+      setAnnouncements(prev => prev.map(ann =>
+        ann.id === id ? { ...ann, isActive: newActive } : ann
+      ));
+    } catch (err) {
+      console.error('Erro ao alternar status do anúncio:', err);
+      setError('Não foi possível alterar o status. Tente novamente.');
+    }
   };
+
+  const loadStats = async (id) => {
+    try {
+      setLoadingStatsId(id);
+      const stats = await NotificationsService.getAnnouncementBannerStats(id);
+      setStatsById(prev => ({ ...prev, [id]: stats }));
+    } catch (err) {
+      console.error('Erro ao carregar estatísticas:', err);
+      setError('Falha ao carregar estatísticas do anúncio.');
+    } finally {
+      setLoadingStatsId(null);
+    }
+  };
+
+  const filteredAnnouncements = announcements.filter((a) => {
+    let ok = true;
+    if (filters.startDate) {
+      const sd = new Date(filters.startDate);
+      ok = ok && a.createdAt >= sd;
+    }
+    if (filters.endDate) {
+      const ed = new Date(filters.endDate);
+      ok = ok && a.createdAt <= new Date(new Date(ed).setHours(23,59,59,999));
+    }
+    return ok;
+  });
 
   const getTypeIcon = (type) => {
     switch (type) {
@@ -219,20 +264,62 @@ const Announcements = () => {
             </button>
           </div>
 
+          {/* Filtros */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+              >
+                <option value="all">Todos</option>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Início (criação)</label>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fim (criação)</label>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={() => loadAnnouncements()}
+                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              >
+                Aplicar
+              </button>
+            </div>
+          </div>
+
           {/* Lista de Anúncios */}
           <div className="space-y-4">
             {loading ? (
               <div className="text-center py-8">
                 <div className="text-sm text-gray-500">Carregando anúncios...</div>
               </div>
-            ) : announcements.length === 0 ? (
+            ) : filteredAnnouncements.length === 0 ? (
               <div className="text-center py-8">
                 <SpeakerWaveIcon className="mx-auto h-12 w-12 text-gray-400" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum anúncio</h3>
                 <p className="mt-1 text-sm text-gray-500">Comece criando um novo anúncio.</p>
               </div>
             ) : (
-              announcements.map((announcement) => (
+              filteredAnnouncements.map((announcement) => (
                 <div
                   key={announcement.id}
                   className={`border rounded-lg p-4 ${getTypeColor(announcement.type)} ${
@@ -272,6 +359,35 @@ const Announcements = () => {
                                    announcement.targetAudience === 'users' ? 'Usuários' : 'Admins'}
                         </span>
                       </div>
+                      <div className="mt-2">
+                        <button
+                          onClick={() => {
+                            if (!statsById[announcement.id]) {
+                              loadStats(announcement.id);
+                            }
+                            setStatsById(prev => ({ ...prev, __expanded: { ...(prev.__expanded || {}), [announcement.id]: !(prev.__expanded?.[announcement.id]) } }));
+                          }}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                        >
+                          <EyeIcon className="h-4 w-4 mr-1" />
+                          Ver estatísticas
+                        </button>
+                      </div>
+                      {statsById.__expanded?.[announcement.id] && (
+                        <div className="mt-3 text-sm bg-white/60 border rounded p-3">
+                          {loadingStatsId === announcement.id ? (
+                            <div className="text-gray-500">Carregando estatísticas...</div>
+                          ) : (
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                              <div><span className="text-gray-500">Views:</span> {statsById[announcement.id]?.views ?? '-'}</div>
+                              <div><span className="text-gray-500">Cliques:</span> {statsById[announcement.id]?.clicks ?? '-'}</div>
+                              <div><span className="text-gray-500">Dispensas:</span> {statsById[announcement.id]?.dismissals ?? '-'}</div>
+                              <div><span className="text-gray-500">CTR:</span> {statsById[announcement.id]?.clickRate != null ? `${(statsById[announcement.id]?.clickRate * 100).toFixed(2)}%` : '-'}</div>
+                              <div><span className="text-gray-500">Taxa de dispensa:</span> {statsById[announcement.id]?.dismissalRate != null ? `${(statsById[announcement.id]?.dismissalRate * 100).toFixed(2)}%` : '-'}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     
                     <div className="flex items-center space-x-2 ml-4">

@@ -19,6 +19,7 @@ const LoadingSpinner = () => (
 const HomePage = lazy(() => import('./pages/HomePage.tsx'))
 const TestPage = lazy(() => import('./pages/TestPage.jsx'))
 const LoginPage = lazy(() => import('./pages/Auth/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/Auth/RegisterPage.tsx'))
 const ForgotPasswordPage = lazy(() => import('./pages/Auth/ForgotPassword'))
 const ResetPasswordPage = lazy(() => import('./pages/Auth/ResetPassword'))
 const UserDashboard = lazy(() => import('./components/user/UserDashboard'))
@@ -123,6 +124,8 @@ const AppContent = () => {
           
           {/* Rota de login */}
           <Route path="/login" element={<LoginPage />} />
+          {/* Rota de cadastro */}
+          <Route path="/register" element={<RegisterPage />} />
           {/* Recuperação de senha */}
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />

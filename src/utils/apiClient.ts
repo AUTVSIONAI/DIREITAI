@@ -2,9 +2,17 @@
  * Cliente API centralizado para garantir URLs corretas em produção
  */
 import { supabase } from '../lib/supabase';
-import { API_CONFIG } from '../lib/api.ts';
 
-const API_BASE_URL = API_CONFIG.BASE_URL;
+// Configuração base da API (alinhada com src/lib/api.ts)
+const RAW_API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
+const IS_BROWSER = typeof window !== 'undefined';
+const IS_NON_LOCAL_SITE = IS_BROWSER && !/localhost|127\.0\.0\.1/i.test(window.location.hostname);
+const HAS_ENV_BASE = typeof RAW_API_BASE_URL === 'string' && RAW_API_BASE_URL.length > 0;
+// Priorizar sempre VITE_API_URL quando estiver configurado.
+// Caso contrário: em produção usar "/api" (proxy no Vercel), e em preview/dev cair para backend público.
+const API_BASE_URL = IS_NON_LOCAL_SITE
+  ? '/api'
+  : (HAS_ENV_BASE ? RAW_API_BASE_URL : 'https://direitai-backend.vercel.app/api');
 
 /**
  * Faz uma requisição para a API com a URL base correta e token de autenticação
@@ -27,7 +35,7 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
     headers: {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers,
+      ...(options.headers || {}),
     },
   });
   

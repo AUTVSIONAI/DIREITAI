@@ -313,8 +313,54 @@ export class AIMemoryService {
   // ===== ESTATÍSTICAS =====
 
   static async getConversationStats(): Promise<ConversationStats> {
-    const response = await apiClient.get('/ai-memory/stats');
-    return response.data.data;
+    // Usa endpoints disponíveis no backend oficial
+    const [usageRes, convRes] = await Promise.all([
+      apiClient.get('/ai/usage'),
+      apiClient.get('/ai/conversations', { params: { page: 1, limit: 1000 } })
+    ]);
+
+    const usage = usageRes.data || {};
+    const convData = convRes.data || {};
+    const conversations: any[] = convData.conversations || convData.data || [];
+    const totalConversations = Number(convData.total ?? conversations.length ?? 0);
+
+    const byType: Record<string, number> = {};
+    let totalMessages = 0;
+    let totalTokens = 0;
+    let totalCost = 0;
+    let archived = 0;
+    let active = 0;
+
+    for (const c of conversations) {
+      const type = c.type || 'unknown';
+      byType[type] = (byType[type] || 0) + 1;
+      totalMessages += Number(c.message_count || c.messagesCount || 0);
+      totalTokens += Number(c.total_tokens || c.token_count || 0);
+      totalCost += Number(c.total_cost || c.cost || 0);
+      const status = (c.status || '').toLowerCase();
+      if (status === 'archived' || status === 'arquivado') archived += 1;
+      else if (status === 'deleted' || status === 'excluido') {
+        // ignora excluídos no cômputo de ativos
+      } else {
+        active += 1;
+      }
+    }
+
+    // Caso o backend não retorne conversas, usa contagem de uso como proxy
+    if (totalConversations === 0) {
+      const totalChat = Number(usage?.chat?.total?.count || 0) + Number(usage?.creative?.total?.count || 0);
+      active = totalChat; // melhor estimativa quando não há conversas carregadas
+    }
+
+    return {
+      total_conversations: totalConversations,
+      active_conversations: active,
+      archived_conversations: archived,
+      total_messages: totalMessages,
+      total_tokens: totalTokens,
+      total_cost: totalCost,
+      by_type: byType
+    };
   }
 
   // ===== CONTEXTO DA IA =====

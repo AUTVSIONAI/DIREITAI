@@ -72,15 +72,15 @@ const Surveys = () => {
       
       const response = await apiClient.post(`/surveys/${pendingVote.surveyId}/vote`, { opcao_id: pendingVote.option })
 
-      if (response.success) {
+      if (response.data?.success) {
         fetchSurveys() // Recarregar pesquisas
         alert('Voto registrado com sucesso!')
       } else {
-        const error = response.error
-        if (error.previous_vote) {
+        const error = response.data?.error || {}
+        if (error?.previous_vote) {
           alert(`Você já votou nesta pesquisa!\n\nSeu voto anterior: ${error.previous_vote.opcao_texto}\nData do voto: ${new Date(error.previous_vote.data_voto).toLocaleString('pt-BR')}`)
         } else {
-          alert(error.message || 'Erro ao votar')
+          alert(error?.message || 'Erro ao votar')
         }
       }
     } catch (error) {
@@ -98,11 +98,17 @@ const Surveys = () => {
   }
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
+    if (!dateString) return 'Sem data'
+    const d = new Date(dateString)
+    if (isNaN(d.getTime())) return 'Sem data'
+    return d.toLocaleDateString('pt-BR')
   }
 
   const isExpired = (expirationDate) => {
-    return new Date(expirationDate) < new Date()
+    if (!expirationDate) return false
+    const d = new Date(expirationDate)
+    if (isNaN(d.getTime())) return false
+    return d < new Date()
   }
 
   const calculatePercentage = (votes, totalVotes) => {

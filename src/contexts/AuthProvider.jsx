@@ -89,6 +89,11 @@ const AuthProvider = ({ children }) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
           setUser(session.user);
+          // Sincronizar token com o cliente API
+          const token = session?.access_token;
+          if (token) {
+            try { apiClient.setAuthToken(token); } catch {}
+          }
           setLoading(false);
           fetchUserProfile(session.user);
         }
@@ -101,6 +106,8 @@ const AuthProvider = ({ children }) => {
 
         setUser(null);
         setUserProfile(null);
+        // Limpar token do cliente API
+        try { apiClient.clearAuthToken(); } catch {}
         setLoading(false);
       }
     };
@@ -119,6 +126,11 @@ const AuthProvider = ({ children }) => {
 
         if (session?.user) {
           setUser(session.user);
+          // Aplicar token inicial ao cliente API
+          const token = session?.access_token;
+          if (token) {
+            try { apiClient.setAuthToken(token); } catch {}
+          }
           setLoading(false);
           fetchUserProfile(session.user);
         } else {

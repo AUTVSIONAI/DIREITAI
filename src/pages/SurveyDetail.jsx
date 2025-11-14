@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, BarChart3, Users, Clock, MessageCircle, ThumbsUp, Flag, Vote, Send } from 'lucide-react'
+import { ArrowLeft, BarChart3, Users, Clock, MessageCircle, ThumbsUp, Flag, Vote, Send, ToggleLeft, ToggleRight } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/api'
 import { supabase } from '../lib/supabase'
@@ -8,12 +8,13 @@ import { supabase } from '../lib/supabase'
 const SurveyDetail = () => {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, userProfile } = useAuth()
   const [survey, setSurvey] = useState(null)
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [newComment, setNewComment] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
+  const [updatingCommentsToggle, setUpdatingCommentsToggle] = useState(false)
 
   useEffect(() => {
     fetchSurveyDetail()
@@ -32,8 +33,8 @@ const SurveyDetail = () => {
       
       const response = await apiClient.get(`/surveys/${id}`)
       if (response.success) {
-        // A API retorna os dados da pesquisa diretamente em response.data
-        setSurvey(response.data)
+        // A API pode retornar os dados em response.data.data ou diretamente em response.data
+        setSurvey(response.data?.data || response.data)
       } else {
         console.error('Pesquisa não encontrada')
         navigate('/pesquisas')
@@ -56,10 +57,25 @@ const SurveyDetail = () => {
       
       const response = await apiClient.get(`/surveys/${id}/comments`)
       if (response.success) {
-        setComments(response.data || [])
+        const raw = response.data?.data || response.data || []
+        // Normalizar estrutura para garantir que comentario seja string
+        const normalized = Array.isArray(raw)
+          ? raw.map((c) => ({
+              ...c,
+              comentario:
+                typeof c?.comentario === 'string'
+                  ? c.comentario
+                  : (c?.comentario?.texto ?? c?.texto ?? ''),
+            }))
+          : []
+        setComments(normalized)
       }
     } catch (error) {
-      console.error('Erro ao carregar comentários:', error)
+      if (error?.response?.status === 403 || error?.response?.status === 401) {
+        console.warn('Comentários requerem login; ocultando lista.')
+      } else {
+        console.error('Erro ao carregar comentários:', error)
+      }
     }
   }
 
@@ -88,11 +104,14 @@ const SurveyDetail = () => {
         fetchSurveyDetail() // Recarregar pesquisa
         alert('Voto registrado com sucesso!')
       } else {
-        const error = response.error
-        if (error.previous_vote) {
-          alert(`Você já votou nesta pesquisa!\n\nSeu voto anterior: ${error.previous_vote.opcao_texto}\nData do voto: ${new Date(error.previous_vote.data_voto).toLocaleString('pt-BR')}`)
+        const error = response?.data?.error || {}
+        if (response.status === 409 || error?.previous_vote) {
+          const prev = error?.previous_vote || {}
+          const texto = prev?.opcao_texto || survey?.user_voted || '[voto anterior]'
+          const dataVoto = prev?.data_voto ? new Date(prev.data_voto).toLocaleString('pt-BR') : null
+          alert(`Você já votou nesta pesquisa!${dataVoto ? `\n\nSeu voto anterior: ${texto}\nData do voto: ${dataVoto}` : `\n\nSeu voto anterior: ${texto}`}`)
         } else {
-          alert(error.message || 'Erro ao votar')
+          alert(error?.message || 'Erro ao votar')
         }
       }
     } catch (error) {
@@ -105,6 +124,14 @@ const SurveyDetail = () => {
     e.preventDefault()
     if (!user) {
       alert('Você precisa estar logado para comentar')
+      return
+    }
+    // Bloquear se a pesquisa não permitir comentários ou estiver inativa
+    if (survey && (survey.allow_comments === false || survey.is_active === false)) {
+      const reason = survey.allow_comments === false
+        ? 'Comentários não permitidos nesta pesquisa'
+        : 'Não é possível comentar em pesquisa inativa'
+      alert(reason)
       return
     }
     if (!newComment.trim()) return
@@ -125,11 +152,25 @@ const SurveyDetail = () => {
         fetchComments() // Recarregar comentários
         fetchSurveyDetail() // Atualizar contador de comentários
       } else {
-        alert(response.error?.message || 'Erro ao enviar comentário')
+        alert(response?.data?.error?.message || 'Erro ao enviar comentário')
       }
     } catch (error) {
-      console.error('Erro ao enviar comentário:', error)
-      alert('Erro ao enviar comentário')
+      const status = error?.response?.status
+      const msg = error?.response?.data?.error || ''
+      if (status === 403) {
+        if (/comentários não permitidos/i.test(msg)) {
+          alert('Comentários não permitidos nesta pesquisa')
+        } else if (/inativa/i.test(msg)) {
+          alert('Não é possível comentar em pesquisa inativa')
+        } else {
+          alert('Ação não permitida')
+        }
+      } else if (status === 401) {
+        alert('Você precisa estar logado para comentar')
+      } else {
+        console.error('Erro ao enviar comentário:', error)
+        alert('Erro ao enviar comentário')
+      }
     } finally {
       setSubmittingComment(false)
     }
@@ -159,7 +200,10 @@ const SurveyDetail = () => {
   }
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
+    if (!dateString) return 'Sem data'
+    const d = new Date(dateString)
+    if (isNaN(d.getTime())) return 'Sem data'
+    return d.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -169,12 +213,39 @@ const SurveyDetail = () => {
   }
 
   const isExpired = (expirationDate) => {
-    return new Date(expirationDate) < new Date()
+    if (!expirationDate) return false
+    const d = new Date(expirationDate)
+    if (isNaN(d.getTime())) return false
+    return d < new Date()
   }
 
   const calculatePercentage = (votes, totalVotes) => {
     if (totalVotes === 0) return 0
     return Math.round((votes / totalVotes) * 100)
+  }
+
+  const canManageComments = !!(userProfile?.role === 'admin' || userProfile?.role === 'super_admin' || userProfile?.role === 'moderator' || userProfile?.is_admin)
+
+  const toggleAllowComments = async () => {
+    if (!canManageComments) return
+    try {
+      setUpdatingCommentsToggle(true)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        apiClient.setAuthToken(session.access_token)
+      }
+      const next = !(survey?.allow_comments === false)
+      const resp = await apiClient.put(`/surveys/${id}`, { allow_comments: next })
+      if (resp.success) {
+        setSurvey(prev => ({ ...(prev || {}), allow_comments: next }))
+      } else {
+        alert(resp?.data?.error || 'Falha ao atualizar configuração de comentários')
+      }
+    } catch (e) {
+      alert('Erro ao atualizar configuração de comentários')
+    } finally {
+      setUpdatingCommentsToggle(false)
+    }
   }
 
   if (loading) {
@@ -196,6 +267,9 @@ const SurveyDetail = () => {
   const expired = isExpired(survey.expiracao)
   const totalVotes = survey.total_votes || 0
   const userVoted = survey.user_voted
+  const canComment = !(
+    survey?.allow_comments === false || survey?.is_active === false
+  )
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100">
@@ -258,14 +332,16 @@ const SurveyDetail = () => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Opções de Voto</h3>
             {survey.opcoes && Array.isArray(survey.opcoes) ? survey.opcoes.map((option, index) => {
-              const votes = survey.vote_counts?.[option] || 0
+              const optionKey = option.id || option.texto || option
+              const optionText = option.texto || option
+              const votes = survey.vote_counts?.[optionKey] || 0
               const percentage = calculatePercentage(votes, totalVotes)
-              const isSelected = userVoted === option
+              const isSelected = userVoted === optionKey
 
               return (
                 <div key={index} className="relative">
                   <button
-                    onClick={() => handleVote(option)}
+                    onClick={() => handleVote(optionKey)}
                     disabled={expired}
                     className={`w-full text-left p-4 rounded-lg border transition-all ${
                       expired
@@ -278,7 +354,7 @@ const SurveyDetail = () => {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-900 font-medium text-lg">{option}</span>
+                      <span className="text-gray-900 font-medium text-lg">{optionText}</span>
                       <div className="flex items-center space-x-3">
                         {(expired || userVoted) && (
                           <span className="text-gray-600">{votes} votos ({percentage}%)</span>
@@ -310,11 +386,39 @@ const SurveyDetail = () => {
           <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center space-x-2">
             <MessageCircle className="h-6 w-6" />
             <span>Comentários ({comments.length})</span>
+            {canManageComments && (
+              <button
+                type="button"
+                onClick={toggleAllowComments}
+                disabled={updatingCommentsToggle}
+                className="ml-auto inline-flex items-center px-3 py-2 text-sm rounded border border-gray-300 hover:bg-gray-100 disabled:opacity-60"
+                title={survey?.allow_comments === false ? 'Habilitar comentários' : 'Desabilitar comentários'}
+              >
+                {survey?.allow_comments === false ? (
+                  <>
+                    <ToggleLeft className="h-4 w-4 mr-2" />
+                    Habilitar comentários
+                  </>
+                ) : (
+                  <>
+                    <ToggleRight className="h-4 w-4 mr-2" />
+                    Desabilitar comentários
+                  </>
+                )}
+              </button>
+            )}
           </h3>
 
           {/* Formulário de Novo Comentário */}
           {user && (
             <form onSubmit={handleSubmitComment} className="mb-6">
+              {!canComment && (
+                <div className="mb-4 p-3 rounded bg-yellow-100 text-yellow-800 text-sm">
+                  {survey?.allow_comments === false
+                    ? 'Comentários não permitidos nesta pesquisa.'
+                    : 'Pesquisa inativa: comentários desabilitados.'}
+                </div>
+              )}
               <div className="flex space-x-3">
                 <div className="flex-1">
                   <textarea
@@ -324,6 +428,7 @@ const SurveyDetail = () => {
                     className="w-full px-4 py-3 rounded-lg bg-white text-gray-900 placeholder-gray-500 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
                     rows={3}
                     maxLength={500}
+                    disabled={!canComment}
                   />
                   <div className="text-right text-gray-500 text-sm mt-1">
                     {newComment.length}/500
@@ -331,7 +436,7 @@ const SurveyDetail = () => {
                 </div>
                 <button
                   type="submit"
-                  disabled={!newComment.trim() || submittingComment}
+                  disabled={!canComment || !newComment.trim() || submittingComment}
                   className="px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors flex items-center space-x-2"
                 >
                   <Send className="h-4 w-4" />
@@ -362,7 +467,11 @@ const SurveyDetail = () => {
                         <span className="font-semibold text-gray-900">{comment.usuario_nome || 'Usuário'}</span>
                         <span className="text-gray-500 text-sm">{formatDate(comment.created_at)}</span>
                       </div>
-                      <p className="text-gray-800 mb-3">{comment.comentario}</p>
+                      <p className="text-gray-800 mb-3">{
+                        typeof comment?.comentario === 'string'
+                          ? comment.comentario
+                          : (comment?.comentario?.texto ?? '')
+                      }</p>
                       <div className="flex items-center space-x-4">
                         <button
                           onClick={() => handleLikeComment(comment.id)}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Flag, Eye, EyeOff, CheckCircle } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import AuthService from '../../services/auth';
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -18,7 +18,6 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
-  const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,15 +84,23 @@ const RegisterPage = () => {
     setLoading(true);
     
     try {
-      await register(formData.email, formData.password, {
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+      const result = await AuthService.register({
+        email: formData.email,
+        password: formData.password,
         username: formData.username,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        plan: 'gratuito',
-        role: 'user'
-      });
-      
-      navigate('/dashboard');
+        fullName,
+      } as any);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao criar conta');
+      }
+
+      if (result.session) {
+        navigate('/dashboard');
+      } else {
+        setErrors({ general: 'Cadastro realizado! Verifique seu email para confirmar a conta e depois faça login.' });
+      }
     } catch (error: any) {
       setErrors({ general: error.message || 'Erro ao criar conta' });
     } finally {

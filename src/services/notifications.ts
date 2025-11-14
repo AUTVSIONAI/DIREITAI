@@ -740,55 +740,69 @@ export class NotificationsService {
    * Obter banners de anúncio ativos
    */
   static async getAnnouncementBanners(): Promise<AnnouncementBanner[]> {
-    const response = await apiClient.get('/notifications/announcements');
+    const response = await apiClient.get('/announcements');
+    return response.data;
+  }
+
+  static async listAdminAnnouncements(params?: {
+    active?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<AnnouncementBanner[]> {
+    const response = await apiClient.get('/announcements/admin/all', {
+      params: params || {}
+    });
     return response.data;
   }
 
   /**
    * Criar banner de anúncio
    */
-  static async createAnnouncementBanner(data: {
+  static async createAdminAnnouncement(data: {
     title: string;
     message: string;
-    type: 'info' | 'warning' | 'error' | 'success';
-    priority: number;
-    targetAudience?: any;
-    startDate?: string;
-    endDate?: string;
-    isActive: boolean;
-    isDismissible: boolean;
-    actionButton?: {
-      text: string;
-      url: string;
-    };
+    type?: 'info' | 'warning' | 'error' | 'success';
+    style?: 'banner' | 'modal' | 'toast' | 'sidebar';
+    position?: 'top' | 'bottom' | 'center';
+    is_dismissible?: boolean;
+    is_persistent?: boolean;
+    target_audience?: { type: 'all' | 'authenticated' | 'guests' | 'segment'; criteria?: Record<string, any> };
+    display_rules?: Record<string, any>;
+    action?: { label: string; url: string; type?: 'link' | 'button' };
+    styling?: { background_color?: string; text_color?: string; border_color?: string; custom_css?: string };
+    priority?: 'low' | 'medium' | 'high' | 'urgent';
+    start_date?: string;
+    end_date?: string;
   }): Promise<AnnouncementBanner> {
-    const response = await apiClient.post('/notifications/announcements', data);
+    const response = await apiClient.post('/announcements/admin', data);
     return response.data;
   }
 
   /**
    * Atualizar banner de anúncio
    */
-  static async updateAnnouncementBanner(
+  static async updateAdminAnnouncement(
     bannerId: string,
     updates: {
       title?: string;
       message?: string;
       type?: 'info' | 'warning' | 'error' | 'success';
-      priority?: number;
-      targetAudience?: any;
-      startDate?: string;
-      endDate?: string;
-      isActive?: boolean;
-      isDismissible?: boolean;
-      actionButton?: {
-        text: string;
-        url: string;
-      };
+      style?: 'banner' | 'modal' | 'toast' | 'sidebar';
+      position?: 'top' | 'bottom' | 'center';
+      is_dismissible?: boolean;
+      is_persistent?: boolean;
+      target_audience?: { type: 'all' | 'authenticated' | 'guests' | 'segment'; criteria?: Record<string, any> };
+      display_rules?: Record<string, any>;
+      action?: { label: string; url: string; type?: 'link' | 'button' };
+      styling?: { background_color?: string; text_color?: string; border_color?: string; custom_css?: string };
+      is_active?: boolean;
+      priority?: 'low' | 'medium' | 'high' | 'urgent';
+      start_date?: string;
+      end_date?: string;
     }
   ): Promise<AnnouncementBanner> {
-    const response = await apiClient.patch(
-      `/notifications/announcements/${bannerId}`,
+    const response = await apiClient.put(
+      `/announcements/admin/${bannerId}`,
       updates
     );
     return response.data;
@@ -797,8 +811,8 @@ export class NotificationsService {
   /**
    * Deletar banner de anúncio
    */
-  static async deleteAnnouncementBanner(bannerId: string): Promise<void> {
-    await apiClient.delete(`/notifications/announcements/${bannerId}`);
+  static async deleteAdminAnnouncement(bannerId: string): Promise<void> {
+    await apiClient.delete(`/announcements/admin/${bannerId}`);
   }
 
   /**
@@ -808,9 +822,23 @@ export class NotificationsService {
     bannerId: string
   ): Promise<{ success: boolean }> {
     const response = await apiClient.post(
-      `/notifications/announcements/${bannerId}/dismiss`
+      `/announcements/${bannerId}/dismiss`
     );
     return response.data;
+  }
+
+  /**
+   * Registrar clique no banner de anúncio
+   */
+  static async clickAnnouncementBanner(bannerId: string): Promise<void> {
+    await apiClient.post(`/announcements/${bannerId}/click`);
+  }
+
+  /**
+   * Registrar visualização do banner de anúncio
+   */
+  static async viewAnnouncementBanner(bannerId: string): Promise<void> {
+    await apiClient.post(`/announcements/${bannerId}/view`);
   }
 
   /**
@@ -825,8 +853,28 @@ export class NotificationsService {
     clickRate: number;
     dismissalRate: number;
   }> {
-    const response = await apiClient.get(
-      `/notifications/announcements/${bannerId}/stats`
+    const response = await apiClient.get(`/announcements/admin/${bannerId}/stats`);
+    const a = response.data || {};
+    const views = Number(a.view_count || 0);
+    const clicks = Number(a.click_count || 0);
+    const dismissals = Number(a.dismiss_count || 0);
+    const safeDiv = (num: number, den: number) => (den > 0 ? num / den : 0);
+    return {
+      views,
+      clicks,
+      dismissals,
+      clickRate: safeDiv(clicks, views),
+      dismissalRate: safeDiv(dismissals, views)
+    };
+  }
+
+  static async toggleAdminAnnouncementActive(
+    bannerId: string,
+    payload?: { active?: boolean }
+  ): Promise<{ success: boolean; active?: boolean }> {
+    const response = await apiClient.patch(
+      `/announcements/admin/${bannerId}/toggle`,
+      payload || {}
     );
     return response.data;
   }

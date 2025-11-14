@@ -7,11 +7,11 @@ const RAW_API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
 const IS_BROWSER = typeof window !== 'undefined';
 const IS_NON_LOCAL_SITE = IS_BROWSER && !/localhost|127\.0\.0\.1/i.test(window.location.hostname);
 const HAS_ENV_BASE = typeof RAW_API_BASE_URL === 'string' && RAW_API_BASE_URL.length > 0;
-// Priorizar sempre VITE_API_URL quando estiver configurado, independente do ambiente.
-// Caso contrário: em produção usar "/api" (proxy no Vercel), e em preview/dev cair para backend público.
-const API_BASE_URL = IS_NON_LOCAL_SITE
-  ? '/api'
-  : (HAS_ENV_BASE ? RAW_API_BASE_URL : 'https://direitai-backend.vercel.app/api');
+
+// Estratégia de baseURL:
+// - Em produção (site não local), sempre usar '/api' para evitar CORS e aproveitar rewrites do Vercel.
+// - Em ambiente local, se VITE_API_URL estiver definido, usa exatamente esse valor; caso contrário, usa '/api' (proxy do Vite).
+const API_BASE_URL = IS_NON_LOCAL_SITE ? '/api' : (HAS_ENV_BASE ? RAW_API_BASE_URL : '/api');
 
 
 
@@ -240,9 +240,15 @@ class ApiClientImpl implements ApiClient {
             const shouldRetry = status === 401 && (isAuthCheck || isProtectedPost) && !cfg.__retryOnce;
             if (shouldRetry) {
               try {
-                await supabase.auth.refreshSession();
+                // Somente tentar refresh se houver sessão e refresh_token disponível
                 const { data: sessionData } = await supabase.auth.getSession();
-                const token = sessionData?.session?.access_token;
+                const hasRefresh = !!sessionData?.session?.refresh_token;
+                if (hasRefresh) {
+                  await supabase.auth.refreshSession();
+                }
+                // Após tentar refresh (ou se não houver refresh), obter token atual
+                const { data: updated } = await supabase.auth.getSession();
+                const token = updated?.session?.access_token;
                 if (token) {
                   // Atualizar defaults e cabeçalho da requisição original
                   if (!this.axiosInstance.defaults.headers) this.axiosInstance.defaults.headers = {} as any;
@@ -371,8 +377,11 @@ class ApiClientImpl implements ApiClient {
         const shouldFallbackPermission = isLocalApi && status >= 500 && isPermissionDenied;
         // Fallback 2b: 500 genérico em /surveys para POST/PUT
         const shouldFallbackSurveys500 = isLocalApi && status >= 500 && isSurveysEndpoint && (method === 'post' || method === 'put');
+        // Fallback 2c: 500 em /announcements para GET
+        const isAnnouncements = urlPath.includes('/announcements');
+        const shouldFallbackAnnouncements500 = isLocalApi && status >= 500 && isAnnouncements && method === 'get';
 
-        if (shouldFallbackPermission || shouldFallbackSurveys500) {
+        if (shouldFallbackPermission || shouldFallbackSurveys500 || shouldFallbackAnnouncements500) {
           const altConfig: AxiosRequestConfig = {
             ...config,
             baseURL: 'https://direitai-backend.vercel.app/api',

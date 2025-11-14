@@ -23,7 +23,7 @@ const CreditPurchase = ({ isOpen, onClose, creditType = 'fake_news_check' }) => 
   const fetchPackages = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/api/credits/packages');
+      const response = await apiClient.get('/payments/credits/packages');
       if (response.data.success) {
         const typePackages = response.data.packages.find(p => p.type === creditType);
         setPackages(typePackages?.packages || []);
@@ -38,7 +38,7 @@ const CreditPurchase = ({ isOpen, onClose, creditType = 'fake_news_check' }) => 
 
   const fetchUserCredits = async () => {
     try {
-      const response = await apiClient.get('/api/credits/balance');
+      const response = await apiClient.get('/payments/credits/balance');
       if (response.data.success) {
         setUserCredits(response.data.credits);
       }
@@ -52,21 +52,15 @@ const CreditPurchase = ({ isOpen, onClose, creditType = 'fake_news_check' }) => 
       setPurchasing(true);
       setError('');
       setSuccess('');
-
-      const response = await apiClient.post('/api/credits/purchase', {
+      const response = await apiClient.post('/payments/credits/checkout', {
         creditType,
-        packageIndex,
-        paymentMethod: 'pix'
+        packageIndex
       });
-
-      if (response.data.success) {
-        setSuccess(`${response.data.purchase.credits} créditos adicionados com sucesso!`);
-        fetchUserCredits();
-        setTimeout(() => {
-          onClose();
-        }, 2000);
+      const session = response.data?.data ?? response.data;
+      if (session?.url) {
+        window.location.href = session.url;
       } else {
-        setError(response.data.message || 'Erro ao processar compra');
+        setError('Não foi possível iniciar o checkout. Tente novamente.');
       }
     } catch (error) {
       console.error('Erro na compra:', error);
@@ -206,7 +200,7 @@ const CreditPurchase = ({ isOpen, onClose, creditType = 'fake_news_check' }) => 
             <h4 className="font-medium text-gray-900 mb-2">Informações Importantes:</h4>
             <ul className="text-sm text-gray-600 space-y-1">
               <li>• Os créditos são válidos por 1 ano a partir da compra</li>
-              <li>• Pagamento processado via PIX instantaneamente</li>
+              <li>• Pagamento processado via cartão com Stripe</li>
               <li>• Créditos não utilizados não são reembolsáveis</li>
               <li>• Você pode comprar quantos créditos desejar</li>
             </ul>
