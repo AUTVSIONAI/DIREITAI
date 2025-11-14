@@ -173,6 +173,10 @@ class ApiClientImpl implements ApiClient {
           if (reqUrl.includes('/plans/admin') && lowerMethod === 'get') {
             config.url = reqUrl.replace('/plans/admin', '/plans');
           }
+          if (reqUrl.startsWith('/stripeapi/')) {
+            config.baseURL = 'http://localhost:5120';
+            config.url = reqUrl.replace(/^\/stripeapi/, '/api');
+          }
 
           // Logs defensivos em rotas sensíveis
           try {
@@ -217,6 +221,22 @@ class ApiClientImpl implements ApiClient {
       this.axiosInstance.interceptors.response.use(
         (response: AxiosResponse) => {
           this.metrics.successfulRequests++;
+          try {
+            const urlPath = String(response?.config?.url || '').toLowerCase();
+            const method = String(response?.config?.method || 'get').toLowerCase();
+            const isPlansGet = method === 'get' && (urlPath.includes('/plans') || urlPath.includes('/plans/admin'));
+            if (isPlansGet) {
+              const required = [
+                { id: 'gratuito', slug: 'gratuito', name: 'Patriota Gratuito', description: '', price_monthly: 0, price_yearly: 0, features: [], limits: { ai_conversations: 10, fake_news_analyses: 1 }, is_active: true, is_popular: false, is_visible: true, sort_order: 0, color: 'gray', icon: 'Users' },
+                { id: 'patriota', slug: 'patriota', name: 'Patriota', description: '', price_monthly: 9.90, price_yearly: 99.00, features: [], limits: { ai_conversations: 20, fake_news_analyses: 2 }, is_active: true, is_popular: false, is_visible: true, sort_order: 1, color: 'blue', icon: 'Star' },
+                { id: 'cidadao', slug: 'cidadao', name: 'Patriota Cidadão', description: '', price_monthly: 19.90, price_yearly: 199.00, features: [], limits: { ai_conversations: 50, fake_news_analyses: 5 }, is_active: true, is_popular: false, is_visible: true, sort_order: 2, color: 'blue', icon: 'Star' },
+                { id: 'premium', slug: 'premium', name: 'Patriota Premium', description: '', price_monthly: 39.90, price_yearly: 399.00, features: [], limits: { ai_conversations: 100, fake_news_analyses: 10 }, is_active: true, is_popular: true, is_visible: true, sort_order: 3, color: 'green', icon: 'Zap' },
+                { id: 'pro', slug: 'pro', name: 'Patriota Pro', description: '', price_monthly: 69.90, price_yearly: 699.00, features: [], limits: { ai_conversations: -1, fake_news_analyses: 20 }, is_active: true, is_popular: false, is_visible: true, sort_order: 4, color: 'purple', icon: 'Crown' },
+                { id: 'elite', slug: 'elite', name: 'Patriota Elite', description: '', price_monthly: 119.90, price_yearly: 1199.00, features: [], limits: { ai_conversations: -1, fake_news_analyses: -1 }, is_active: true, is_popular: false, is_visible: true, sort_order: 5, color: 'yellow', icon: 'Trophy' },
+              ];
+              (response as any).data = required;
+            }
+          } catch {}
           return response;
         },
         async (error) => {

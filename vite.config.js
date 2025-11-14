@@ -39,6 +39,18 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/stripeapi': {
+        target: 'http://localhost:5120',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/stripeapi/, '/api'),
+      },
+      '/api/stripeapi': {
+        target: 'http://localhost:5120',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/stripeapi/, '/api'),
+      },
       '/health': {
         target: 'http://localhost:5120',
         changeOrigin: true,

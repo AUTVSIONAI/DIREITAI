@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { AdminService } from '../../../services/admin'
-import { FinancialReportsService, EventsService } from '../../../services'
+import { FinancialReportsService, EventsService, storeManagementService, paymentsService } from '../../../services'
 import AIMemoryService from '../../../services/aiMemory'
 import AnnouncementBanner from '../../common/AnnouncementBanner'
 import { 
@@ -47,57 +47,54 @@ const Overview = () => {
 
   useEffect(() => {
     const fetchOverviewData = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-        
-        // Timeout para evitar travamento
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout na requisição')), 10000)
-        );
-        // Buscar overview administrativo e financeiro em paralelo
-        const adminOverviewPromise = AdminService.getOverview();
-        const financialOverviewPromise = FinancialReportsService.getOverview({ period: 'month' });
-        // Buscar contagem real de eventos ativos e estatísticas de conversas IA
-        const eventsActivePromise = EventsService.getEvents({ status: 'active' }, 1, 1).catch(() => null);
-        const aiStatsPromise = AIMemoryService.getConversationStats().catch(() => null);
-
-        const [adminOverview, financialOverview, eventsActive, aiStats] = await Promise.race([
-          Promise.all([adminOverviewPromise, financialOverviewPromise, eventsActivePromise, aiStatsPromise]),
-          timeoutPromise
+        const [adminRes, finRes, eventsRes, aiRes] = await Promise.allSettled([
+          AdminService.getOverview(),
+          FinancialReportsService.getOverview({ period: 'month' }),
+          EventsService.getEvents({ status: 'active' }, 1, 1),
+          AIMemoryService.getConversationStats()
         ]);
 
-        const stats = adminOverview?.statistics || {};
+        const adminOverview = adminRes.status === 'fulfilled' ? adminRes.value : null;
+        let financialOverview = finRes.status === 'fulfilled' ? finRes.value : null;
+        const eventsActive = eventsRes.status === 'fulfilled' ? eventsRes.value : null;
+        const aiStats = aiRes.status === 'fulfilled' ? aiRes.value : null;
+
+        const s = adminOverview?.statistics || {};
+        let monthlyRevenue = Number(financialOverview?.totalRevenue ?? 0);
+        if (!financialOverview || monthlyRevenue === 0) {
+          try {
+            const rangeStart = new Date(); rangeStart.setDate(1)
+            const fmt = (d) => d.toISOString().slice(0,10)
+            const paidOrdersResp = await storeManagementService.getOrders({ paymentStatus: 'paid', dateFrom: fmt(rangeStart), dateTo: fmt(new Date()) }, 1, 100)
+            const orders = Array.isArray(paidOrdersResp?.orders) ? paidOrdersResp.orders : []
+            monthlyRevenue = orders.reduce((sum, o) => sum + Number(o.total || 0), 0)
+          } catch {}
+        }
+        try {
+          const fmt = (d) => d.toISOString().slice(0,10)
+          const rangeStart = new Date(); rangeStart.setDate(1)
+          const creditsTx = await paymentsService.getCreditsTransactions({ startDate: fmt(rangeStart), endDate: fmt(new Date()), limit: 100 })
+          const creditsSum = Array.isArray(creditsTx) ? creditsTx.reduce((s, t) => s + Number(t.amount || 0), 0) : 0
+          monthlyRevenue = monthlyRevenue + creditsSum
+        } catch {}
+
         setStats({
-          activeUsers: stats.activeUsers || 0,
-          todayCheckins: stats.checkinsToday || 0,
-          // Usar contagem real de eventos ativos (fallback para adminOverview)
-          activeEvents: (eventsActive?.total ?? stats.activeEvents ?? 0),
-          // Usar receita real do Stripe para o card de Receita Mensal
-          monthlyRevenue: (financialOverview?.totalRevenue ?? stats.revenue?.thisMonth ?? 0),
-          // Usar estatísticas reais de conversas IA (fallback para adminOverview)
-          aiConversations: (aiStats?.total_conversations ?? stats.aiConversationsToday ?? 0),
-          moderatedContent: stats.pendingModeration || 0
+          activeUsers: s.activeUsers || 0,
+          todayCheckins: s.checkinsToday || 0,
+          activeEvents: (eventsActive?.total ?? s.activeEvents ?? 0),
+          monthlyRevenue: monthlyRevenue,
+          aiConversations: (aiStats?.total_conversations ?? s.aiConversationsToday ?? 0),
+          moderatedContent: s.pendingModeration || 0
         });
         setRecentEvents(adminOverview?.recentEvents || []);
         setTopCities(adminOverview?.topCities || []);
         setRecentActivities(adminOverview?.recentActivities || []);
+        setError(null);
       } catch (err) {
         console.error('Erro ao carregar dados do overview:', err);
-        
-        // Usar dados mock em caso de erro
-        setStats({
-          activeUsers: 1250,
-          todayCheckins: 89,
-          activeEvents: 12,
-          monthlyRevenue: 15420,
-          aiConversations: 234,
-          moderatedContent: 5
-        });
-        setRecentEvents([]);
-        setTopCities([]);
-        setRecentActivities([]);
-        
-        setError('Usando dados de demonstração (API indisponível)');
+        setError('Erro ao carregar dados');
       } finally {
         setLoading(false);
       }

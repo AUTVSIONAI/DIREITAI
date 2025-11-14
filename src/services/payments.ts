@@ -1,4 +1,5 @@
 import { apiClient } from '../lib/api'
+import { apiRequest } from '../utils/apiClient'
 
 export interface Plan {
   id: string
@@ -35,8 +36,18 @@ const getAffiliateCode = (): string | null => {
 
 class PaymentsService {
   async getPlans(): Promise<Plan[]> {
-    const response = await apiClient.get('/payments/plans')
-    return response.data
+    try {
+      const response = await apiClient.get('/payments/plans')
+      const list = response?.data
+      if (Array.isArray(list) && list.length >= 1) return list
+      // Fallback para fonte pública (utils) quando lista vier incompleta em dev local
+      const alt = await apiRequest('/payments/plans')
+      if (alt?.success && Array.isArray(alt.data)) return alt.data
+      return Array.isArray(list) ? list : []
+    } catch {
+      const alt = await apiRequest('/payments/plans')
+      return (alt?.success && Array.isArray(alt.data)) ? alt.data : []
+    }
   }
 
   async createCheckoutSession(planId: string): Promise<CheckoutSession> {

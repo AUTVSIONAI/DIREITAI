@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { CheckCircle, Package, ArrowRight } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { apiClient } from '../../lib/api'
 
 const StoreSuccess = () => {
   const navigate = useNavigate()
@@ -9,13 +10,16 @@ const StoreSuccess = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Simular verificação do pagamento
-    const timer = setTimeout(() => {
+    const confirm = async () => {
+      try {
+        if (sessionId) {
+          await apiClient.post('/payments/checkout/verify', { session_id: sessionId })
+        }
+      } catch {}
       setLoading(false)
-    }, 2000)
-
-    return () => clearTimeout(timer)
-  }, [])
+    }
+    confirm()
+  }, [sessionId])
 
   if (loading) {
     return (
