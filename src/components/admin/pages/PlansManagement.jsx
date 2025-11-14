@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, ToggleLeft, ToggleRight, ChevronUp, ChevronDown, Eye, EyeOff } from 'lucide-react';
-import { ApiClientImpl } from '../../../lib/api';
-
-const apiClient = new ApiClientImpl();
+import { apiClient } from '../../../lib/api';
+import { supabase } from '../../../lib/supabase';
 
 const PlansManagement = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [formData, setFormData] = useState({
@@ -27,6 +27,16 @@ const PlansManagement = () => {
   });
 
   useEffect(() => {
+    const ensureAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (token) {
+          apiClient.setAuthToken(token);
+        }
+      } catch {}
+    };
+    ensureAuth();
     fetchPlans();
   }, []);
 
@@ -34,21 +44,20 @@ const PlansManagement = () => {
     try {
       setLoading(true);
       const response = await apiClient.get('/plans/admin');
-      
-      if (response && response.data && response.data.success) {
-        setPlans(response.data.data || []);
-      } else {
-        console.error('Erro ao buscar planos:', response?.data?.message || 'Resposta inválida');
-        setPlans([]);
-      }
+      const payload = response?.data;
+      const list = Array.isArray(payload)
+        ? payload
+        : (payload?.data && Array.isArray(payload.data) ? payload.data : []);
+      setPlans(list);
+      setForbidden(false);
     } catch (error) {
       console.error('Erro ao buscar planos:', error);
       if (error.response?.status === 403) {
-        alert('Acesso negado. Faça login com uma conta de administrador.');
+        setForbidden(true);
       } else {
         alert('Erro ao carregar planos');
       }
-      setPlans([]);
+      if (!Array.isArray(plans)) setPlans([]);
     } finally {
       setLoading(false);
     }
@@ -215,6 +224,16 @@ const PlansManagement = () => {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+  if (forbidden) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-red-700 mb-2">Acesso negado</h2>
+          <p className="text-red-600">Faça login com uma conta de administrador para gerenciar planos.</p>
+        </div>
       </div>
     );
   }

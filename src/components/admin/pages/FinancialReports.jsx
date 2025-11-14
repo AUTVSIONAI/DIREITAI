@@ -47,12 +47,13 @@ const FinancialReports = () => {
       setLoading(true)
       setError(null)
       
+      const filters = { startDate: dateRange.start, endDate: dateRange.end, period: selectedPeriod }
       const [overviewData, revenueByPlanData, monthlyRevenueData, topProductsData, transactionsData] = await Promise.all([
-        FinancialReportsService.getOverview(dateRange.start, dateRange.end),
-        FinancialReportsService.getRevenueByPlan(dateRange.start, dateRange.end),
-        FinancialReportsService.getMonthlyRevenue(dateRange.start, dateRange.end),
-        FinancialReportsService.getTopProducts(dateRange.start, dateRange.end),
-        FinancialReportsService.getTransactions({ startDate: dateRange.start, endDate: dateRange.end, limit: 10 })
+        FinancialReportsService.getOverview(filters),
+        FinancialReportsService.getRevenueByPlan(filters),
+        FinancialReportsService.getMonthlyRevenue(filters),
+        FinancialReportsService.getTopProducts(filters),
+        FinancialReportsService.getTransactions({ ...filters, limit: 10 })
       ])
       
       setOverview(overviewData)
