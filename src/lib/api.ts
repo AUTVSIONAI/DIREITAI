@@ -168,6 +168,12 @@ class ApiClientImpl implements ApiClient {
             (config.headers as any).Authorization = `Bearer ${token}`;
           }
 
+          const reqUrl = String(config?.url || '');
+          const lowerMethod = (config?.method || 'get').toLowerCase();
+          if (reqUrl.includes('/plans/admin') && lowerMethod === 'get') {
+            config.url = reqUrl.replace('/plans/admin', '/plans');
+          }
+
           // Logs defensivos em rotas sensíveis
           try {
             const url = config?.url || '';
