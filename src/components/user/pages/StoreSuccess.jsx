@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { CheckCircle, Package, ArrowRight } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { apiClient } from '../../lib/api'
+import { apiClient } from '../../../lib/api'
 
 const StoreSuccess = () => {
   const navigate = useNavigate()
