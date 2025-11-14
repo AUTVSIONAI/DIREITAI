@@ -44,8 +44,8 @@ class PaymentsService {
     const response = await apiClient.post('/payments/checkout', {
       planId,
       affiliate_code: affiliateCode,
-      successUrl: `${window.location.origin}/admin/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${window.location.origin}/admin/plans`
+      successUrl: `${window.location.origin}/dashboard/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${window.location.origin}/dashboard/plan`
     })
     const payload = (response as any)?.data ?? response
     const sessionData = payload?.data ?? payload

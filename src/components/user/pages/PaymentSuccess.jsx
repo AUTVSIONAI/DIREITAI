@@ -12,14 +12,21 @@ const PaymentSuccess = () => {
   
   useEffect(() => {
     if (sessionId) {
-      loadSubscriptionInfo()
+      confirmAndLoad()
     } else {
       setLoading(false)
     }
   }, [sessionId])
 
-  const loadSubscriptionInfo = async () => {
+  const confirmAndLoad = async () => {
     try {
+      try {
+        if (sessionId) {
+          await apiClient.post('/payments/checkout/verify', { session_id: sessionId })
+        }
+      } catch (e) {
+        // Ignorar erros de verificação para não bloquear a UI
+      }
       const response = await apiClient.get('/payments/subscription')
       if (response.data.success) {
         setSubscription(response.data.subscription)

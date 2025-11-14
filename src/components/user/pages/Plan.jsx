@@ -235,60 +235,25 @@ const Plan = () => {
     }
   }, [activeTab])
 
-  // Buscar planos da API
+  // Buscar planos disponíveis para checkout (alinhado com pagamentos)
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const resp = await apiRequest('/plans')
+        const availablePlans = await paymentsService.getPlans()
 
-        // Suporta ambas respostas: { success, data: [] } e [] diretamente
-        const plansFromApi = (resp && resp.success && Array.isArray(resp.data))
-          ? resp.data
-          : (Array.isArray(resp) ? resp : null)
-
-        let finalPlans
-        if (plansFromApi) {
-          finalPlans = plansFromApi.map(plan => ({
-            ...plan,
-            icon: plan.icon === 'Crown' ? Crown : plan.icon === 'Star' ? Star : Users
-          }))
-        } else {
-          finalPlans = [...fallbackPlans]
-        }
-
-        // Garante a presença do plano Patriota (R$ 9,90)
-        const hasPatriota = finalPlans.some(p => p.id === 'patriota')
-        if (!hasPatriota) {
-          const patriotaPlan = {
-            id: 'patriota',
-            name: 'Patriota',
-            monthlyPrice: 9.90,
-            yearlyPrice: 99.00,
-            icon: Star,
-            color: 'blue',
-            popular: false,
-            features: [
-              'Chat DireitaGPT ilimitado',
-              'IA Criativa: até 10 textos por dia',
-              'Detector de Fake News: 2 análises por dia',
-              '1 agente político',
-              'Ranking local',
-              'Suporte básico'
-            ],
-            limitations: []
-          }
-          // Inserir após o plano gratuito, se existir
-          const freeIndex = finalPlans.findIndex(p => p.id === 'gratuito')
-          if (freeIndex >= 0) {
-            finalPlans.splice(freeIndex + 1, 0, patriotaPlan)
-          } else {
-            finalPlans.unshift(patriotaPlan)
-          }
-        }
+        const finalPlans = Array.isArray(availablePlans) && availablePlans.length > 0
+          ? availablePlans.map(plan => ({
+              ...plan,
+              monthlyPrice: plan.price,
+              icon: plan.popular ? Crown : Star,
+              color: plan.popular ? 'purple' : 'blue',
+              features: Array.isArray(plan.features) ? plan.features : [],
+            }))
+          : [...fallbackPlans]
 
         setPlans(finalPlans)
       } catch (error) {
-        console.error('Erro ao buscar planos:', error)
+        console.error('Erro ao buscar planos de pagamentos:', error)
         setPlans(fallbackPlans)
       } finally {
         setLoading(false)
