@@ -239,16 +239,30 @@ const Plan = () => {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const resp = await apiRequest('/plans')
-        const plansFromApi = (resp && resp.success && Array.isArray(resp.data))
-          ? resp.data
-          : (Array.isArray(resp) ? resp : null)
+        const [publicResp, paymentList] = await Promise.all([
+          apiRequest('/plans'),
+          paymentsService.getPlans().catch(() => [])
+        ])
 
-        const finalPlans = plansFromApi
-          ? plansFromApi.map(plan => ({
-              ...plan,
-              icon: plan.icon === 'Crown' ? Crown : plan.icon === 'Star' ? Star : Users
-            }))
+        const publicPlans = (publicResp && publicResp.success && Array.isArray(publicResp.data))
+          ? publicResp.data
+          : (Array.isArray(publicResp) ? publicResp : null)
+
+        const finalPlans = publicPlans
+          ? publicPlans.map(p => {
+              const match = Array.isArray(paymentList)
+                ? paymentList.find(pp => (pp.id && p.id && pp.id === p.id) || (pp.name && p.name && pp.name === p.name) || (p.slug && pp.id && pp.id === p.slug))
+                : null
+              const monthlyPrice = match && match.interval === 'month' ? match.price : (p.monthlyPrice || null)
+              const yearlyPrice = match && match.interval === 'year' ? match.price : (p.yearlyPrice || null)
+              return {
+                ...p,
+                icon: p.icon === 'Crown' ? Crown : p.icon === 'Star' ? Star : Users,
+                monthlyPrice,
+                yearlyPrice,
+                checkoutPlanId: match ? match.id : null,
+              }
+            })
           : [...fallbackPlans]
 
         setPlans(finalPlans)
@@ -276,8 +290,12 @@ const Plan = () => {
     try {
       setProcessingPayment(true)
       
-      // Usar serviço de pagamentos para incluir affiliate_code automaticamente
-      const session = await paymentsService.createCheckoutSession(selectedUpgrade.id)
+      if (!selectedUpgrade.checkoutPlanId) {
+        alert('Plano indisponível para checkout no momento.')
+        return
+      }
+      // Usar serviço de pagamentos com plano alinhado ao checkout
+      const session = await paymentsService.createCheckoutSession(selectedUpgrade.checkoutPlanId)
       if (session?.url) {
         window.location.href = session.url
       } else {
