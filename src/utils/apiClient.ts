@@ -30,13 +30,21 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
   
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  const baseHeaders: Record<string, string> = {
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+  const mergedHeaders = {
+    ...baseHeaders,
+    ...(options.headers || {}),
+  } as Record<string, string>;
+  if (!isFormData && !('Content-Type' in mergedHeaders)) {
+    mergedHeaders['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...(options.headers || {}),
-    },
+    headers: mergedHeaders,
   });
   
   // Parse response as JSON if possible

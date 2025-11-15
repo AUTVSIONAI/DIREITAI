@@ -97,45 +97,19 @@ const Profile = () => {
         return
       }
       
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`
+      const form = new FormData()
+      form.append('avatar', file)
       
-      // Upload para o Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: true
-        })
-      
-      if (uploadError) {
-        alert(`Erro ao fazer upload da imagem: ${uploadError.message}`)
-        return
-      }
-      
-      // Obter URL pública
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName)
-      
-      // Preparar dados para atualização
-      const updateData = {
-        ...formData,
-        avatar_url: publicUrl
-      }
-      
-      // Atualizar perfil com nova URL do avatar
-      const response = await apiRequest('users/profile', {
-        method: 'PUT',
-        body: JSON.stringify(updateData)
+      const uploadResp = await apiRequest('upload/avatar', {
+        method: 'POST',
+        body: form
       })
       
-      if (response.success && response.data) {
+      if (uploadResp.success && uploadResp.data) {
         alert('Avatar atualizado com sucesso!')
-        // Atualizar os dados do perfil no contexto
         await refreshUserProfile()
       } else {
-        alert(`Erro ao atualizar avatar: ${response.error}`)
+        alert(`Erro ao atualizar avatar: ${uploadResp.error}`)
       }
       
     } catch (error) {
