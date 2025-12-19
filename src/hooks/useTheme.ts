@@ -114,6 +114,8 @@ export const useThemeStyles = <T extends Record<string, any>>(
   return isDark ? darkStyles : lightStyles;
 };
 
+export const useThemeStyle = useThemeStyles;
+
 /**
  * Hook para obter cores baseadas no tema
  * @returns Objeto com cores do tema atual

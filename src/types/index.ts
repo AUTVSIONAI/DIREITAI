@@ -40,7 +40,7 @@ export interface TimestampedEntity {
 
 export interface UserOwnedEntity {
   user_id: string;
-  created_by?: string;
+  created_by: string;
   updated_by?: string;
 }
 
@@ -79,6 +79,7 @@ export interface FeaturedEntity {
   featured_at?: string;
   featured_until?: string;
 }
+
 
 export interface SortableEntity {
   sort_order: number;
@@ -442,4 +443,16 @@ export interface Environment {
   SENTRY_DSN?: string;
   APP_VERSION: string;
   BUILD_DATE: string;
+}
+
+declare global {
+  interface ImportMetaEnv {
+    VITE_API_URL?: string;
+    VITE_MAPBOX_TOKEN?: string;
+    VITE_SUPABASE_URL?: string;
+    VITE_SUPABASE_ANON_KEY?: string;
+  }
+  interface ImportMeta {
+    readonly env: ImportMetaEnv;
+  }
 }

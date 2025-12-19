@@ -4,11 +4,10 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 // Import padrão do Map conforme react-map-gl v7
 import Map, { Marker, Popup, NavigationControl, ScaleControl, FullscreenControl, Source, Layer } from 'react-map-gl'
 
-const LazyMap = (props) => {
+const LazyMap = React.forwardRef((props, ref) => {
   const token = import.meta.env.VITE_MAPBOX_TOKEN
   const { latitude, longitude, zoom, initialViewState, viewState, ...rest } = props
 
-  // Normaliza props: se latitude/longitude/zoom forem fornecidos, monta initialViewState
   const normalizedInitialViewState = initialViewState || (
     typeof latitude === 'number' && typeof longitude === 'number' && typeof zoom === 'number'
       ? { latitude, longitude, zoom }
@@ -18,17 +17,16 @@ const LazyMap = (props) => {
   const normalizedProps = {
     ...rest,
     mapboxAccessToken: token,
-    // Se houver viewState, controla o mapa; caso contrário usa initialViewState
     ...(viewState ? { viewState } : {}),
     ...(normalizedInitialViewState ? { initialViewState: normalizedInitialViewState } : {}),
   }
 
   return (
     <Suspense fallback={<div>Carregando mapa...</div>}>
-      <Map {...normalizedProps} />
+      <Map ref={ref} {...normalizedProps} />
     </Suspense>
   )
-}
+})
 
 const LazyMarker = (props) => (
   <Suspense fallback={null}>

@@ -1,17 +1,96 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Search, Filter, UserCheck, Upload, Image, Eye, EyeOff, Copy } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Filter, UserCheck, Upload, Image, Eye, EyeOff, Copy, Key } from 'lucide-react'
 import { apiClient } from '../../../lib/api'
 import { politiciansService } from '../../../services'
+import { AdminService } from '../../../services/admin'
 import { getPoliticianPhotoUrl } from '../../../utils/imageUtils'
 import { agentGenerationService } from '../../../services/agentGeneration'
+import { useAuth } from '../../../contexts/AuthContext'
+import { supabase } from '../../../lib/supabase'
 
-const PoliticiansManagement = () => {
+const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null, isPoliticianView = false }) => {
+  const { userProfile } = useAuth()
+  const userRole = String(userProfile?.role || '').toLowerCase()
+  // Força isPoliticianView se o usuário logado for político, mesmo que a prop venha false
+  const effectiveIsPoliticianView = isPoliticianView || userRole === 'politician'
+  
   const [politicians, setPoliticians] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterParty, setFilterParty] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingPolitician, setEditingPolitician] = useState(null)
+  
+  // Estado para resolver o ID do político se não for passado via props
+  const [resolvedPoliticianId, setResolvedPoliticianId] = useState(limitToPoliticianId)
+  const [resolutionAttempted, setResolutionAttempted] = useState(false)
+
+  // Efeito para resolver ID do político se necessário
+  useEffect(() => {
+    const resolveId = async () => {
+      // Se já veio via prop, usa ele
+      if (limitToPoliticianId) {
+        setResolvedPoliticianId(limitToPoliticianId)
+        setResolutionAttempted(true)
+        return
+      }
+
+      // Se é visão de político mas não veio ID, tenta descobrir
+      if (effectiveIsPoliticianView) {
+        if (userProfile?.politician_id) {
+          setResolvedPoliticianId(userProfile.politician_id)
+          setResolutionAttempted(true)
+        } else if (userProfile?.id) {
+          let foundId = null
+          
+          // Tentativa 1: Buscar por email
+          if (userProfile.email) {
+                  try {
+                    const { data, error } = await supabase
+                      .from('politicians')
+                      .select('id')
+                      .ilike('email', userProfile.email)
+                      .maybeSingle()
+                    if (!error && data) foundId = data.id
+                  } catch (e) {
+                    console.warn('Erro ao resolver ID por email:', e)
+                  }
+                }
+
+          if (foundId) {
+            setResolvedPoliticianId(foundId)
+          }
+          setResolutionAttempted(true)
+        } else {
+          setResolutionAttempted(true)
+        }
+      } else {
+        setResolutionAttempted(true)
+      }
+    }
+    resolveId()
+  }, [limitToPoliticianId, effectiveIsPoliticianView, userProfile])
+
+  // Se for visão de político e não encontrou vínculo
+  if (effectiveIsPoliticianView && !resolvedPoliticianId && !loading && resolutionAttempted) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <UserCheck className="h-16 w-16 text-gray-300 mb-4" />
+        <h2 className="text-xl font-bold text-gray-700 mb-2">Perfil não vinculado</h2>
+        <p className="text-gray-500 text-center max-w-md mb-4">
+          Não foi possível encontrar o perfil de político associado à sua conta.
+          <br />
+          <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded mt-2 inline-block">
+            Email: {userProfile?.email || 'Não identificado'}
+          </span>
+        </p>
+        <p className="text-gray-500 text-center max-w-md">
+          Verifique se o email da sua conta é o mesmo cadastrado no perfil do político.
+          Entre em contato com o suporte se o problema persistir.
+        </p>
+      </div>
+    )
+  }
 
   const [formData, setFormData] = useState({
     name: '',
@@ -32,6 +111,73 @@ const PoliticiansManagement = () => {
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  
+  const [credentialsModal, setCredentialsModal] = useState({ open: false, email: '', password: '', politicianName: '' })
+  const [generatingCredentials, setGeneratingCredentials] = useState(false)
+
+  const handleGenerateCredentials = async (politician) => {
+    if (!window.confirm(`Deseja gerar novas credenciais de acesso para ${politician.name}?`)) return
+
+    try {
+      setGeneratingCredentials(true)
+      const password = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8)
+      
+      // Gerar email personalizado baseado no cargo e nome
+      const cleanName = politician.name.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+      
+      const pos = (politician.position || '').toLowerCase();
+      let prefix = 'pol'; // default
+      
+      if (pos.includes('deputado')) prefix = 'dep';
+      else if (pos.includes('senador')) prefix = 'sen';
+      else if (pos.includes('vereador')) prefix = 'ver';
+      else if (pos.includes('prefeito')) prefix = 'pref';
+      else if (pos.includes('governador')) prefix = 'gov';
+      else if (pos.includes('presidente')) prefix = 'pres';
+      
+      const email = `${prefix}${cleanName}@direitai.com`
+      
+      const userData = {
+        email,
+        password,
+        full_name: politician.name,
+        role: 'politician',
+        plan: 'gratuito'
+      }
+
+      console.log('Gerando credenciais para:', politician.name)
+      const userResult = await AdminService.createAuthUser(userData)
+      
+      if (userResult && !userResult.error) {
+        // Tentar vincular usuário ao político
+        const userId = userResult.user?.id || userResult.id
+        if (userId) {
+             try {
+                // Atualizar o usuário com o ID do político (relação inversa)
+                await AdminService.updateAdminUser(userId, { politician_id: politician.id })
+             } catch (e) {
+                console.error('Erro ao vincular usuário ao político', e)
+             }
+        }
+        
+        setCredentialsModal({
+          open: true,
+          email,
+          password,
+          politicianName: politician.name
+        })
+      } else {
+        alert('Erro ao criar usuário: ' + (userResult?.error || 'Erro desconhecido'))
+      }
+    } catch (error) {
+      console.error('Erro ao gerar credenciais:', error)
+      alert('Erro ao gerar credenciais')
+    } finally {
+      setGeneratingCredentials(false)
+    }
+  }
 
   // Lista de cargos permitidos (alinhado com cadastro público)
   const allowedPositions = [
@@ -42,15 +188,20 @@ const PoliticiansManagement = () => {
   ]
 
   useEffect(() => {
+    // Se for visão de político e ainda não temos o ID resolvido, aguarda (fica em loading)
+    if (effectiveIsPoliticianView && !resolvedPoliticianId) {
+      setLoading(true)
+      return
+    }
     fetchPoliticians()
-  }, [])
+  }, [resolvedPoliticianId, effectiveIsPoliticianView])
 
   const fetchPoliticians = async () => {
     try {
       setLoading(true)
-      // Buscar apenas aprovados com limite alto para não perder recém-criados
+      // Se for visão de político e tiver ID, tenta buscar só ele se a API suportar, ou busca tudo e filtra
+      // Como a API de listagem pode não filtrar por ID, buscamos tudo e filtramos no cliente (como antes)
       const response = await apiClient.get('/politicians?status=approved&limit=1000&page=1')
-      // A API retorna { data: [...], pagination: {...} }
       setPoliticians(response.data?.data || [])
     } catch (error) {
       console.error('Erro ao carregar políticos:', error)
@@ -257,12 +408,22 @@ const PoliticiansManagement = () => {
     const matchesSearch = politician.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          politician.party?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesParty = !filterParty || politician.party === filterParty
-    return matchesSearch && matchesParty
+    const matchesLimitId = !limitToPoliticianId || String(politician.id) === String(limitToPoliticianId)
+    return matchesSearch && matchesParty && matchesLimitId
   }) : []
 
   const parties = [...new Set(Array.isArray(politicians) ? politicians.map(p => p.party).filter(Boolean) : [])]
 
-  if (loading) {
+  if (loading && !politicians.length && !limitToPoliticianId && isPoliticianView) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <p className="text-gray-500">Carregando perfil do político...</p>
+      </div>
+    )
+  }
+
+  if (loading && !politicians.length) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -270,9 +431,23 @@ const PoliticiansManagement = () => {
     )
   }
 
+  if (effectiveIsPoliticianView && !resolvedPoliticianId && !loading && resolutionAttempted) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <UserCheck className="h-16 w-16 text-gray-300 mb-4" />
+        <h2 className="text-xl font-bold text-gray-700 mb-2">Perfil não vinculado</h2>
+        <p className="text-gray-500 text-center max-w-md">
+          Não foi possível encontrar o perfil de político associado à sua conta.
+          Entre em contato com o suporte para verificar seu cadastro.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
+      {!limitToPoliticianId && !isPoliticianView && (
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gerenciar Políticos</h1>
@@ -286,8 +461,10 @@ const PoliticiansManagement = () => {
           Adicionar Político
         </button>
       </div>
+      )}
 
       {/* Filters */}
+      {!limitToPoliticianId && !isPoliticianView && (
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
         <div className="flex gap-4">
           <div className="flex-1">
@@ -316,6 +493,7 @@ const PoliticiansManagement = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Politicians List */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -415,15 +593,27 @@ const PoliticiansManagement = () => {
                       <button
                         onClick={() => startEdit(politician)}
                         className="text-blue-600 hover:text-blue-900"
+                        title="Editar"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(politician.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {!effectiveIsPoliticianView && (
+                        <button
+                          onClick={() => handleGenerateCredentials(politician)}
+                          className="text-green-600 hover:text-green-900"
+                          title="Gerar Acesso"
+                        >
+                          <Key className="h-4 w-4" />
+                        </button>
+                      )}
+                      {!resolvedPoliticianId && !effectiveIsPoliticianView && (
+                        <button
+                          onClick={() => handleDelete(politician.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -432,12 +622,12 @@ const PoliticiansManagement = () => {
           </table>
         </div>
 
-        {filteredPoliticians.length === 0 && (
+        {filteredPoliticians.length === 0 && !loading && (
           <div className="text-center py-12">
             <UserCheck className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum político encontrado</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchTerm || filterParty ? 'Tente ajustar os filtros.' : 'Comece adicionando um novo político.'}
+              {searchTerm || filterParty ? 'Tente ajustar os filtros.' : 'Dados não disponíveis.'}
             </p>
           </div>
         )}
@@ -469,7 +659,8 @@ const PoliticiansManagement = () => {
                     required
                     value={formData.party}
                     onChange={(e) => setFormData({...formData, party: e.target.value})}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    disabled={!!limitToParty}
+                    className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${limitToParty ? 'bg-gray-100' : ''}`}
                   />
                 </div>
                 <div>
@@ -590,6 +781,87 @@ const PoliticiansManagement = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Credentials Modal */}
+      {credentialsModal.open && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-1/2 lg:w-1/3 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Credenciais de Acesso</h3>
+              <button onClick={() => setCredentialsModal({ ...credentialsModal, open: false })} className="text-gray-400 hover:text-gray-500">
+                <span className="sr-only">Fechar</span>
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-md">
+                <p className="text-sm text-blue-700 mb-2">
+                  As credenciais abaixo foram geradas para <strong>{credentialsModal.politicianName}</strong>.
+                  Copie e envie para o político, pois a senha não poderá ser visualizada novamente.
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email (Login)</label>
+                <div className="mt-1 flex rounded-md shadow-sm">
+                  <input
+                    type="text"
+                    readOnly
+                    value={credentialsModal.email}
+                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border border-gray-300 bg-gray-50 text-gray-900 sm:text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(credentialsModal.email)
+                      alert('Email copiado!')
+                    }}
+                    className="-ml-px relative inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <Copy className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                    <span>Copiar</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Senha</label>
+                <div className="mt-1 flex rounded-md shadow-sm">
+                  <input
+                    type="text"
+                    readOnly
+                    value={credentialsModal.password}
+                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border border-gray-300 bg-gray-50 text-gray-900 sm:text-sm font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(credentialsModal.password)
+                      alert('Senha copiada!')
+                    }}
+                    className="-ml-px relative inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <Copy className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                    <span>Copiar</span>
+                  </button>
+                </div>
+              </div>
+              
+              <div className="mt-5 sm:mt-6">
+                <button
+                  type="button"
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm"
+                  onClick={() => setCredentialsModal({ ...credentialsModal, open: false })}
+                >
+                  Concluir
+                </button>
+              </div>
             </div>
           </div>
         </div>

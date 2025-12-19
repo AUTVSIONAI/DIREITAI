@@ -1,5 +1,5 @@
 // Common utility types
-export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+export type OptionalKeys<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 export type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
 export type PartialExcept<T, K extends keyof T> = Partial<T> & Pick<T, K>;
 export type DeepPartial<T> = {
@@ -9,7 +9,7 @@ export type DeepRequired<T> = {
   [P in keyof T]-?: T[P] extends object ? DeepRequired<T[P]> : T[P];
 };
 export type Nullable<T> = T | null;
-export type Optional<T> = T | undefined;
+export type OptionalValue<T> = T | undefined;
 export type Maybe<T> = T | null | undefined;
 
 // Array and object utilities
@@ -187,7 +187,7 @@ export interface Coordinates {
   speed?: number;
 }
 
-export interface Address {
+export interface BasicAddress {
   street?: string;
   city?: string;
   state?: string;
@@ -198,7 +198,7 @@ export interface Address {
 
 export interface Location {
   coordinates: Coordinates;
-  address?: Address;
+  address?: BasicAddress;
   timestamp?: Date;
 }
 
@@ -428,7 +428,7 @@ export interface AnalyticsEvent {
   referrer?: string;
 }
 
-export interface UserSession {
+export interface AnalyticsUserSession {
   id: string;
   userId?: string;
   startTime: Date;

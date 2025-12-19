@@ -202,7 +202,9 @@ const UnifiedLiveMap = () => {
     try {
       const response = await apiClient.get('/manifestations')
       if (response.success && response.data && response.data.data) {
-        setManifestations(Array.isArray(response.data.data) ? response.data.data : [])
+        const list = Array.isArray(response.data.data) ? response.data.data : []
+        const active = list.filter(m => (m.is_active !== false) && (m.status !== 'cancelled'))
+        setManifestations(active)
       } else {
         console.warn('Falha ao carregar manifestações:', {
           status: response?.status,
@@ -356,6 +358,7 @@ const UnifiedLiveMap = () => {
     if (!manifestations || manifestations.length === 0) return null
 
     const features = manifestations
+      .filter(m => (m.is_active !== false) && (m.status !== 'cancelled'))
       .map(manifestation => {
         // Garantir valores numéricos para latitude/longitude
         const lon = typeof manifestation.longitude === 'number' ? manifestation.longitude : parseFloat(manifestation.longitude)
@@ -956,7 +959,7 @@ const UnifiedLiveMap = () => {
             ))}
 
             {/* Marcadores de manifestações */}
-            {layerVisibility.manifestations && manifestations.map((manifestation) => (
+            {layerVisibility.manifestations && manifestations.filter(m => (m.is_active !== false) && (m.status !== 'cancelled')).map((manifestation) => (
               <LazyMarker
                 key={manifestation.id}
                 latitude={manifestation.latitude}
@@ -1046,7 +1049,7 @@ const UnifiedLiveMap = () => {
                      {/* RSVP Button */}
                      <div className="mt-3">
                        <RSVPButton 
-                         eventId={selectedManifestation.id}
+                         itemId={selectedManifestation.id}
                          type="manifestation"
                          size="sm"
                        />
@@ -1064,20 +1067,37 @@ const UnifiedLiveMap = () => {
                          ✏️ Editar
                        </button>
                        <button
-                         onClick={async () => {
-                           if (confirm('Tem certeza que deseja excluir esta manifestação?')) {
-                             try {
-                               await ManifestationsService.deleteManifestation(selectedManifestation.id)
-                               // Recarregar dados das manifestações
-                               await fetchManifestations()
-                               setSelectedManifestation(null)
-                               alert('Manifestação excluída com sucesso!')
-                             } catch (error) {
-                               console.error('Erro ao excluir manifestação:', error)
-                               alert('Erro ao excluir manifestação. Tente novamente.')
-                             }
-                           }
-                         }}
+                        onClick={async () => {
+                          if (confirm('Tem certeza que deseja excluir esta manifestação?')) {
+                            try {
+                              try {
+                                await supabase.auth.refreshSession()
+                                const { data: sessionData } = await supabase.auth.getSession()
+                                const token = sessionData?.session?.access_token
+                                if (token) {
+                                  apiClient.setAuthToken(token)
+                                }
+                              } catch {}
+                              const resp = await ManifestationsService.deleteManifestation(selectedManifestation.id)
+                              const ok = !!resp && resp.success && (resp.status ?? 200) < 400
+                              if (!ok) {
+                                console.error('Falha na exclusão da manifestação:', { status: resp?.status, data: resp?.data })
+                                const isForbidden = (resp?.status ?? 0) === 403
+                                const defaultMsg = 'Erro ao excluir manifestação. Verifique suas permissões e tente novamente.'
+                                const msg = isForbidden ? 'Ação restrita a administradores. Faça login como admin e tente novamente.' : (resp?.data?.message || resp?.data?.error || defaultMsg)
+                                alert(msg)
+                                return
+                              }
+                              setManifestations(prev => Array.isArray(prev) ? prev.filter(m => m.id !== selectedManifestation.id) : prev)
+                              await fetchManifestations()
+                              setSelectedManifestation(null)
+                              alert('Manifestação excluída com sucesso!')
+                            } catch (error) {
+                              console.error('Erro ao excluir manifestação:', error)
+                              alert('Erro ao excluir manifestação. Tente novamente.')
+                            }
+                          }
+                        }}
                          className="flex-1 px-3 py-1 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200"
                        >
                          🗑️ Excluir

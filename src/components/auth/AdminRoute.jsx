@@ -12,17 +12,17 @@ const AdminRoute = ({ children }) => {
   useEffect(() => {
     const checkAdminStatus = async () => {
       if (user) {
-        // Verificação simples por email para demo - admin não precisa confirmar email
+        const role = userProfile?.role
+        const allowedRoles = ['admin', 'super_admin', 'journalist', 'politician', 'party']
         if (user.email === 'admin@direitai.com') {
           setIsAdminUser(true)
+        } else if (allowedRoles.includes(String(role))) {
+          setIsAdminUser(true)
+        } else if (user.email_confirmed_at) {
+          const adminStatus = await isAdmin(user.id)
+          setIsAdminUser(adminStatus)
         } else {
-          // Para outros usuários, verificar se email está confirmado e se é admin
-          if (user.email_confirmed_at) {
-            const adminStatus = await isAdmin(user.id)
-            setIsAdminUser(adminStatus)
-          } else {
-            setIsAdminUser(false)
-          }
+          setIsAdminUser(false)
         }
       }
       setCheckingAdmin(false)
@@ -31,7 +31,7 @@ const AdminRoute = ({ children }) => {
     if (!loading) {
       checkAdminStatus()
     }
-  }, [user, loading])
+  }, [user, userProfile, loading])
 
   if (loading || checkingAdmin) {
     return (

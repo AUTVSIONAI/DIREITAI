@@ -14,8 +14,11 @@ export interface ApiResponse<T = any> {
     from?: number;
     to?: number;
   };
-  timestamp: string;
+  timestamp?: string;
   request_id?: string;
+  status?: number;
+  statusText?: string;
+  headers?: Record<string, any>;
 }
 
 export interface PaginationMeta {
@@ -41,6 +44,11 @@ export interface SearchParams {
   q?: string;
   search?: string;
   query?: string;
+}
+
+export interface SortParams {
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
 }
 
 export interface DateRangeParams {
@@ -89,8 +97,13 @@ export interface RequestOptions {
   cache?: boolean;
   cacheTTL?: number;
   signal?: AbortSignal;
-  onUploadProgress?: (progress: number) => void;
-  onDownloadProgress?: (progress: number) => void;
+  onUploadProgress?: (progressEvent: AxiosProgressEvent) => void;
+  onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void;
+  headers?: Record<string, string>;
+  responseType?: 'blob' | 'json' | 'text';
+  params?: Record<string, any>;
+  baseURL?: string;
+  data?: any;
 }
 
 export interface UploadProgress {
@@ -168,27 +181,46 @@ export interface CacheConfig {
   strategy: 'lru' | 'fifo' | 'ttl';
 }
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    per_page: number;
+    total: number;
+    has_next: boolean;
+    has_previous: boolean;
+  };
+}
+
 export interface ApiMetrics {
-  request_count: number;
-  error_count: number;
-  average_response_time: number;
-  success_rate: number;
-  cache_hit_rate: number;
-  rate_limit_hits: number;
-  last_request: string;
-  uptime: number;
+  request_count?: number;
+  error_count?: number;
+  average_response_time?: number;
+  success_rate?: number;
+  cache_hit_rate?: number;
+  rate_limit_hits?: number;
+  last_request?: string;
+  uptime?: number;
+  // Compatibilidade com implementação atual em src/lib/api.ts
+  totalRequests?: number;
+  successfulRequests?: number;
+  failedRequests?: number;
+  averageResponseTime?: number;
+  lastRequestTime?: Date | null;
 }
 
 export interface HealthCheck {
   status: 'healthy' | 'degraded' | 'unhealthy';
-  version: string;
-  uptime: number;
-  timestamp: string;
-  checks: Record<string, {
+  version?: string;
+  uptime?: number;
+  timestamp: string | Date;
+  checks?: Record<string, {
     status: 'pass' | 'fail' | 'warn';
     response_time?: number;
     message?: string;
   }>;
+  services?: Record<string, any>;
+  error?: string;
 }
 
 export interface ApiEndpoint {
@@ -295,3 +327,4 @@ export interface ApiClient {
   getMetrics(): ApiMetrics;
   healthCheck(): Promise<HealthCheck>;
 }
+import type { AxiosProgressEvent } from 'axios';

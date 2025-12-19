@@ -9,7 +9,7 @@ export interface UserProfile {
   birth_date?: string;
   phone?: string;
   plan: 'free' | 'premium' | 'vip';
-  role: 'user' | 'admin' | 'moderator';
+  role: 'user' | 'admin' | 'moderator' | 'super_admin' | 'politician' | 'journalist' | 'party';
   points: number;
   level: number;
   total_checkins: number;
@@ -48,8 +48,10 @@ export interface UpdateProfileData {
 }
 
 export interface AuthResponse {
-  user: UserProfile;
+  user: UserProfile | null;
   session: any;
+  success?: boolean;
+  error?: string;
 }
 
 export interface AuthError {
@@ -67,12 +69,21 @@ export interface PasswordUpdateData {
 }
 
 export interface UserStats {
-  total_checkins: number;
-  total_ai_conversations: number;
-  total_achievements: number;
-  points: number;
-  level: number;
+  total_checkins?: number;
+  total_ai_conversations?: number;
+  total_achievements?: number;
+  points?: number;
+  level?: number;
   rank?: number;
+  // Compatibilidade com implementação atual de AuthService
+  totalPosts?: number;
+  totalComments?: number;
+  totalLikes?: number;
+  totalFollowers?: number;
+  totalFollowing?: number;
+  totalViews?: number;
+  joinedAt?: string;
+  lastActiveAt?: string;
 }
 
 export interface UserPreferences {
@@ -93,6 +104,25 @@ export interface UserPreferences {
   };
   language: string;
   timezone: string;
+  // Campos adicionais opcionais para compatibilidade com AuthService
+  userId?: string;
+  emailNotifications?: boolean;
+  pushNotifications?: boolean;
+  smsNotifications?: boolean;
+  marketingEmails?: boolean;
+  weeklyDigest?: boolean;
+  instantNotifications?: boolean;
+  soundEnabled?: boolean;
+  autoPlayVideos?: boolean;
+  showOnlineStatus?: boolean;
+  allowDirectMessages?: boolean;
+  showEmail?: boolean;
+  showPhone?: boolean;
+  twoFactorEnabled?: boolean;
+  loginAlerts?: boolean;
+  dataExportFormat?: 'json' | 'csv';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface UserSession {
@@ -113,52 +143,6 @@ export interface UserActivity {
   description: string;
   metadata?: Record<string, any>;
   created_at: string;
-}
-
-export interface UserBadge {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  color: string;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  requirements: Record<string, any>;
-  points_reward: number;
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface UserAchievement {
-  id: string;
-  user_id: string;
-  badge_id: string;
-  badge: UserBadge;
-  earned_at: string;
-  progress?: number;
-  is_featured: boolean;
-}
-
-export interface UserLevel {
-  level: number;
-  name: string;
-  min_points: number;
-  max_points: number;
-  benefits: string[];
-  badge_icon: string;
-  badge_color: string;
-}
-
-export interface UserRanking {
-  user_id: string;
-  username: string;
-  full_name: string;
-  avatar_url?: string;
-  points: number;
-  level: number;
-  rank: number;
-  total_checkins: number;
-  total_ai_conversations: number;
-  total_achievements: number;
 }
 
 export interface AuthState {

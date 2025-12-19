@@ -28,7 +28,7 @@ export const useApiQuery = <TData = unknown, TError = ApiError>(
     queryKey,
     queryFn,
     staleTime: 5 * 60 * 1000, // 5 minutos
-    cacheTime: 10 * 60 * 1000, // 10 minutos
+    gcTime: 10 * 60 * 1000, // 10 minutos
     retry: (failureCount, error) => {
       // Não retry em erros 4xx
       if (error && typeof error === 'object' && 'status' in error) {
@@ -85,6 +85,7 @@ export const useInfiniteApiQuery = <TData = unknown, TError = ApiError>(
   return useInfiniteQuery({
     queryKey,
     queryFn,
+    initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       if (!lastPage.pagination.has_next) return undefined;
       return lastPage.pagination.page + 1;
@@ -94,7 +95,7 @@ export const useInfiniteApiQuery = <TData = unknown, TError = ApiError>(
       return firstPage.pagination.page - 1;
     },
     staleTime: 5 * 60 * 1000,
-    cacheTime: 10 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     ...options
   });
 };
@@ -119,7 +120,7 @@ export const useSearchQuery = <TData = unknown>(
     {
       enabled: enabled && searchTerm.length >= minLength,
       staleTime: 30 * 1000, // 30 segundos para busca
-      cacheTime: 5 * 60 * 1000, // 5 minutos
+      gcTime: 5 * 60 * 1000, // 5 minutos
     }
   );
 };
@@ -345,7 +346,6 @@ export const usePollingQuery = <TData = unknown>(
     {
       enabled,
       refetchInterval: enabled ? interval : false,
-      refetchIntervalInBackground: false,
       refetchOnWindowFocus,
       refetchOnMount: true,
       refetchOnReconnect: true

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { LazyMap, LazyMarker, LazyPopup, LazyNavigationControl, LazyScaleControl, LazyFullscreenControl } from '../../common/LazyMapbox'
 import {
   MapPin,
@@ -51,6 +51,8 @@ const EventMap = () => {
     state: '',
     radius: 50 // km
   })
+
+  const mapRef = useRef(null)
 
   // Obter localização do usuário
   const getUserLocation = useCallback(() => {
@@ -161,7 +163,10 @@ const EventMap = () => {
     try {
       const response = await apiClient.get('/manifestations')
       const manifestationsData = response.data.data || []
-      setManifestations(manifestationsData)
+      const active = Array.isArray(manifestationsData) 
+        ? manifestationsData.filter(m => (m.is_active !== false) && (m.status !== 'cancelled'))
+        : []
+      setManifestations(active)
 
       // Filtrar manifestações próximas se temos localização do usuário
       if (userLocation) {
@@ -287,6 +292,30 @@ const EventMap = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [loadAllData, loadUserCheckins, lastRefresh])
+
+  useEffect(() => {
+    const handleResize = () => {
+      try {
+        const map = mapRef.current?.getMap?.()
+        if (map) {
+          // pequeno atraso para o layout estabilizar
+          setTimeout(() => {
+            map.resize()
+          }, 200)
+        }
+      } catch {}
+    }
+
+    document.addEventListener('fullscreenchange', handleResize)
+    window.addEventListener('orientationchange', handleResize)
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleResize)
+      window.removeEventListener('orientationchange', handleResize)
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
 
   const getEventStatusColor = (event) => {
     if (checkedInEvents.includes(event.id)) return 'bg-green-500'
@@ -460,6 +489,7 @@ const EventMap = () => {
         )}
 
         <LazyMap
+          ref={mapRef}
           viewState={viewport}
           onMove={evt => setViewport(evt.viewState)}
           style={{ width: '100%', height: '100%' }}
@@ -624,7 +654,7 @@ const EventMap = () => {
               <div className="p-3 sm:p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 pr-2">
-                    <h3 className="font-semibold text-base sm:text-lg text-gray-900 leading-tight">{selectedManifestation.title}</h3>
+                    <h3 className="font-semibold text-base sm:text-lg text-gray-900 leading-tight">{selectedManifestation.name}</h3>
                     <p className="text-xs sm:text-sm text-gray-600 truncate">
                       {selectedManifestation.city}, {selectedManifestation.state}
                     </p>
@@ -661,8 +691,8 @@ const EventMap = () => {
                   />
                 </div>
               </div>
-            </LazyPopup>
-          )}
+          </LazyPopup>
+        )}
         </LazyMap>
       </div>
 
@@ -697,6 +727,6 @@ const EventMap = () => {
       </div>
     </div>
   )
-}
+  }
 
 export default EventMap

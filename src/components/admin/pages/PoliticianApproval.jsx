@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../../../lib/api';
 import { agentGenerationService } from '../../../services/agentGeneration';
+import { AdminService } from '../../../services/admin';
 import { 
   User, 
   MapPin, 
@@ -14,7 +15,8 @@ import {
   MessageSquare,
   Filter,
   Search,
-  RefreshCw
+  RefreshCw,
+  Copy
 } from 'lucide-react';
 
 const PoliticianApproval = () => {
@@ -39,6 +41,66 @@ const PoliticianApproval = () => {
     search: ''
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [credentialsModal, setCredentialsModal] = useState({ open: false, email: '', password: '', politicianName: '' });
+
+  const createUserForPolitician = async (politician) => {
+    try {
+      const password = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+      
+      // Gerar email personalizado baseado no cargo e nome
+      const cleanName = politician.name.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+      
+      const pos = (politician.position || '').toLowerCase();
+      let prefix = 'pol'; // default
+      
+      if (pos.includes('deputado')) prefix = 'dep';
+      else if (pos.includes('senador')) prefix = 'sen';
+      else if (pos.includes('vereador')) prefix = 'ver';
+      else if (pos.includes('prefeito')) prefix = 'pref';
+      else if (pos.includes('governador')) prefix = 'gov';
+      else if (pos.includes('presidente')) prefix = 'pres';
+      
+      const email = `${prefix}${cleanName}@direitai.com`;
+      
+      const userData = {
+        email,
+        password,
+        full_name: politician.name,
+        role: 'politician',
+        plan: 'gratuito'
+      };
+
+      console.log('Criando usuário para político aprovado:', politician.name);
+      const userResult = await AdminService.createAuthUser(userData);
+      
+      if (userResult && !userResult.error) {
+        // Vincular usuário ao político
+        const userId = userResult.user?.id || userResult.id;
+        if (userId) {
+          try {
+            // Atualizar o usuário com o ID do político (relação inversa)
+            // A tabela politicians não tem user_id, mas users tem politician_id
+            await AdminService.updateAdminUser(userId, { politician_id: politician.id });
+          } catch (e) {
+            console.error('Erro ao vincular usuário ao político', e);
+          }
+        }
+        
+        setCredentialsModal({
+          open: true,
+          email,
+          password,
+          politicianName: politician.name
+        });
+      } else {
+        console.error('Erro ao criar usuário:', userResult?.error);
+      }
+    } catch (error) {
+      console.error('Erro ao criar usuário para político:', error);
+    }
+  };
 
   useEffect(() => {
     fetchStats();
@@ -147,6 +209,8 @@ const PoliticianApproval = () => {
         // Se aprovado, criar agente automaticamente
         if (actionType === 'approve') {
           await createAgentForPolitician(selectedPolitician);
+          // Criar usuário e gerar credenciais
+          await createUserForPolitician(selectedPolitician);
         }
         
         alert(`Político ${actionType === 'approve' ? 'aprovado' : 'rejeitado'} com sucesso!`);
@@ -703,6 +767,85 @@ const PoliticianApproval = () => {
                      actionType === 'approve' ? 'Aprovar' : 'Rejeitar'}
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Credentials Modal */}
+      {credentialsModal.open && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-1/2 lg:w-1/3 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Credenciais de Acesso</h3>
+              <button onClick={() => setCredentialsModal({ ...credentialsModal, open: false })} className="text-gray-400 hover:text-gray-500">
+                <span className="sr-only">Fechar</span>
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-green-50 p-4 rounded-md">
+                <p className="text-sm text-green-700 mb-2">
+                  Político aprovado com sucesso! As credenciais abaixo foram geradas automaticamente.
+                  Copie e envie para o político.
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email (Login)</label>
+                <div className="mt-1 flex rounded-md shadow-sm">
+                  <input
+                    type="text"
+                    readOnly
+                    value={credentialsModal.email}
+                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border border-gray-300 bg-gray-50 text-gray-900 sm:text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(credentialsModal.email)
+                      alert('Email copiado!')
+                    }}
+                    className="-ml-px relative inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <Copy className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                    <span>Copiar</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Senha</label>
+                <div className="mt-1 flex rounded-md shadow-sm">
+                  <input
+                    type="text"
+                    readOnly
+                    value={credentialsModal.password}
+                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border border-gray-300 bg-gray-50 text-gray-900 sm:text-sm font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(credentialsModal.password)
+                      alert('Senha copiada!')
+                    }}
+                    className="-ml-px relative inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <Copy className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                    <span>Copiar</span>
+                  </button>
+                </div>
+              </div>
+              
+              <div className="mt-5 sm:mt-6">
+                <button
+                  type="button"
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:text-sm"
+                  onClick={() => setCredentialsModal({ ...credentialsModal, open: false })}
+                >
+                  Concluir
+                </button>
               </div>
             </div>
           </div>

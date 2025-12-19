@@ -34,6 +34,25 @@ const UserManagement = () => {
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    email: '',
+    password: '',
+    full_name: '',
+    username: '',
+    role: 'user',
+    plan: 'gratuito',
+    city: '',
+    state: ''
+  })
+  const [allUsers, setAllUsers] = useState([])
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [syncing, setSyncing] = useState(false)
+  const [syncSummary, setSyncSummary] = useState(null)
 
   // Função para carregar usuários
   const loadUsers = async () => {
@@ -46,8 +65,36 @@ const UserManagement = () => {
       if (selectedStatus !== 'all') filters.status = selectedStatus;
       if (searchTerm) filters.search = searchTerm;
       
-      const response = await AdminService.getUsers(filters);
-      setUsers(response.users || []);
+      const baseFilters = {
+        search: searchTerm || undefined,
+        plan: selectedPlan !== 'all' ? selectedPlan : undefined,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined
+      }
+      const serverLimit = 100
+      const first = await AdminService.getAdminUsers(baseFilters, 1, serverLimit)
+      let accumulated = Array.isArray(first?.users) ? first.users : []
+      const tp = Math.max(1, Number(first?.totalPages || 1))
+      for (let p = 2; p <= tp; p++) {
+        try {
+          const resp = await AdminService.getAdminUsers(baseFilters, p, serverLimit)
+          if (Array.isArray(resp?.users) && resp.users.length > 0) {
+            accumulated = accumulated.concat(resp.users)
+          }
+        } catch {}
+      }
+      setAllUsers(accumulated)
+      setUsers(accumulated)
+      const filteredCount = accumulated.filter(user => {
+        const matchesSearch = (user.full_name?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
+                              (user.email?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
+                              (user.username?.toLowerCase() || '').includes((searchTerm || '').toLowerCase())
+        const matchesPlan = selectedPlan === 'all' || user.plan === selectedPlan
+        const matchesStatus = selectedStatus === 'all' || user.status === selectedStatus
+        return matchesSearch && matchesPlan && matchesStatus
+      }).length
+      const tpClient = Math.max(1, Math.ceil(filteredCount / limit))
+      setTotal(filteredCount)
+      setTotalPages(tpClient)
     } catch (err) {
       setError('Erro ao carregar usuários');
       console.error('Erro ao carregar usuários:', err);
@@ -127,7 +174,11 @@ const UserManagement = () => {
      }, 500); // Debounce de 500ms
      
      return () => clearTimeout(timeoutId);
-   }, [selectedPlan, selectedStatus, searchTerm]);
+  }, [selectedPlan, selectedStatus, searchTerm, page, limit]);
+
+  useEffect(() => {
+    setPage(1)
+  }, [selectedPlan, selectedStatus, searchTerm])
 
 
 
@@ -158,6 +209,7 @@ const UserManagement = () => {
     
     return matchesSearch && matchesPlan && matchesStatus
   })
+  const paginatedUsers = filteredUsers.slice((page - 1) * limit, (page - 1) * limit + limit)
 
   const handleViewUser = (user) => {
     setSelectedUser(user)
@@ -277,11 +329,46 @@ const UserManagement = () => {
           <p className="text-gray-600">Gerencie todos os usuários da plataforma</p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
+          <button
+            onClick={async () => {
+              try {
+                setSyncing(true)
+                setSyncSummary(null)
+                const result = await AdminService.syncAuthUsers()
+                setSyncSummary(result?.summary || null)
+                if (result?.success) {
+                  alert('Sincronização concluída com sucesso')
+                  await loadUsers()
+                } else {
+                  alert(result?.error || 'Falha na sincronização')
+                }
+              } catch (err) {
+                console.error('Erro ao sincronizar usuários:', err)
+                alert('Erro ao sincronizar usuários')
+              } finally {
+                setSyncing(false)
+              }
+            }}
+            className={`btn-secondary flex items-center ${syncing ? 'opacity-60 cursor-not-allowed' : ''}`}
+            disabled={syncing}
+          >
+            {syncing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Sincronizando...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-2" />
+                Sincronizar Auth → Public
+              </>
+            )}
+          </button>
           <button className="btn-secondary flex items-center">
             <Download className="h-4 w-4 mr-2" />
             Exportar
           </button>
-          <button className="btn-primary flex items-center">
+          <button onClick={() => setShowCreateModal(true)} className="btn-primary flex items-center">
             <Plus className="h-4 w-4 mr-2" />
             Novo Usuário
           </button>
@@ -332,6 +419,18 @@ const UserManagement = () => {
             <Ban className="h-8 w-8 text-red-500" />
           </div>
         </div>
+        {syncSummary && (
+          <div className="card">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Resumo da Sincronização</p>
+                <p className="text-sm text-gray-900">Auth: {syncSummary?.totalAuth ?? 0}</p>
+                <p className="text-sm text-gray-900">Inseridos: {syncSummary?.inserted ?? 0}</p>
+                <p className="text-sm text-gray-900">Atualizados: {syncSummary?.updated ?? 0}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -440,7 +539,7 @@ const UserManagement = () => {
                   </td>
                 </tr>
               )}
-              {!loading && !error && filteredUsers.length > 0 && filteredUsers.map((user) => {
+              {!loading && !error && paginatedUsers.length > 0 && paginatedUsers.map((user) => {
                 const planBadge = getPlanBadge(user.plan)
                 const statusBadge = getStatusBadge(user.status)
                 const PlanIcon = planBadge.icon
@@ -457,6 +556,7 @@ const UserManagement = () => {
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{user.full_name || 'Nome não informado'}</div>
                           <div className="text-sm text-gray-500">@{user.username || 'username'}</div>
+                          <div className="text-xs text-gray-500">Role: {user.role || 'user'}</div>
                         </div>
                       </div>
                     </td>
@@ -543,6 +643,35 @@ const UserManagement = () => {
             </tbody>
           </table>
         </div>
+        <div className="px-6 py-3 flex items-center justify-between">
+          <div className="text-sm text-gray-600">Página {page} de {totalPages} • Total {total}</div>
+          <div className="flex items-center space-x-2">
+            <select
+              value={limit}
+              onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+              className="px-2 py-1 border border-gray-300 rounded"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <button
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page <= 1}
+              className="btn-secondary"
+            >
+              Anterior
+            </button>
+            <button
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={page >= totalPages}
+              className="btn-secondary"
+            >
+              Próxima
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* User Details Modal */}
@@ -613,6 +742,133 @@ const UserManagement = () => {
                 Editar Usuário
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Novo Usuário</h3>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">×</button>
+            </div>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!createForm.email || !createForm.password) {
+                  alert('Email e senha são obrigatórios')
+                  return
+                }
+                try {
+                  setCreating(true)
+                  const resp = await AdminService.createAuthUser(createForm)
+                  if (resp) {
+                    alert('Usuário criado com sucesso!')
+                    setShowCreateModal(false)
+                    setCreateForm({ email: '', password: '', full_name: '', username: '', role: 'user', plan: 'gratuito', city: '', state: '' })
+                    await loadUsers()
+                  } else {
+                    alert(resp?.error || 'Falha ao criar usuário')
+                  }
+                } catch (err) {
+                  console.error('Erro ao criar usuário:', err)
+                  alert('Erro ao criar usuário')
+                } finally {
+                  setCreating(false)
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Email *</label>
+                  <input
+                    type="email"
+                    value={createForm.email}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Senha *</label>
+                  <input
+                    type="password"
+                    value={createForm.password}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Nome</label>
+                  <input
+                    type="text"
+                    value={createForm.full_name}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, full_name: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Username</label>
+                  <input
+                    type="text"
+                    value={createForm.username}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, username: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Role</label>
+                  <select
+                    value={createForm.role}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, role: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Plano</label>
+                  <select
+                    value={createForm.plan}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, plan: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="gratuito">Gratuito</option>
+                    <option value="engajado">Engajado</option>
+                    <option value="premium">Premium</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Cidade</label>
+                  <input
+                    type="text"
+                    value={createForm.city}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, city: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Estado</label>
+                  <input
+                    type="text"
+                    value={createForm.state}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, state: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end space-x-3">
+                <button onClick={() => setShowCreateModal(false)} type="button" className="btn-secondary">Cancelar</button>
+                <button type="submit" disabled={creating} className="btn-primary">
+                  {creating ? 'Criando...' : 'Criar Usuário'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

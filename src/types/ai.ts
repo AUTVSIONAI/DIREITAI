@@ -105,6 +105,7 @@ export interface CreateConversationData {
 
 export interface SendMessageData {
   content: string;
+  conversationId: string;
   model?: string;
   temperature?: number;
   max_tokens?: number;
@@ -250,11 +251,13 @@ export interface AIError {
 
 export interface AIStreamResponse {
   id: string;
-  content: string;
-  is_complete: boolean;
+  type: 'chunk' | 'complete' | 'error';
+  content?: string;
+  message?: AIMessage;
+  is_complete?: boolean;
   tokens?: number;
   cost?: number;
-  error?: AIError;
+  error?: string | AIError;
 }
 
 export interface AIContextWindow {

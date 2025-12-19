@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import { 
   LayoutDashboard, 
   Users, 
@@ -25,6 +26,59 @@ import {
 
 const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
   const location = useLocation()
+  const { userProfile } = useAuth()
+  const role = String(userProfile?.role || '').toLowerCase()
+  const plan = String(userProfile?.plan || 'gratuito').toLowerCase()
+
+  const tierOrder = { gratuito: 0, patriota: 1, cidadao: 2, cidadão: 2, premium: 3, pro: 4, elite: 5 }
+  const tier = tierOrder[plan] ?? 0
+
+  const baseByRole = {
+    journalist: ['dashboard', 'blog', 'ratings', 'moderation', 'announcements', 'notifications', 'surveys'],
+    politician: ['dashboard', 'agents', 'events', 'unified-map', 'ratings', 'surveys', 'politicians'],
+    party: ['dashboard', 'events', 'affiliates', 'politicians', 'surveys', 'announcements'],
+    admin: ['all'],
+    super_admin: ['all']
+  }
+
+  const tierUnlocks = {
+    journalist: {
+      0: ['blog', 'surveys'],
+      1: ['ratings'],
+      2: ['moderation'],
+      3: ['announcements'],
+      4: ['notifications'],
+      5: ['blog', 'ratings', 'moderation', 'announcements', 'notifications', 'surveys']
+    },
+    politician: {
+      0: ['agents', 'surveys'],
+      1: ['events'],
+      2: ['unified-map'],
+      3: ['ratings'],
+      4: ['politicians'],
+      5: ['agents', 'events', 'unified-map', 'ratings', 'surveys', 'politicians']
+    },
+    party: {
+      0: ['events'],
+      1: ['affiliates'],
+      2: ['politicians'],
+      3: ['surveys'],
+      4: ['announcements'],
+      5: ['events', 'affiliates', 'politicians', 'surveys', 'announcements']
+    }
+  }
+
+  const can = (section) => {
+    if (!section) return false
+    if (baseByRole[role]?.includes('all')) return true
+    const base = new Set(baseByRole[role] || [])
+    const unlocks = new Set((tierUnlocks[role]?.[tier] || []))
+    const allowed = new Set([...base, ...unlocks])
+    if (section.startsWith('politicians.')) {
+      return allowed.has('politicians')
+    }
+    return allowed.has(section)
+  }
   
   const menuItems = [
     {
@@ -160,6 +214,31 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
     }
   ]
 
+  const itemSection = (item) => {
+    const href = String(item.href || '')
+    if (href === '/admin') return 'dashboard'
+    if (href.includes('/admin/users')) return 'users'
+    if (href.includes('/admin/events')) return 'events'
+    if (href.includes('/admin/politicians/approval')) return 'politicians.approval'
+    if (href.includes('/admin/politicians/sync')) return 'politicians.sync'
+    if (href.includes('/admin/politicians')) return 'politicians'
+    if (href.includes('/admin/agents')) return 'agents'
+    if (href.includes('/admin/blog')) return 'blog'
+    if (href.includes('/admin/ratings')) return 'ratings'
+    if (href.includes('/admin/surveys')) return 'surveys'
+    if (href.includes('/admin/unified-map')) return 'unified-map'
+    if (href.includes('/admin/moderation')) return 'moderation'
+    if (href.includes('/admin/store')) return 'store'
+    if (href.includes('/admin/plans')) return 'plans'
+    if (href.includes('/admin/reports')) return 'reports'
+    if (href.includes('/admin/affiliates')) return 'affiliates'
+    if (href.includes('/admin/logs')) return 'logs'
+    if (href.includes('/admin/announcements')) return 'announcements'
+    if (href.includes('/admin/notifications')) return 'notifications'
+    if (href.includes('/admin/settings')) return 'settings'
+    return ''
+  }
+
   return (
     <>
       {/* Mobile sidebar overlay */}
@@ -194,51 +273,61 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
 
         <nav className="flex-1 overflow-y-auto mt-8 px-4 pb-20">
           <div className="space-y-2">
-            {menuItems.map((item) => {
-              const Icon = item.icon
-              const hasSubmenu = item.submenu && item.submenu.length > 0
-              const isParentActive = hasSubmenu && item.submenu.some(sub => sub.current)
-              
-              return (
-                <div key={item.name}>
-                  <Link
-                    to={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`
-                      group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200
-                      ${item.current || isParentActive
-                        ? 'bg-primary-600 text-white'
-                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                      }
-                    `}
-                  >
-                    <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                    {item.name}
-                  </Link>
-                  
+            {menuItems
+              .filter((item) => {
+                const section = itemSection(item)
+                return can(section)
+              })
+              .map((item) => {
+                const Icon = item.icon
+                const hasSubmenu = item.submenu && item.submenu.length > 0
+                const isParentActive = hasSubmenu && item.submenu.some(sub => sub.current)
+                
+                return (
+                  <div key={item.name}>
+                    <Link
+                      to={item.href}
+                      onClick={() => setSidebarOpen(false)}
+                      className={`
+                        group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200
+                        ${item.current || isParentActive
+                          ? 'bg-primary-600 text-white'
+                          : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                        }
+                      `}
+                    >
+                      <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                      {item.name}
+                    </Link>
+                    
                   {hasSubmenu && (
-                    <div className="ml-6 mt-1 space-y-1">
-                      {item.submenu.map((subItem) => (
-                        <Link
-                          key={subItem.name}
-                          to={subItem.href}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`
-                            block px-3 py-1 text-xs font-medium rounded transition-colors duration-200
-                            ${subItem.current
-                              ? 'bg-primary-500 text-white'
-                              : 'text-gray-400 hover:bg-gray-700 hover:text-white'
-                            }
-                          `}
-                        >
-                          {subItem.name}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                      <div className="ml-6 mt-1 space-y-1">
+                      {item.submenu
+                        .filter((subItem) => {
+                          const section = itemSection(subItem)
+                          return can(section)
+                        })
+                        .map((subItem) => (
+                          <Link
+                            key={subItem.name}
+                            to={subItem.href}
+                            onClick={() => setSidebarOpen(false)}
+                            className={`
+                              block px-3 py-1 text-xs font-medium rounded transition-colors duration-200
+                              ${subItem.current
+                                ? 'bg-primary-500 text-white'
+                                : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                              }
+                            `}
+                          >
+                            {subItem.name}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
           </div>
         </nav>
 

@@ -62,6 +62,10 @@ const PoliticianProfile = () => {
   const [transparencyLoading, setTransparencyLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState(2025);
 
+  const [suggestionModal, setSuggestionModal] = useState(false);
+  const [suggestionText, setSuggestionText] = useState('');
+  const [submittingSuggestion, setSubmittingSuggestion] = useState(false);
+
   useEffect(() => {
     if (id) {
       fetchPolitician();
@@ -71,6 +75,70 @@ const PoliticianProfile = () => {
       }
     }
   }, [id, user, selectedYear]);
+
+  const handleSuggestionSubmit = async () => {
+    if (!user) {
+      alert('Você precisa estar logado para enviar uma sugestão.');
+      return;
+    }
+    if (!suggestionText.trim()) {
+      alert('Por favor, digite sua sugestão.');
+      return;
+    }
+
+    try {
+      setSubmittingSuggestion(true);
+      
+      // Verificar se já enviou sugestão este mês
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      // Usando supabase diretamente pois não temos endpoint de sugestão ainda
+      // Tentar tabela 'politician_suggestions'
+      try {
+        const { count } = await supabase
+          .from('politician_suggestions')
+          .select('*', { count: 'exact', head: true })
+          .eq('politician_id', id)
+          .eq('user_id', user.id)
+          .gte('created_at', startOfMonth.toISOString());
+
+        if (count > 0) {
+          alert('Você já enviou uma sugestão para este político este mês. Tente novamente no próximo mês.');
+          return;
+        }
+
+        const { error } = await supabase
+          .from('politician_suggestions')
+          .insert({
+            politician_id: id,
+            user_id: user.id,
+            content: suggestionText,
+            created_at: new Date().toISOString()
+          });
+
+        if (error) {
+           // Se a tabela não existir, criar tabela via SQL (se possível) ou alertar
+           if (error.code === '42P01') {
+             alert('Sistema de sugestões temporariamente indisponível (tabela não encontrada).');
+             console.error('Faltando tabela politician_suggestions');
+           } else {
+             throw error;
+           }
+        } else {
+          alert('Sugestão enviada com sucesso! O político receberá sua mensagem.');
+          setSuggestionModal(false);
+          setSuggestionText('');
+        }
+      } catch (err) {
+        console.error('Erro ao enviar sugestão:', err);
+        alert('Erro ao enviar sugestão.');
+      }
+    } finally {
+      setSubmittingSuggestion(false);
+    }
+  };
 
   useEffect(() => {
     if (politician) {
@@ -535,9 +603,19 @@ const PoliticianProfile = () => {
 
                 {/* Informações */}
                 <div className="md:w-2/3 p-6">
-                  <h1 className="text-3xl font-bold text-gray-900 mb-4">
-                    {politician.name}
-                  </h1>
+                  <div className="flex justify-between items-start">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-4">
+                      {politician.name}
+                    </h1>
+                    <button
+                      onClick={() => setSuggestionModal(true)}
+                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                      title="Enviar Sugestão"
+                    >
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      Sugestão
+                    </button>
+                  </div>
 
                   <div className="space-y-3 mb-6">
                     <div className="flex items-center gap-2 text-gray-600">
@@ -1321,6 +1399,40 @@ const PoliticianProfile = () => {
                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submittingRating ? 'Enviando...' : (userRating ? 'Atualizar' : 'Enviar')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal de Sugestão */}
+      {suggestionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold mb-4">Enviar Sugestão</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Você pode enviar uma sugestão para este político uma vez por mês. 
+              Sua sugestão será lida diretamente pela equipe do político.
+            </p>
+            <textarea
+              value={suggestionText}
+              onChange={(e) => setSuggestionText(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg mb-4 h-32 resize-none"
+              placeholder="Digite sua sugestão aqui..."
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setSuggestionModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                disabled={submittingSuggestion}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSuggestionSubmit}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                disabled={submittingSuggestion || !suggestionText.trim()}
+              >
+                {submittingSuggestion ? 'Enviando...' : 'Enviar'}
               </button>
             </div>
           </div>

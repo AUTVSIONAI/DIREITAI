@@ -9,3 +9,5 @@ build/
 *.log
 .vercel
 backend-oficial/
+
+party_credentials.txt

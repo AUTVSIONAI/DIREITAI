@@ -65,6 +65,7 @@ export const useSpeechSynthesis = () => {
         window.speechSynthesis.onvoiceschanged = null;
       };
     }
+    return undefined;
   }, [isMobile]);
 
   const speak = useCallback((text: string, config: SpeechConfig = {}) => {

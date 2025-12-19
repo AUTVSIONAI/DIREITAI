@@ -1,4 +1,5 @@
 import { apiClient } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import type {
   AdminUser,
   AdminPermission,
@@ -50,7 +51,8 @@ export class AdminService {
       clearTimeout(timeoutId);
       return response.data;
     } catch (error) {
-      console.warn('API indisponível, usando dados mock:', error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('API indisponível, usando dados mock:', message);
       
       // Retornar dados mock em caso de erro
       return {
@@ -112,6 +114,100 @@ export class AdminService {
   }
 
   /**
+   * Obter usuários do auth (Supabase) incluindo role
+   */
+  static async getAuthUsers(filters?: {
+    search?: string;
+    role?: string;
+    fetchAll?: boolean;
+  }): Promise<any> {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      });
+    }
+    if (!params.has('fetchAll')) params.append('fetchAll', 'true');
+    // 1) Tentar API local
+    const response = await apiClient.get(`/admin/auth-users?${params.toString()}`);
+    if (response?.success && response?.data?.users) return response.data;
+
+    // 2) Fallback para produção (rota nova pode não estar no backend local)
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+      } catch {}
+      const res = await fetch(`https://direitai-backend.vercel.app/api/admin/auth-users?${params.toString()}`, {
+        method: 'GET',
+        headers,
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json && json.users) return json;
+      }
+    } catch {}
+
+    // 3) Fallback final: usar lista de usuários da tabela pública
+    const respUsers = await apiClient.get(`/admin/users`);
+    if (respUsers?.success && respUsers?.data?.users) return respUsers.data;
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+      } catch {}
+      const res2 = await fetch(`https://direitai-backend.vercel.app/api/admin/users`, { method: 'GET', headers });
+      if (res2.ok) {
+        const json2 = await res2.json().catch(() => null);
+        if (json2) return json2;
+      }
+    } catch {}
+    return { users: [] } as any;
+  }
+
+  /**
+   * Sincronizar usuários do Auth para tabela pública
+   */
+  static async syncAuthUsers(): Promise<{ success: boolean; summary?: any; error?: string }> {
+    // 1) Tentar rota local principal
+    let response = await apiClient.post('/admin/users/sync-auth');
+    if (response?.success) return response.data as any;
+    // 1b) Tentar alias local
+    response = await apiClient.post('/admin/sync-auth');
+    if (response?.success) return response.data as any;
+    // 2) Fallback para backend público
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+      } catch {}
+      let res = await fetch('https://direitai-backend.vercel.app/api/admin/users/sync-auth', {
+        method: 'POST',
+        headers,
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json) return json as any;
+      }
+      // tentar alias
+      res = await fetch('https://direitai-backend.vercel.app/api/admin/sync-auth', {
+        method: 'POST',
+        headers,
+      });
+      if (res.ok) {
+        const json2 = await res.json().catch(() => null);
+        if (json2) return json2 as any;
+      }
+    } catch (e) {}
+    return { success: false, error: 'Falha ao sincronizar usuários' };
+  }
+
+  /**
    * Atualizar usuário
    */
   static async updateUser(
@@ -127,6 +223,40 @@ export class AdminService {
   ): Promise<any> {
     const response = await apiClient.put(`/admin/users/${userId}`, updates);
     return response.data;
+  }
+
+  /**
+   * Criar usuário no Auth com metadados
+   */
+  static async createAuthUser(data: {
+    email: string;
+    password: string;
+    full_name?: string;
+    username?: string;
+    role?: string;
+    plan?: string;
+    city?: string;
+    state?: string;
+  }): Promise<any> {
+    const response = await apiClient.post('/admin/auth-users', data);
+    if (response?.success) return response.data;
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+      } catch {}
+      const res = await fetch(`https://direitai-backend.vercel.app/api/admin/auth-users`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json) return json;
+      }
+    } catch {}
+    return { success: false, error: 'Falha ao criar usuário' } as any;
   }
 
   /**

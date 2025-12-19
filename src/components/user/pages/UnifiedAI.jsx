@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { 
   Send, Bot, User, Trash2, Download, Copy, Wifi, WifiOff,
   Sparkles, Image, Video, MessageSquare, Quote, Wand2, RefreshCw, 
@@ -10,6 +11,7 @@ import VoiceControls from '../VoiceControls'
 
 const UnifiedAI = () => {
   const { userProfile } = useAuth()
+  const location = useLocation()
   
   // Estados do Chat
   const [messages, setMessages] = useState([])
@@ -25,7 +27,7 @@ const UnifiedAI = () => {
   const [lastBotMessage, setLastBotMessage] = useState('')
   
   // Estados da IA Criativa
-  const [activeMode, setActiveMode] = useState('chat') // 'chat' ou 'creative'
+  const [activeMode, setActiveMode] = useState(location.pathname.includes('creative') ? 'creative' : 'chat') // 'chat' ou 'creative'
   const [selectedTemplate, setSelectedTemplate] = useState('social_post')
   const [selectedTone, setSelectedTone] = useState('profissional')
   const [selectedLength, setSelectedLength] = useState('medio')

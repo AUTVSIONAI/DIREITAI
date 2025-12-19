@@ -20,33 +20,67 @@ import {
   History,
   Brain,
   Map,
-  Activity
+  Activity,
+  Star
 } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
   const location = useLocation()
-  
-  const menuItems = [
+  const { userProfile } = useAuth()
+
+  const isPolitician = userProfile?.role === 'politician'
+  const isJournalist = userProfile?.role === 'journalist'
+  const isParty = userProfile?.role === 'party'
+
+  const defaultMenu = [
     { path: '/dashboard', icon: Home, label: 'Visão Geral' },
     { path: '/dashboard/profile', icon: User, label: 'Perfil' },
     { path: '/politicians', icon: UserCheck, label: 'Políticos' },
     { path: '/blog', icon: BookOpen, label: 'Blog Patriota' },
     { path: '/quizzes', icon: Brain, label: 'Quizzes' },
-    // Removido item duplicado: { path: '/quiz-constituicao', icon: Brain, label: 'Quiz da Constituição' },
     { path: '/pesquisas', icon: BarChart3, label: 'Pesquisas DireitaJá' },
     { path: '/resultados', icon: TrendingUp, label: 'Resultados' },
     { path: '/verdade-ou-fake', icon: Shield, label: 'Verdade ou Fake' },
     { path: '/dashboard/direitagpt', icon: MessageCircle, label: 'DireitaGPT' },
-      { path: '/dashboard/agents', icon: Bot, label: 'Chat Político' },
+    { path: '/dashboard/agents', icon: Bot, label: 'Chat Político' },
     { path: '/dashboard/checkin', icon: MapPin, label: 'Check-in' },
     { path: '/dashboard/events', icon: Map, label: 'Mapa de Eventos' },
     { path: '/dashboard/ranking', icon: Trophy, label: 'Ranking' },
     { path: '/dashboard/store', icon: ShoppingBag, label: 'Loja' },
-      { path: '/dashboard/achievements', icon: Award, label: 'Conquistas' },
+    { path: '/dashboard/achievements', icon: Award, label: 'Conquistas' },
     { path: '/dashboard/plan', icon: Crown, label: 'Plano' },
-
     { path: '/dashboard/affiliates', icon: Activity, label: 'Afiliados' }
   ]
+
+  const politicianMenu = [
+    { path: '/dashboard/profile', icon: User, label: 'Perfil do Político' },
+    { path: '/dashboard/agents', icon: Bot, label: 'Gerenciamento do Agente' },
+    { path: '/dashboard/direitagpt', icon: MessageCircle, label: 'DireitaGPT' },
+    { path: '/dashboard/creative', icon: Sparkles, label: 'IA Criativa' },
+    { path: '/dashboard/admin-role', icon: Star, label: 'Gerenciamento de Avaliações' },
+    { path: '/dashboard/suggestions', icon: MessageCircle, label: 'Sugestões' },
+    { path: '/verdade-ou-fake', icon: Shield, label: 'Verdade ou Fake' }
+  ]
+
+  const journalistMenu = [
+    { path: '/dashboard/profile', icon: User, label: 'Perfil' },
+    { path: '/blog', icon: BookOpen, label: 'Blog Patriota' },
+    { path: '/pesquisas', icon: BarChart3, label: 'Pesquisas DireitaJá' },
+    { path: '/verdade-ou-fake', icon: Shield, label: 'Verdade ou Fake' },
+    { path: '/dashboard/direitagpt', icon: MessageCircle, label: 'DireitaGPT' },
+    { path: '/dashboard/admin-role', icon: Shield, label: 'Admin Jornalista' }
+  ]
+
+  const partyMenu = [
+    { path: '/dashboard/admin-role', icon: UserCheck, label: 'Gerenciar Políticos' },
+    { path: '/dashboard/direitagpt', icon: MessageCircle, label: 'DireitaGPT' },
+    { path: '/dashboard/creative', icon: Sparkles, label: 'IA Criativa' },
+    { path: '/resultados', icon: TrendingUp, label: 'Resultado Pesquisa' },
+    { path: '/verdade-ou-fake', icon: Shield, label: 'Detector de Fake News' }
+  ]
+
+  const menuItems = isPolitician ? politicianMenu : isJournalist ? journalistMenu : isParty ? partyMenu : defaultMenu
 
   return (
     <>

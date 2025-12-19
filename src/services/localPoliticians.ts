@@ -1,5 +1,5 @@
 import { apiClient } from '../lib/api';
-import type { Politician, CreatePoliticianData } from './politicians';
+import type { Politician } from './politicians';
 
 // Interfaces para APIs de assembleias estaduais
 interface ALESPDeputado {
@@ -13,22 +13,7 @@ interface ALESPDeputado {
   foto?: string;
 }
 
-interface ALERJDeputado {
-  id: string;
-  nome: string;
-  partido: string;
-  situacao: string;
-  mandato: string;
-}
-
-interface ALMGDeputado {
-  id: string;
-  nome: string;
-  partido: string;
-  situacao: string;
-  distrito: number;
-  email?: string;
-}
+ 
 
 // Interfaces para dados do TSE (prefeitos e vereadores)
 interface TSECandidate {
@@ -62,7 +47,7 @@ interface MunicipalCouncilor {
 
 export class LocalPoliticiansService {
   private static readonly ALESP_BASE_URL = 'https://www.al.sp.gov.br/repositorio/dadosAbertos';
-  private static readonly TSE_BASE_URL = 'https://dadosabertos.tse.jus.br/dataset';
+  
   
   /**
    * Buscar deputados estaduais da ALESP
@@ -307,45 +292,7 @@ export class LocalPoliticiansService {
     }
   }
 
-  /**
-   * Converter dados da ALESP para formato padrão
-   */
-  private static convertALESPData(deputado: ALESPDeputado): CreatePoliticianData {
-    return {
-      name: deputado.nome,
-      full_name: deputado.nome,
-      party: deputado.partido,
-      state: 'SP',
-      position: 'Deputado Estadual',
-      level: 'estadual',
-      photo_url: deputado.foto,
-      email: deputado.email,
-      external_id: deputado.id,
-      source: 'alesp',
-      status: 'pending',
-      current_mandate: deputado.situacao === 'Ativo'
-    };
-  }
-
-  /**
-   * Converter dados do TSE para formato padrão
-   */
-  private static convertTSEData(candidate: TSECandidate): CreatePoliticianData {
-    return {
-      name: candidate.nome_urna_candidato,
-      full_name: candidate.nome_candidato,
-      party: candidate.sigla_partido,
-      state: candidate.sigla_uf,
-      municipality: candidate.nome_municipio,
-      municipality_code: candidate.codigo_municipio,
-      position: candidate.cargo === 'PREFEITO' ? 'Prefeito' : 'Vereador',
-      level: 'municipal',
-      external_id: candidate.numero_candidato,
-      source: 'tse',
-      status: 'pending',
-      current_mandate: candidate.situacao_turno === 'ELEITO'
-    };
-  }
+  
 }
 
 // Exportar instância para uso direto

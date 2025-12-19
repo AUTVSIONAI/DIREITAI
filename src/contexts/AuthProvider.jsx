@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, resendConfirmation } from '../lib/supabase'
 import { apiClient } from '../lib/api'
 import { AuthContext } from './AuthContext'
@@ -8,6 +8,18 @@ const AuthProvider = ({ children }) => {
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [fetchingProfile, setFetchingProfile] = useState(false)
+
+  const lastProfileFetchRef = useRef(0)
+
+  const normalizeRole = (raw) => {
+    const r = String(raw || '').toLowerCase()
+    if (!r) return 'user'
+    if (['admin', 'super_admin', 'moderator'].includes(r)) return r
+    if (['politician', 'politico', 'político', 'politico_teste', 'politician_test'].includes(r)) return 'politician'
+    if (['journalist', 'jornalista'].includes(r)) return 'journalist'
+    if (['party', 'partido'].includes(r)) return 'party'
+    return 'user'
+  }
 
   const fetchUserProfile = useCallback(async (currentUser) => {
     if (!currentUser) {
@@ -28,14 +40,22 @@ const AuthProvider = ({ children }) => {
 
       if (cachedProfile && cacheTime && (Date.now() - parseInt(cacheTime)) < 300000) {
         const parsedProfile = JSON.parse(cachedProfile);
-        setUserProfile(parsedProfile);
-        return;
+        const metaRole = currentUser?.user_metadata?.role;
+        if (!metaRole || parsedProfile?.role === metaRole) {
+          setUserProfile(parsedProfile);
+          return;
+        }
       }
 
       let dbUser = null
       try {
-        const resp = await apiClient.get('/auth/me')
-        dbUser = resp?.data?.profile || null
+        const now = Date.now()
+        const tooSoon = (now - (lastProfileFetchRef.current || 0)) < 10000
+        if (!tooSoon) {
+          const resp = await apiClient.get('/auth/me')
+          dbUser = resp?.data?.profile || null
+          lastProfileFetchRef.current = now
+        }
       } catch (e) {
         console.warn('Falha ao obter perfil via backend:', e?.message || e)
       }
@@ -56,7 +76,10 @@ const AuthProvider = ({ children }) => {
           phone: currentUser?.user_metadata?.phone || '',
           birth_date: currentUser?.user_metadata?.birth_date || '',
           is_admin: currentUser?.email === 'admin@direitai.com',
-          email_confirmed_at: currentUser?.email_confirmed_at
+          role: normalizeRole(currentUser?.user_metadata?.role) || (currentUser?.email === 'admin@direitai.com' ? 'admin' : 'user'),
+          email_confirmed_at: currentUser?.email_confirmed_at,
+          party: currentUser?.user_metadata?.party || '',
+          politician_id: currentUser?.user_metadata?.politician_id || null
         };
       } else {
         finalProfile = {
@@ -75,7 +98,9 @@ const AuthProvider = ({ children }) => {
           email_confirmed_at: currentUser?.email_confirmed_at,
           plan: dbUser.plan || 'gratuito',
           points: dbUser.points || 0,
-          role: dbUser.role || (dbUser.is_admin ? 'admin' : 'user')
+          role: normalizeRole(dbUser.role || currentUser?.user_metadata?.role || (dbUser.is_admin ? 'admin' : 'user')),
+          party: dbUser.party || currentUser?.user_metadata?.party || '',
+          politician_id: dbUser.politician_id || currentUser?.user_metadata?.politician_id || null
         };
       }
 
@@ -105,7 +130,11 @@ const AuthProvider = ({ children }) => {
             try { apiClient.setAuthToken(token); } catch {}
           }
           setLoading(false);
-          fetchUserProfile(session.user);
+          const now = Date.now()
+          const tooSoon = (now - (lastProfileFetchRef.current || 0)) < 10000
+          if (!tooSoon || event === 'SIGNED_IN') {
+            fetchUserProfile(session.user);
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         if (user?.id) {

@@ -46,11 +46,11 @@ const RSVPParticipantsList: React.FC<RSVPParticipantsListProps> = ({
         ? await RSVPService.getEventParticipants(itemId)
         : await RSVPService.getManifestationParticipants(itemId);
 
-      if (response.success && response.participants) {
-        let filteredParticipants = response.participants;
+      if (response.success && response.data) {
+        let filteredParticipants = response.data;
         
         if (showOnlyConfirmed) {
-          filteredParticipants = response.participants.filter(p => p.status === 'vai');
+          filteredParticipants = response.data.filter(p => p.status === 'vai');
         }
         
         setParticipants(filteredParticipants);

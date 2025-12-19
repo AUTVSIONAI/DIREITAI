@@ -54,7 +54,7 @@ export class AuthService {
         password: userData.password,
         options: {
           data: {
-            full_name: userData.fullName,
+            full_name: userData.full_name,
             username: userData.username
           }
         }
@@ -66,20 +66,25 @@ export class AuthService {
 
       // Criar perfil do usuário
       if (data.user) {
-        await this.createUserProfile({
+        const now = new Date().toISOString();
+        const profile: UserProfile = {
           id: data.user.id,
           email: userData.email,
-          fullName: userData.fullName,
           username: userData.username,
-          avatar: null,
-          bio: null,
+          full_name: userData.full_name || userData.username,
+          plan: 'free',
           role: 'user',
-          isEmailVerified: false,
-          isActive: true,
-          lastLoginAt: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
+          points: 0,
+          level: 1,
+          total_checkins: 0,
+          total_ai_conversations: 0,
+          total_achievements: 0,
+          is_active: true,
+          is_verified: false,
+          created_at: now,
+          updated_at: now
+        };
+        await this.createUserProfile(profile);
       }
 
       return {
@@ -377,29 +382,25 @@ export class AuthService {
   /**
    * Criar preferências padrão do usuário
    */
-  static async createDefaultUserPreferences(userId: string): Promise<UserPreferences> {
+  static async createDefaultUserPreferences(_userId: string): Promise<UserPreferences> {
     const defaultPreferences: UserPreferences = {
-      userId,
       theme: 'system',
       language: 'pt-BR',
       timezone: 'America/Sao_Paulo',
-      emailNotifications: true,
-      pushNotifications: true,
-      smsNotifications: false,
-      marketingEmails: false,
-      weeklyDigest: true,
-      instantNotifications: true,
-      soundEnabled: true,
-      autoPlayVideos: false,
-      showOnlineStatus: true,
-      allowDirectMessages: true,
-      showEmail: false,
-      showPhone: false,
-      twoFactorEnabled: false,
-      loginAlerts: true,
-      dataExportFormat: 'json',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      notifications: {
+        email: true,
+        push: true,
+        events: true,
+        ai: true,
+        achievements: true,
+        marketing: false,
+      },
+      privacy: {
+        profile_visibility: 'public',
+        show_location: true,
+        show_stats: true,
+        show_achievements: true,
+      },
     };
 
     try {
@@ -493,7 +494,7 @@ export class AuthService {
    */
   static async isUsernameAvailable(username: string): Promise<boolean> {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('user_profiles')
         .select('username')
         .eq('username', username)
@@ -515,7 +516,7 @@ export class AuthService {
    */
   static async isEmailAvailable(email: string): Promise<boolean> {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('user_profiles')
         .select('email')
         .eq('email', email)

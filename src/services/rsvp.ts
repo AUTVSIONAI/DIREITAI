@@ -4,7 +4,6 @@ import {
   ManifestationRSVP,
   RSVPStats,
   CreateRSVPData,
-  UpdateRSVPData,
   RSVPParticipant,
   UserEventRSVP,
   UserManifestationRSVP,
@@ -172,11 +171,11 @@ export class RSVPService {
     eventId: string,
     notes?: string
   ): Promise<RSVPResponse<EventRSVP>> {
-    return this.createOrUpdateEventRSVP(eventId, {
-      status: 'vai',
-      notes,
-      notification_enabled: true
-    });
+    const payload: CreateRSVPData = { status: 'vai', notification_enabled: true };
+    if (notes !== undefined) {
+      payload.notes = notes;
+    }
+    return this.createOrUpdateEventRSVP(eventId, payload);
   }
 
   /**
@@ -186,11 +185,11 @@ export class RSVPService {
     eventId: string,
     notes?: string
   ): Promise<RSVPResponse<EventRSVP>> {
-    return this.createOrUpdateEventRSVP(eventId, {
-      status: 'nao_vai',
-      notes,
-      notification_enabled: false
-    });
+    const payload: CreateRSVPData = { status: 'nao_vai', notification_enabled: false };
+    if (notes !== undefined) {
+      payload.notes = notes;
+    }
+    return this.createOrUpdateEventRSVP(eventId, payload);
   }
 
   /**
@@ -200,11 +199,11 @@ export class RSVPService {
     eventId: string,
     notes?: string
   ): Promise<RSVPResponse<EventRSVP>> {
-    return this.createOrUpdateEventRSVP(eventId, {
-      status: 'talvez',
-      notes,
-      notification_enabled: true
-    });
+    const payload: CreateRSVPData = { status: 'talvez', notification_enabled: true };
+    if (notes !== undefined) {
+      payload.notes = notes;
+    }
+    return this.createOrUpdateEventRSVP(eventId, payload);
   }
 
   /**
@@ -214,11 +213,11 @@ export class RSVPService {
     manifestationId: string,
     notes?: string
   ): Promise<RSVPResponse<ManifestationRSVP>> {
-    return this.createOrUpdateManifestationRSVP(manifestationId, {
-      status: 'vai',
-      notes,
-      notification_enabled: true
-    });
+    const payload: CreateRSVPData = { status: 'vai', notification_enabled: true };
+    if (notes !== undefined) {
+      payload.notes = notes;
+    }
+    return this.createOrUpdateManifestationRSVP(manifestationId, payload);
   }
 
   /**
@@ -228,11 +227,11 @@ export class RSVPService {
     manifestationId: string,
     notes?: string
   ): Promise<RSVPResponse<ManifestationRSVP>> {
-    return this.createOrUpdateManifestationRSVP(manifestationId, {
-      status: 'nao_vai',
-      notes,
-      notification_enabled: false
-    });
+    const payload: CreateRSVPData = { status: 'nao_vai', notification_enabled: false };
+    if (notes !== undefined) {
+      payload.notes = notes;
+    }
+    return this.createOrUpdateManifestationRSVP(manifestationId, payload);
   }
 
   /**
@@ -242,11 +241,11 @@ export class RSVPService {
     manifestationId: string,
     notes?: string
   ): Promise<RSVPResponse<ManifestationRSVP>> {
-    return this.createOrUpdateManifestationRSVP(manifestationId, {
-      status: 'talvez',
-      notes,
-      notification_enabled: true
-    });
+    const payload: CreateRSVPData = { status: 'talvez', notification_enabled: true };
+    if (notes !== undefined) {
+      payload.notes = notes;
+    }
+    return this.createOrUpdateManifestationRSVP(manifestationId, payload);
   }
 
   /**
@@ -255,7 +254,7 @@ export class RSVPService {
   static async hasEventRSVP(eventId: string): Promise<boolean> {
     try {
       const response = await this.getUserEventRSVP(eventId);
-      return response.success && response.rsvp !== null;
+      return response.success && !!response.rsvp;
     } catch (error) {
       return false;
     }
@@ -267,7 +266,7 @@ export class RSVPService {
   static async hasManifestationRSVP(manifestationId: string): Promise<boolean> {
     try {
       const response = await this.getUserManifestationRSVP(manifestationId);
-      return response.success && response.rsvp !== null;
+      return response.success && !!response.rsvp;
     } catch (error) {
       return false;
     }

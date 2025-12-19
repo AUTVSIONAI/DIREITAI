@@ -1,5 +1,4 @@
 import { apiClient } from "../lib/api";
-import axios from 'axios'
 
 export interface Product {
   id: number;
@@ -165,7 +164,6 @@ class StoreManagementService {
 
   async uploadProductImage(formData: FormData): Promise<{ data: { imageUrl: string } }> {
     const response = await apiClient.post('/store/upload/image', formData, {
-      onUploadProgress: undefined,
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     const payload: any = response.data
@@ -174,7 +172,6 @@ class StoreManagementService {
   }
   async uploadProductFile(formData: FormData) {
     const response = await apiClient.post('/store/upload/file', formData, {
-      onUploadProgress: undefined,
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     const payload: any = response.data

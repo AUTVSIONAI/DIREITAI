@@ -75,7 +75,7 @@ const ResetPassword: React.FC = () => {
     checkRecoverySession();
 
     // Listener para eventos de auth (ex.: PASSWORD_RECOVERY)
-    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event: any) => {
       if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setReady(true);
         setError(null);

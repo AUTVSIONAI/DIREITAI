@@ -5,6 +5,7 @@ import {
   EventRSVP,
   ManifestationRSVP,
   RSVPStats,
+  CreateRSVPData,
   getRSVPStatusLabel,
   getRSVPStatusColor,
   getRSVPStatusIcon
@@ -88,11 +89,14 @@ const RSVPButton: React.FC<RSVPButtonProps> = ({
     try {
       setLoading(true);
       
-      const rsvpData = {
+      const rsvpData: CreateRSVPData = {
         status: pendingStatus,
-        notes: notes.trim() || undefined,
         notification_enabled: pendingStatus !== 'nao_vai'
       };
+      const trimmedNotes = notes.trim();
+      if (trimmedNotes) {
+        (rsvpData as any).notes = trimmedNotes;
+      }
 
       const response = type === 'event'
         ? await RSVPService.createOrUpdateEventRSVP(itemId, rsvpData)

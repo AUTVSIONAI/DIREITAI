@@ -3,7 +3,7 @@ import { useForm as useReactHookForm, UseFormProps, FieldValues, Path, PathValue
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'react-hot-toast';
-import type { ZodSchema, ZodError } from 'zod';
+import type { ZodSchema } from 'zod';
 
 /**
  * Hook personalizado para formulários com validação Zod
@@ -12,11 +12,15 @@ export const useForm = <TFieldValues extends FieldValues = FieldValues>(
   schema?: ZodSchema<TFieldValues>,
   options?: UseFormProps<TFieldValues>
 ) => {
-  const form = useReactHookForm<TFieldValues>({
-    resolver: schema ? zodResolver(schema) : undefined,
+  const baseOptions: UseFormProps<TFieldValues> = {
     mode: 'onChange',
-    ...options
-  });
+    ...(options || {})
+  };
+  if (schema) {
+    (baseOptions as any).resolver = zodResolver(schema) as any;
+  }
+
+  const form = useReactHookForm<TFieldValues>(baseOptions);
 
   const {
     handleSubmit,
@@ -37,7 +41,7 @@ export const useForm = <TFieldValues extends FieldValues = FieldValues>(
       return handleSubmit(async (data) => {
         try {
           setHasSubmitted(true);
-          await submitFn(data);
+          await submitFn(data as any);
         } catch (error) {
           console.error('Erro ao submeter formulário:', error);
           
@@ -55,7 +59,7 @@ export const useForm = <TFieldValues extends FieldValues = FieldValues>(
   // Função para resetar o formulário
   const resetForm = useCallback(
     (values?: Partial<TFieldValues>) => {
-      reset(values);
+      reset(values as any);
       setHasSubmitted(false);
     },
     [reset]
@@ -114,7 +118,10 @@ export const useForm = <TFieldValues extends FieldValues = FieldValues>(
   // Função para observar mudanças em campos específicos
   const watchFields = useCallback(
     (fieldNames?: Path<TFieldValues> | Path<TFieldValues>[]) => {
-      return watch(fieldNames);
+      if (typeof fieldNames === 'undefined') {
+        return watch();
+      }
+      return watch(fieldNames as any);
     },
     [watch]
   );
@@ -154,7 +161,7 @@ export const useValidation = <T = any>(schema: ZodSchema<T>) => {
         setIsValid(true);
         return true;
       } catch (error) {
-        if (error instanceof ZodError) {
+        if (error instanceof z.ZodError) {
           const fieldErrors: Record<string, string> = {};
           error.errors.forEach((err) => {
             const path = err.path.join('.');
@@ -172,11 +179,17 @@ export const useValidation = <T = any>(schema: ZodSchema<T>) => {
   const validateField = useCallback(
     (fieldName: string, value: unknown): boolean => {
       try {
-        // Cria um schema parcial para validar apenas o campo específico
-        const fieldSchema = schema.pick({ [fieldName]: true } as any);
-        fieldSchema.parse({ [fieldName]: value });
+        const anySchema: any = schema;
+        if (anySchema && typeof anySchema.pick === 'function') {
+          const fieldSchema = anySchema.pick({ [fieldName]: true } as any);
+          fieldSchema.parse({ [fieldName]: value });
+        } else if (anySchema && typeof anySchema.partial === 'function') {
+          const partialSchema = anySchema.partial();
+          partialSchema.parse({ [fieldName]: value });
+        } else {
+          z.object({ [fieldName]: z.any() }).parse({ [fieldName]: value });
+        }
         
-        // Remove o erro do campo se a validação passou
         setErrors(prev => {
           const newErrors = { ...prev };
           delete newErrors[fieldName];
@@ -185,7 +198,7 @@ export const useValidation = <T = any>(schema: ZodSchema<T>) => {
         
         return true;
       } catch (error) {
-        if (error instanceof ZodError) {
+        if (error instanceof z.ZodError) {
           const fieldError = error.errors.find(err => err.path.join('.') === fieldName);
           if (fieldError) {
             setErrors(prev => ({
@@ -401,7 +414,6 @@ export const useFormExitConfirmation = <T extends FieldValues>(
       if (isDirty) {
         e.preventDefault();
         e.returnValue = message;
-        return message;
       }
     };
 

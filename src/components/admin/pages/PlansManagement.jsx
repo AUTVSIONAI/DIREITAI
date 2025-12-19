@@ -242,13 +242,58 @@ const PlansManagement = () => {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Gerenciamento de Planos</h1>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-        >
-          <Plus size={20} />
-          Novo Plano
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const existingSlugs = new Set((plans || []).map(p => String(p.slug || '').toLowerCase()))
+                const required = [
+                  { slug: 'gratuito', name: 'Patriota Gratuito', description: '', price_monthly: 0, price_yearly: 0, features: [], limits: { ai_conversations: 10, fake_news_analyses: 1 }, is_active: true, is_popular: false, is_visible: true, sort_order: 0, color: 'gray', icon: 'Users' },
+                  { slug: 'patriota', name: 'Patriota', description: '', price_monthly: 9.90, price_yearly: 99.00, features: [], limits: { ai_conversations: 20, fake_news_analyses: 2 }, is_active: true, is_popular: false, is_visible: true, sort_order: 1, color: 'blue', icon: 'Star' },
+                  { slug: 'cidadao', name: 'Patriota Cidadão', description: '', price_monthly: 19.90, price_yearly: 199.00, features: [], limits: { ai_conversations: 50, fake_news_analyses: 5 }, is_active: true, is_popular: false, is_visible: true, sort_order: 2, color: 'blue', icon: 'Star' },
+                  { slug: 'premium', name: 'Patriota Premium', description: '', price_monthly: 39.90, price_yearly: 399.00, features: [], limits: { ai_conversations: 100, fake_news_analyses: 10 }, is_active: true, is_popular: true, is_visible: true, sort_order: 3, color: 'green', icon: 'Zap' },
+                  { slug: 'pro', name: 'Patriota Pro', description: '', price_monthly: 69.90, price_yearly: 699.00, features: [], limits: { ai_conversations: -1, fake_news_analyses: 20 }, is_active: true, is_popular: false, is_visible: true, sort_order: 4, color: 'purple', icon: 'Crown' },
+                  { slug: 'elite', name: 'Patriota Elite', description: '', price_monthly: 119.90, price_yearly: 1199.00, features: [], limits: { ai_conversations: -1, fake_news_analyses: -1 }, is_active: true, is_popular: false, is_visible: true, sort_order: 5, color: 'yellow', icon: 'Trophy' },
+                ]
+                let created = 0
+                for (const plan of required) {
+                  if (existingSlugs.has(plan.slug)) continue
+                  const resp = await apiClient.post('/plans', {
+                    name: plan.name,
+                    slug: plan.slug,
+                    description: plan.description,
+                    price_monthly: plan.price_monthly,
+                    price_yearly: plan.price_yearly,
+                    features: plan.features,
+                    limits: plan.limits,
+                    is_active: plan.is_active,
+                    is_popular: plan.is_popular,
+                    is_visible: plan.is_visible,
+                    sort_order: plan.sort_order,
+                    color: plan.color,
+                    icon: plan.icon,
+                  })
+                  if (resp?.success) created += 1
+                }
+                await fetchPlans()
+                alert(`Seed concluído. Planos criados: ${created}`)
+              } catch (e) {
+                console.error('Erro ao semear planos:', e)
+                alert('Erro ao semear planos B2B')
+              }
+            }}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
+          >
+            Semear Planos B2B
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+          >
+            <Plus size={20} />
+            Novo Plano
+          </button>
+        </div>
       </div>
 
       {showForm && (

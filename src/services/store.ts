@@ -6,7 +6,6 @@ import type {
   CartItem,
   Cart,
   Order,
-  OrderItem,
   Address,
   Coupon,
   PaymentMethod,
@@ -48,20 +47,24 @@ export class StoreService {
 
     if (filters) {
       if (filters.category) params.append('category', filters.category);
-      if (filters.status) params.append('status', filters.status);
-      if (filters.type) params.append('type', filters.type);
-      if (filters.minPrice !== undefined) params.append('minPrice', filters.minPrice.toString());
-      if (filters.maxPrice !== undefined) params.append('maxPrice', filters.maxPrice.toString());
-      if (filters.inStock !== undefined) params.append('inStock', filters.inStock.toString());
-      if (filters.featured !== undefined) params.append('featured', filters.featured.toString());
-      if (filters.onSale !== undefined) params.append('onSale', filters.onSale.toString());
-      if (filters.brand) params.append('brand', filters.brand);
-      if (filters.tags) {
-        filters.tags.forEach(tag => params.append('tags', tag));
+      if ((filters as any).type) params.append('type', (filters as any).type);
+      if ((filters as any).price_min !== undefined) params.append('price_min', (filters as any).price_min.toString());
+      if ((filters as any).price_max !== undefined) params.append('price_max', (filters as any).price_max.toString());
+      if ((filters as any).in_stock !== undefined) params.append('in_stock', (filters as any).in_stock.toString());
+      if ((filters as any).is_featured !== undefined) params.append('is_featured', (filters as any).is_featured.toString());
+      if ((filters as any).is_on_sale !== undefined) params.append('is_on_sale', (filters as any).is_on_sale.toString());
+      if ((filters as any).tags) {
+        (filters as any).tags.forEach((tag: string) => params.append('tags', tag));
       }
-      if (filters.search) params.append('search', filters.search);
-      if (filters.sortBy) params.append('sortBy', filters.sortBy);
-      if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
+      if ((filters as any).search) params.append('search', (filters as any).search);
+      if ((filters as any).sort_by) {
+        params.append('sort_by', (filters as any).sort_by);
+        params.append('sortBy', (filters as any).sort_by);
+      }
+      if ((filters as any).sort_order) {
+        params.append('sort_order', (filters as any).sort_order);
+        params.append('sortOrder', (filters as any).sort_order);
+      }
     }
 
     const response = await apiClient.get(`/products?${params.toString()}`);

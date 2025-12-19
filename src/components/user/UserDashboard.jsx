@@ -2,6 +2,7 @@ import React, { useState, Suspense, lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import { useAuth } from '../../contexts/AuthContext'
 
 // Componente de loading para páginas internas
 const PageLoader = () => (
@@ -24,10 +25,15 @@ const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'))
 const Agents = lazy(() => import('./pages/Agents'))
 const EventMap = lazy(() => import('./pages/EventMap'))
 const Affiliates = lazy(() => import('./pages/Affiliates'))
+const RoleAdmin = lazy(() => import('./pages/RoleAdmin'))
+const SuggestionsManagement = lazy(() => import('../admin/pages/SuggestionsManagement'))
 
 
 const UserDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { userProfile } = useAuth()
+  const role = String(userProfile?.role || '').toLowerCase()
+  const isPolitician = role === 'politician'
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -43,11 +49,11 @@ const UserDashboard = () => {
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
           <Suspense fallback={<PageLoader />}>
             <Routes>
-            <Route path="/" element={<Overview />} />
+            <Route path="/" element={isPolitician ? <Agents onlyMyAgent={true} /> : <Overview />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/direitagpt" element={<UnifiedAI />} />
             <Route path="/creative" element={<UnifiedAI />} />
-            <Route path="/agents" element={<Agents />} />
+            <Route path="/agents" element={<Agents onlyMyAgent={isPolitician} />} />
             <Route path="/checkin" element={<CheckIn />} />
             <Route path="/ranking" element={<Ranking />} />
             <Route path="/store" element={<Store />} />
@@ -57,6 +63,8 @@ const UserDashboard = () => {
             <Route path="plan" element={<Plan />} />
             <Route path="/events" element={<EventMap />} />
             <Route path="/affiliates" element={<Affiliates />} />
+            <Route path="/admin-role" element={<RoleAdmin />} />
+            <Route path="/suggestions" element={<SuggestionsManagement />} />
 
             </Routes>
           </Suspense>

@@ -12,20 +12,26 @@ afterEach(() => {
 });
 
 // Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
-  constructor() {}
-  disconnect() {}
-  observe() {}
-  unobserve() {}
-};
+class MockIntersectionObserver implements IntersectionObserver {
+  readonly root: Element | Document | null = null;
+  readonly rootMargin: string = '';
+  readonly thresholds: ReadonlyArray<number> = [0];
+  constructor(_callback: IntersectionObserverCallback, _options?: IntersectionObserverInit) {}
+  disconnect(): void {}
+  observe(_target: Element): void {}
+  unobserve(_target: Element): void {}
+  takeRecords(): IntersectionObserverEntry[] { return []; }
+}
+(global as any).IntersectionObserver = MockIntersectionObserver as any;
 
 // Mock ResizeObserver
-global.ResizeObserver = class ResizeObserver {
-  constructor() {}
-  disconnect() {}
-  observe() {}
-  unobserve() {}
-};
+class MockResizeObserver implements ResizeObserver {
+  constructor(_callback: ResizeObserverCallback) {}
+  disconnect(): void {}
+  observe(_target: Element, _options?: ResizeObserverOptions): void {}
+  unobserve(_target: Element): void {}
+}
+(global as any).ResizeObserver = MockResizeObserver as any;
 
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -49,7 +55,15 @@ Object.defineProperty(window, 'scrollTo', {
 });
 
 // Mock localStorage
-const localStorageMock = {
+interface LocalStorageMock {
+  [key: string]: any;
+  getItem: (key: string) => any;
+  setItem: (key: string, value: string) => void;
+  removeItem: (key: string) => void;
+  clear: () => void;
+}
+
+const localStorageMock: LocalStorageMock = {
   getItem: (key: string) => {
     return localStorageMock[key] || null;
   },

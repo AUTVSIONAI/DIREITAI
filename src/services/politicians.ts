@@ -327,19 +327,22 @@ export class PoliticiansService {
    * Converte dados de deputado para formato padrão
    */
   private static convertDeputadoData(deputado: DeputadoCamara): PoliticianSyncData {
-    return {
+    const base: PoliticianSyncData = {
       name: deputado.nome,
       full_name: deputado.nome,
       party: deputado.siglaPartido,
       state: deputado.siglaUf,
       position: 'deputado',
       photo_url: deputado.urlFoto,
-      email: deputado.email,
       external_id: deputado.id.toString(),
       source: 'camara',
       legislature_id: deputado.idLegislatura,
       status: 'pending'
     };
+    if (deputado.email !== undefined) {
+      base.email = deputado.email;
+    }
+    return base;
   }
 
   /**
@@ -347,18 +350,21 @@ export class PoliticiansService {
    */
   private static convertSenadorData(senador: SenadorSenado): PoliticianSyncData {
     const identificacao = senador.IdentificacaoParlamentar;
-    return {
+    const base: PoliticianSyncData = {
       name: identificacao.NomeParlamentar,
       full_name: identificacao.NomeCompletoParlamentar,
       party: identificacao.SiglaPartidoParlamentar,
       state: identificacao.UfParlamentar,
       position: 'senador',
       photo_url: identificacao.UrlFotoParlamentar,
-      email: identificacao.EmailParlamentar,
       external_id: identificacao.CodigoParlamentar,
       source: 'senado',
       status: 'pending'
     };
+    if (identificacao.EmailParlamentar !== undefined) {
+      base.email = identificacao.EmailParlamentar;
+    }
+    return base;
   }
 
   /**

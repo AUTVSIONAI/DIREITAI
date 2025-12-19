@@ -72,31 +72,37 @@ class ApiClientImpl implements ApiClient {
     }
     
     if (!this.axiosInstance.defaults) {
-      this.axiosInstance.defaults = {};
+      this.axiosInstance.defaults = {} as any;
     }
     
     if (!this.axiosInstance.defaults.headers) {
-      this.axiosInstance.defaults.headers = {};
+      this.axiosInstance.defaults.headers = {
+        common: {},
+        get: {},
+        post: {},
+        put: {},
+        delete: {}
+      } as any;
     }
     
     if (!this.axiosInstance.defaults.headers.common) {
-      this.axiosInstance.defaults.headers.common = {};
+      this.axiosInstance.defaults.headers.common = {} as any;
     }
     
     if (!this.axiosInstance.defaults.headers.get) {
-      this.axiosInstance.defaults.headers.get = {};
+      this.axiosInstance.defaults.headers.get = {} as any;
     }
     
     if (!this.axiosInstance.defaults.headers.post) {
-      this.axiosInstance.defaults.headers.post = {};
+      this.axiosInstance.defaults.headers.post = {} as any;
     }
     
     if (!this.axiosInstance.defaults.headers.put) {
-      this.axiosInstance.defaults.headers.put = {};
+      this.axiosInstance.defaults.headers.put = {} as any;
     }
     
     if (!this.axiosInstance.defaults.headers.delete) {
-      this.axiosInstance.defaults.headers.delete = {};
+      this.axiosInstance.defaults.headers.delete = {} as any;
     }
   }
 
@@ -207,12 +213,12 @@ class ApiClientImpl implements ApiClient {
             config = { headers: {} } as any;
           }
         }
-        this.metrics.totalRequests++;
+        this.metrics.totalRequests = (this.metrics.totalRequests ?? 0) + 1;
         this.metrics.lastRequestTime = new Date();
         return config;
       },
       (error) => {
-        this.metrics.failedRequests++;
+        this.metrics.failedRequests = (this.metrics.failedRequests ?? 0) + 1;
         return Promise.reject(error);
       }
     );
@@ -220,7 +226,7 @@ class ApiClientImpl implements ApiClient {
     // Interceptor para tratar respostas e erros
       this.axiosInstance.interceptors.response.use(
         (response: AxiosResponse) => {
-          this.metrics.successfulRequests++;
+          this.metrics.successfulRequests = (this.metrics.successfulRequests ?? 0) + 1;
           try {
             const urlPath = String(response?.config?.url || '').toLowerCase();
             const method = String(response?.config?.method || 'get').toLowerCase();
@@ -240,7 +246,7 @@ class ApiClientImpl implements ApiClient {
           return response;
         },
         async (error) => {
-          this.metrics.failedRequests++;
+          this.metrics.failedRequests = (this.metrics.failedRequests ?? 0) + 1;
           try {
             const cfg = error?.config || {};
             const url = cfg?.url || '';
@@ -263,7 +269,8 @@ class ApiClientImpl implements ApiClient {
             const status = error?.response?.status;
             const isAuthCheck = url.includes('/auth/me');
             const isProtectedPost = (method === 'post') && (url.includes('/manifestations') || url.includes('/agents'));
-            const shouldRetry = status === 401 && (isAuthCheck || isProtectedPost) && !cfg.__retryOnce;
+            // Evitar duplicar tentativas para /auth/me; deixar tratamento para makeRequest
+            const shouldRetry = status === 401 && !isAuthCheck && isProtectedPost && !cfg.__retryOnce;
             if (shouldRetry) {
               try {
                 // Somente tentar refresh se houver sessão e refresh_token disponível
@@ -307,17 +314,19 @@ class ApiClientImpl implements ApiClient {
       
       // Atualizar métricas de tempo de resposta
       const responseTime = endTime - startTime;
-      this.metrics.averageResponseTime = 
-        (this.metrics.averageResponseTime + responseTime) / 2;
-      this.metrics.successfulRequests++;
+      const currentAvg = this.metrics.averageResponseTime ?? 0;
+      this.metrics.averageResponseTime = (currentAvg + responseTime) / 2;
+      this.metrics.successfulRequests = (this.metrics.successfulRequests ?? 0) + 1;
       
       // Verificação defensiva para response e headers
       const safeResponse = response || {};
       const safeHeaders = safeResponse.headers || {};
       const statusCode = safeResponse.status || 200;
+      const urlPath = String(config?.url || '').toLowerCase();
+      const method = String(config?.method || 'get').toLowerCase();
 
       // Se o backend local retornar erro de rede (status 0), tentar fallback automático para produção
-      const isLocalApi = API_BASE_URL.includes('localhost:5120') || API_BASE_URL.includes('127.0.0.1:5120') || API_BASE_URL.startsWith('/api');
+      const isLocalApi = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1') || API_BASE_URL.startsWith('/api');
       if (isLocalApi && (statusCode === 0)) {
         try {
           const altConfig: AxiosRequestConfig = {
@@ -325,10 +334,11 @@ class ApiClientImpl implements ApiClient {
             baseURL: 'https://direitai-backend.vercel.app/api',
           };
           const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization;
-          altConfig.headers = { ...(config?.headers || {}) } as any;
-          if (authHeader && !altConfig.headers.Authorization) {
-            (altConfig.headers as any).Authorization = authHeader;
+          const headers: any = { ...(config?.headers || {}) };
+          if (authHeader && !headers.Authorization) {
+            headers.Authorization = authHeader;
           }
+          altConfig.headers = headers;
           const altResponse = await axios.request(altConfig);
           const altSafeResponse = altResponse || {};
           const altSafeHeaders = altSafeResponse.headers || {};
@@ -344,6 +354,104 @@ class ApiClientImpl implements ApiClient {
         }
       }
       
+      // Tratamento de 401 sem erro (por validateStatus < 500): tentar refresh e refazer uma vez
+      if (statusCode === 401) {
+        const isCritical401 = urlPath.includes('/auth/me') || urlPath.includes('/manifestations');
+        const alreadyRetried = (config as any).__retry401Once === true;
+        if (isCritical401 && !alreadyRetried) {
+          try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const hasRefresh = !!sessionData?.session?.refresh_token;
+            if (hasRefresh) {
+              await supabase.auth.refreshSession();
+            }
+            const { data: updated } = await supabase.auth.getSession();
+            const token = updated?.session?.access_token;
+            if (token) {
+              if (!this.axiosInstance.defaults.headers) this.axiosInstance.defaults.headers = {} as any;
+              if (!this.axiosInstance.defaults.headers.common) this.axiosInstance.defaults.headers.common = {} as any;
+              this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+              const retryCfg: AxiosRequestConfig = { ...config };
+              retryCfg.headers = { ...(retryCfg.headers || {}) } as any;
+              (retryCfg.headers as any).Authorization = `Bearer ${token}`;
+              (retryCfg as any).__retry401Once = true;
+              const retryResp = await this.axiosInstance.request(retryCfg);
+              const retrySafeResp = retryResp || {};
+              const retrySafeHeaders = retrySafeResp.headers || {};
+              return {
+                data: retrySafeResp.data,
+                status: retrySafeResp.status || 200,
+                statusText: retrySafeResp.statusText,
+                headers: retrySafeHeaders,
+                success: (retrySafeResp.status || 200) < 400
+              };
+            }
+          } catch {}
+        }
+      }
+
+      if (statusCode === 403) {
+        const isCritical403 = urlPath.includes('/manifestations') || urlPath.includes('/events');
+        const alreadyRetried403 = (config as any).__retry403Once === true;
+        if (isCritical403 && !alreadyRetried403) {
+          try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const hasRefresh = !!sessionData?.session?.refresh_token;
+            if (hasRefresh) {
+              await supabase.auth.refreshSession();
+            }
+            const { data: updated } = await supabase.auth.getSession();
+            const token = updated?.session?.access_token;
+            if (token) {
+              if (!this.axiosInstance.defaults.headers) this.axiosInstance.defaults.headers = {} as any;
+              if (!this.axiosInstance.defaults.headers.common) this.axiosInstance.defaults.headers.common = {} as any;
+              this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+              const retryCfg: AxiosRequestConfig = { ...config };
+              retryCfg.headers = { ...(retryCfg.headers || {}) } as any;
+              (retryCfg.headers as any).Authorization = `Bearer ${token}`;
+              (retryCfg as any).__retry403Once = true;
+              const retryResp = await this.axiosInstance.request(retryCfg);
+              const retrySafeResp = retryResp || {};
+              const retrySafeHeaders = retrySafeResp.headers || {};
+              return {
+                data: retrySafeResp.data,
+                status: retrySafeResp.status || 200,
+                statusText: retrySafeResp.statusText,
+                headers: retrySafeHeaders,
+                success: (retrySafeResp.status || 200) < 400
+              };
+            }
+          } catch {}
+        }
+      }
+
+      if (isLocalApi && (statusCode === 401 || statusCode === 403)) {
+        const alreadyFallback = (config as any).__fallbackAuthTried === true;
+        if (!alreadyFallback) {
+          try {
+            const altConfig: AxiosRequestConfig = { ...config, baseURL: 'https://direitai-backend.vercel.app/api' };
+            const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization as string | undefined;
+            const headers: any = { ...(config?.headers || {}), ...(altConfig.headers || {}) };
+            const hasAuth = !!headers.Authorization;
+            if (authHeader && !hasAuth) {
+              headers.Authorization = authHeader;
+            }
+            altConfig.headers = headers;
+            (altConfig as any).__fallbackAuthTried = true;
+            const altResponse = await axios.request(altConfig);
+            const altSafeResponse = altResponse || {};
+            const altSafeHeaders = altSafeResponse.headers || {};
+            return {
+              data: altSafeResponse.data,
+              status: altSafeResponse.status || 200,
+              statusText: altSafeResponse.statusText,
+              headers: altSafeHeaders,
+              success: true
+            };
+          } catch {}
+        }
+      }
+
       return {
         data: safeResponse.data,
         status: statusCode,
@@ -352,9 +460,9 @@ class ApiClientImpl implements ApiClient {
         success: statusCode < 400
       };
     } catch (error: any) {
-      this.metrics.failedRequests++;
+      this.metrics.failedRequests = (this.metrics.failedRequests ?? 0) + 1;
 
-      const isLocalApi = API_BASE_URL.includes('localhost:5120') || API_BASE_URL.includes('127.0.0.1:5120') || API_BASE_URL.startsWith('/api');
+      const isLocalApi = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1') || API_BASE_URL.startsWith('/api');
       const status = error?.response?.status;
       const urlPath = (error?.config?.url || '').toLowerCase();
       const shouldFallbackNetwork = isLocalApi && (status === 0);
@@ -367,11 +475,13 @@ class ApiClientImpl implements ApiClient {
             baseURL: 'https://direitai-backend.vercel.app/api',
           };
           // Preservar token de autorização, se existir
-          const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization;
-          altConfig.headers = { ...(config?.headers || {}) } as any;
-          if (authHeader && !altConfig.headers.Authorization) {
-            (altConfig.headers as any).Authorization = authHeader;
+          const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization as string | undefined;
+          const headers: any = { ...(config?.headers || {}), ...(altConfig.headers || {}) };
+          const hasAuth = !!headers.Authorization;
+          if (authHeader && !hasAuth) {
+            headers.Authorization = authHeader;
           }
+          altConfig.headers = headers;
 
           const response = await axios.request(altConfig);
           const safeResponse = response || {};
@@ -412,11 +522,13 @@ class ApiClientImpl implements ApiClient {
             ...config,
             baseURL: 'https://direitai-backend.vercel.app/api',
           };
-          const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization;
-          altConfig.headers = { ...(config?.headers || {}) } as any;
-          if (authHeader && !altConfig.headers.Authorization) {
-            (altConfig.headers as any).Authorization = authHeader;
+          const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization as string | undefined;
+          const headers: any = { ...(config?.headers || {}), ...(altConfig.headers || {}) };
+          const hasAuth = !!headers.Authorization;
+          if (authHeader && !hasAuth) {
+            headers.Authorization = authHeader;
           }
+          altConfig.headers = headers;
           const response = await axios.request(altConfig);
           const safeResponse = response || {};
           const safeHeaders = safeResponse.headers || {};
@@ -443,11 +555,13 @@ class ApiClientImpl implements ApiClient {
             ...config,
             baseURL: 'https://direitai-backend.vercel.app/api',
           };
-          const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization;
-          altConfig.headers = { ...(config?.headers || {}) } as any;
-          if (authHeader && !altConfig.headers.Authorization) {
-            (altConfig.headers as any).Authorization = authHeader;
+          const authHeader = this.axiosInstance.defaults?.headers?.common?.Authorization as string | undefined;
+          const headers: any = { ...(config?.headers || {}), ...(altConfig.headers || {}) };
+          const hasAuth = !!headers.Authorization;
+          if (authHeader && !hasAuth) {
+            headers.Authorization = authHeader;
           }
+          altConfig.headers = headers;
           (altConfig as any).__fallback401Tried = true;
           const response = await axios.request(altConfig);
           const safeResponse = response || {};
@@ -536,13 +650,14 @@ class ApiClientImpl implements ApiClient {
   }
 
   setAuthToken(token: string): void {
-    if (!this.axiosInstance.defaults.headers) {
-      this.axiosInstance.defaults.headers = {};
-    }
-    if (!this.axiosInstance.defaults.headers.common) {
-      this.axiosInstance.defaults.headers.common = {};
-    }
-    this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    const common = this.axiosInstance.defaults.headers?.common || {};
+    this.axiosInstance.defaults.headers = {
+      ...(this.axiosInstance.defaults.headers || {}),
+      common: {
+        ...common,
+        Authorization: `Bearer ${token}`
+      }
+    } as any;
   }
 
   clearAuthToken(): void {
@@ -573,6 +688,7 @@ class ApiClientImpl implements ApiClient {
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
+
   }
 }
 

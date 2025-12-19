@@ -198,6 +198,16 @@ export interface EventFilters {
   organizer_id?: string;
   tags?: string[];
   search?: string;
+  // aliases usados por serviços
+  type?: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  organizerId?: string;
+  featured?: boolean;
+  hasAvailableSpots?: boolean;
 }
 
 export interface EventStats {

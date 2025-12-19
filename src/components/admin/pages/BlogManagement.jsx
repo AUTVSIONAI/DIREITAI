@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { Plus, Edit, Trash2, Search, Eye, BookOpen, Calendar, Upload } from 'lucide-react'
 import { apiClient } from '../../../lib/api.ts'
 
-const BlogManagement = () => {
+import { useAuth } from '../../../contexts/AuthContext'
+
+const BlogManagement = ({ onlyMyPosts = false }) => {
+  const { userProfile } = useAuth()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -35,7 +38,17 @@ const BlogManagement = () => {
       if (searchTerm) {
         params.search = searchTerm
       }
-      const response = await apiClient.get('/admin/blog', { params })
+      
+      // Se onlyMyPosts for true (jornalista), usa endpoint público ou filtra
+      // Tentativa: usar endpoint /blog com filtro de autor se necessário, 
+      // ou se o backend bloquear /admin/blog para não-admins
+      const endpoint = onlyMyPosts ? '/blog' : '/admin/blog'
+      
+      if (onlyMyPosts && userProfile?.id) {
+        params.author_id = userProfile.id
+      }
+
+      const response = await apiClient.get(endpoint, { params })
       setPosts(response.data.data || [])
     } catch (error) {
       console.error('Erro ao carregar posts:', error)
@@ -106,16 +119,19 @@ const BlogManagement = () => {
       const postData = {
         ...formData,
         cover_image_url: imageUrl,
-        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+        author_id: userProfile?.id // Garante que o autor seja enviado
       }
       
       console.log('📝 Dados do post:', postData)
       
       if (editingPost) {
         console.log('✏️ Atualizando post existente:', editingPost.id)
+        // Para update, usamos PUT
         await apiClient.put(`/blog/${editingPost.id}`, postData)
       } else {
         console.log('➕ Criando novo post')
+        // Para create, usamos POST
         await apiClient.post('/blog', postData)
       }
       
@@ -185,7 +201,11 @@ const BlogManagement = () => {
     const matchesStatus = !filterStatus || 
       (filterStatus === 'published' && post.is_published) ||
       (filterStatus === 'draft' && !post.is_published)
-    return matchesSearch && matchesStatus
+    
+    // Filtro por autor se necessário
+    const matchesAuthor = !onlyMyPosts || (post.author_id === userProfile?.id)
+
+    return matchesSearch && matchesStatus && matchesAuthor
   }) : []
 
   const formatDate = (dateString) => {
@@ -333,12 +353,14 @@ const BlogManagement = () => {
                       >
                         <Edit className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(post.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {(!onlyMyPosts || post.author_id === userProfile?.id) && (
+                        <button
+                          onClick={() => handleDelete(post.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

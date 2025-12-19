@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { EventsService } from '../../../services/events'
 import { apiClient } from '../../../lib/api'
+import { supabase } from '../../../lib/supabase'
 import RSVPButton from '../../common/RSVPButton'
 import RSVPParticipantsList from '../../common/RSVPParticipantsList'
 
@@ -188,7 +189,28 @@ const EventManagement = () => {// Estados
   const handleDeleteEvent = async (event) => {
     if (window.confirm(`Tem certeza que deseja excluir o evento "${event.title}"? Esta ação não pode ser desfeita.`)) {
       try {
-        await EventsService.deleteEvent(event.id)
+        try {
+          await supabase.auth.refreshSession()
+          const { data: sessionData } = await supabase.auth.getSession()
+          const token = sessionData?.session?.access_token
+          if (token) {
+            apiClient.setAuthToken(token)
+          }
+        } catch {}
+        let resp = await apiClient.delete(`/admin/events/${event.id}`)
+        let ok = !!resp && resp.success && (resp.status ?? 200) < 400
+        if (!ok) {
+          resp = await apiClient.delete(`/events/${event.id}`)
+          ok = !!resp && resp.success && (resp.status ?? 200) < 400
+        }
+        if (!ok) {
+          const isForbidden = (resp?.status ?? 0) === 403
+          const defaultMsg = 'Erro ao excluir evento. Verifique suas permissões e tente novamente.'
+          const msg = isForbidden ? 'Ação restrita a administradores. Faça login como admin e tente novamente.' : (resp?.data?.message || resp?.data?.error || defaultMsg)
+          alert(msg)
+          return
+        }
+        setEvents(prev => Array.isArray(prev) ? prev.filter(e => e.id !== event.id) : prev)
         await loadEvents()
         alert('Evento excluído com sucesso!')
       } catch (error) {

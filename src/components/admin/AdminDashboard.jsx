@@ -2,6 +2,7 @@ import React, { useState, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import AdminSidebar from './AdminSidebar'
 import AdminHeader from './AdminHeader'
+import { useAuth } from '../../contexts/AuthContext'
 
 // Lazy load all admin pages for better code splitting
 const Overview = React.lazy(() => import('./pages/Overview'))
@@ -37,6 +38,67 @@ const PageLoader = () => (
 
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { userProfile } = useAuth()
+  const role = String(userProfile?.role || '').toLowerCase()
+  const plan = String(userProfile?.plan || 'gratuito').toLowerCase()
+  const tierOrder = { gratuito: 0, patriota: 1, cidadao: 2, cidadão: 2, premium: 3, pro: 4, elite: 5 }
+  const tier = tierOrder[plan] ?? 0
+
+  const baseByRole = {
+    journalist: ['dashboard', 'blog', 'ratings', 'moderation', 'announcements', 'notifications', 'surveys'],
+    politician: ['dashboard', 'agents', 'events', 'unified-map', 'ratings', 'surveys', 'politicians'],
+    party: ['dashboard', 'events', 'affiliates', 'politicians', 'surveys', 'announcements'],
+    admin: ['all'],
+    super_admin: ['all']
+  }
+
+  const tierUnlocks = {
+    journalist: {
+      0: ['blog', 'surveys'],
+      1: ['ratings'],
+      2: ['moderation'],
+      3: ['announcements'],
+      4: ['notifications'],
+      5: ['blog', 'ratings', 'moderation', 'announcements', 'notifications', 'surveys']
+    },
+    politician: {
+      0: ['agents', 'surveys'],
+      1: ['events'],
+      2: ['unified-map'],
+      3: ['ratings'],
+      4: ['politicians'],
+      5: ['agents', 'events', 'unified-map', 'ratings', 'surveys', 'politicians']
+    },
+    party: {
+      0: ['events'],
+      1: ['affiliates'],
+      2: ['politicians'],
+      3: ['surveys'],
+      4: ['announcements'],
+      5: ['events', 'affiliates', 'politicians', 'surveys', 'announcements']
+    }
+  }
+
+  const can = (section) => {
+    if (!section) return false
+    if (baseByRole[role]?.includes('all')) return true
+    const base = new Set(baseByRole[role] || [])
+    const unlocks = new Set((tierUnlocks[role]?.[tier] || []))
+    const allowed = new Set([...base, ...unlocks])
+    if (section.startsWith('politicians.')) {
+      return allowed.has('politicians')
+    }
+    return allowed.has(section)
+  }
+
+  const NoAccess = () => (
+    <div className="min-h-[300px] flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-xl font-bold text-gray-900 mb-2">Acesso restrito</div>
+        <div className="text-gray-600">Seu plano atual não inclui este módulo administrativo.</div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -53,26 +115,26 @@ const AdminDashboard = () => {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Overview />} />
-              <Route path="/users" element={<UserManagement />} />
-              <Route path="/events" element={<EventManagement />} />
-              <Route path="/politicians" element={<PoliticiansManagement />} />
-              <Route path="/politicians/approval" element={<PoliticianApproval />} />
-              <Route path="/politicians/sync" element={<PoliticianSync />} />
-              <Route path="/agents" element={<AgentsManagement />} />
-              <Route path="/blog" element={<BlogManagement />} />
-              <Route path="/ratings" element={<RatingsManagement />} />
-              <Route path="/surveys" element={<SurveysManagement />} />
+              <Route path="/users" element={can('users') ? <UserManagement /> : <NoAccess />} />
+              <Route path="/events" element={can('events') ? <EventManagement /> : <NoAccess />} />
+              <Route path="/politicians" element={can('politicians') ? <PoliticiansManagement /> : <NoAccess />} />
+              <Route path="/politicians/approval" element={can('politicians.approval') ? <PoliticianApproval /> : <NoAccess />} />
+              <Route path="/politicians/sync" element={can('politicians.sync') ? <PoliticianSync /> : <NoAccess />} />
+              <Route path="/agents" element={can('agents') ? <AgentsManagement /> : <NoAccess />} />
+              <Route path="/blog" element={can('blog') ? <BlogManagement /> : <NoAccess />} />
+              <Route path="/ratings" element={can('ratings') ? <RatingsManagement /> : <NoAccess />} />
+              <Route path="/surveys" element={can('surveys') ? <SurveysManagement /> : <NoAccess />} />
 
-              <Route path="/unified-map" element={<UnifiedLiveMap />} />
-              <Route path="/moderation" element={<ContentModeration />} />
-              <Route path="/store" element={<StoreManagement />} />
-              <Route path="/reports" element={<FinancialReports />} />
-             <Route path="/affiliates" element={<AffiliatesAdmin />} />
-              <Route path="/settings" element={<SystemSettings />} />
-              <Route path="/logs" element={<ApiLogs />} />
-              <Route path="/announcements" element={<Announcements />} />
-              <Route path="/notifications" element={<NotificationsManagement />} />
-              <Route path="/plans" element={<PlansManagement />} />
+              <Route path="/unified-map" element={can('unified-map') ? <UnifiedLiveMap /> : <NoAccess />} />
+              <Route path="/moderation" element={can('moderation') ? <ContentModeration /> : <NoAccess />} />
+              <Route path="/store" element={can('store') ? <StoreManagement /> : <NoAccess />} />
+              <Route path="/reports" element={can('reports') ? <FinancialReports /> : <NoAccess />} />
+             <Route path="/affiliates" element={can('affiliates') ? <AffiliatesAdmin /> : <NoAccess />} />
+              <Route path="/settings" element={can('settings') ? <SystemSettings /> : <NoAccess />} />
+              <Route path="/logs" element={can('logs') ? <ApiLogs /> : <NoAccess />} />
+              <Route path="/announcements" element={can('announcements') ? <Announcements /> : <NoAccess />} />
+              <Route path="/notifications" element={can('notifications') ? <NotificationsManagement /> : <NoAccess />} />
+              <Route path="/plans" element={can('plans') ? <PlansManagement /> : <NoAccess />} />
               <Route path="/payment-success" element={<PaymentSuccess />} />
             </Routes>
           </Suspense>

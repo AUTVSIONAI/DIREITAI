@@ -13,12 +13,10 @@ import {
   ThumbsDown, 
   Flag, 
   ExternalLink,
-  Clock,
   TrendingUp,
   History,
   ArrowLeft,
   Search,
-  Filter,
   Eye,
   Trash2,
   ChevronLeft,
@@ -75,7 +73,6 @@ const VerdadeOuFake = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
   const [fullHistory, setFullHistory] = useState<VerificacaoHistorico[]>([]);
   const [showFullHistory, setShowFullHistory] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -96,7 +93,7 @@ const VerdadeOuFake = () => {
   const [loadingStats, setLoadingStats] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showLimitModal, setShowLimitModal] = useState(false);
-  const [userPlan, setUserPlan] = useState('gratuito');
+  const [userPlan] = useState('gratuito');
   const [limitInfo, setLimitInfo] = useState({});
 
   const getResultIcon = (resultado: string) => {
@@ -238,8 +235,8 @@ const VerdadeOuFake = () => {
         // Verificar se é erro de limite atingido
         if (response.error && response.error.includes('limite diário')) {
           setLimitInfo({
-            limit: response.limit || 'N/A',
-            used: response.used || 'N/A'
+            limit: 'N/A',
+            used: 'N/A'
           });
           setShowLimitModal(true);
           return;
@@ -419,7 +416,7 @@ const VerdadeOuFake = () => {
         })
       });
 
-      if (response.ok) {
+      if (response.success) {
         setFeedbackGiven(true);
         const successMessage = tipo === 'concordo' 
           ? 'Obrigado pelo feedback positivo!' 
@@ -473,7 +470,7 @@ const VerdadeOuFake = () => {
         })
       });
 
-      if (response.ok) {
+      if (response.success) {
         alert('Conteúdo denunciado com sucesso. Nossa equipe irá revisar.');
       }
     } catch (error) {
@@ -1097,11 +1094,8 @@ const VerdadeOuFake = () => {
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                             >
-                              {fonte.titulo}
+                              {fonte.nome}
                             </a>
-                            {fonte.descricao && (
-                              <p className="text-xs text-gray-600 mt-1">{fonte.descricao}</p>
-                            )}
                           </div>
                         ))}
                       </div>

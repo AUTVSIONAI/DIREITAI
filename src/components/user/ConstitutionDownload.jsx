@@ -3,7 +3,7 @@ import { Download, CheckCircle, BookOpen, Award } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { GamificationService } from '../../services/gamification';
 import { ConstitutionService } from '../../services/constitution';
-import { apiRequest } from '../../utils/apiClient';
+// import { apiRequest } from '../../utils/apiClient';
 import { supabase } from '../../lib/supabase';
 
 const ConstitutionDownload = () => {
@@ -95,20 +95,15 @@ const ConstitutionDownload = () => {
 
   const fetchUserPoints = async () => {
     try {
-      // Buscar o user_id correto da tabela users usando o auth_id
-      const userResponse = await apiRequest('/auth/me');
-      if (userResponse.success) {
-        const userData = userResponse.data;
-        const userId = userData.profile.id; // ID da tabela users
-        console.log('🎮 Buscando pontos para userId da tabela users:', userId);
-        const points = await GamificationService.getUserPoints(userId);
-        setUserPoints(points);
-      } else {
-        throw new Error('Não foi possível obter dados do usuário');
+      const userId = userProfile?.id;
+      if (!userId) {
+        throw new Error('User ID não encontrado no perfil');
       }
+      console.log('🎮 Buscando pontos para userId da tabela users:', userId);
+      const points = await GamificationService.getUserPoints(userId);
+      setUserPoints(points);
     } catch (error) {
       console.error('Erro ao buscar pontos:', error);
-      // Definir pontos padrão em caso de erro
       setUserPoints({ total: 0, level: 1, nextLevelPoints: 100 });
     }
   };

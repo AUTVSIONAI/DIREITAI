@@ -22,21 +22,20 @@ export {
   useAuth,
   useIsAuthenticated,
   useUserProfile,
-  useUserPermissions,
-  useIsAdmin,
-  useIsModerator,
   useUserStats,
   useIsEmailVerified,
-  useIsSubscribed,
-  useIsPremium,
-  useIsVip,
+  useHasCompletedOnboarding as useIsOnboardingComplete,
+  useHasActiveSubscription as useIsSubscribed,
+  useCanAccessPremium as useIsPremium,
+  useCanAccessVIP as useIsVip,
   useUserPreferences as useAuthUserPreferences,
-  useIsOnline as useUserOnlineStatus,
+  useIsUserOnline as useUserOnlineStatus,
   useUserAvatar,
   useUserDisplayName,
   useCanEdit,
   useCanDelete,
-  useIsOnboardingComplete
+  useIsAdmin,
+  useIsModerator
 } from './useAuth';
 
 export {
@@ -46,15 +45,15 @@ export {
   useEffectiveTheme,
   useIsLightTheme,
   useIsDarkTheme,
-  useThemeToggle,
+  useToggleTheme as useThemeToggle,
   useThemeClass,
-  useThemeStyle,
+  useThemeStyles as useThemeStyle,
   useThemeColors,
   useSystemThemeChange,
-  useThemePersistence,
-  useThemeDocumentEffect,
-  useReducedMotion,
-  useHighContrast
+  useThemePreferences as useThemePersistence,
+  useApplyTheme as useThemeDocumentEffect,
+  usePrefersReducedMotion as useReducedMotion,
+  usePrefersHighContrast as useHighContrast
 } from './useTheme';
 
 export {

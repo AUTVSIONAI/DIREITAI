@@ -2,7 +2,6 @@ import { apiClient } from '../lib/api';
 import type {
   AIConversation,
   AIMessage,
-  AIGeneration,
   AIModel,
   AIPromptTemplate,
   CreateConversationData,
@@ -23,7 +22,7 @@ export class AIService {
   /**
    * Obter todas as conversas do usuário
    */
-  static async getConversations(userId: string): Promise<AIConversation[]> {
+  static async getConversations(_userId: string): Promise<AIConversation[]> {
     try {
       const response = await fetch('/api/ai/conversations', {
         method: 'GET',
@@ -245,7 +244,8 @@ export class AIService {
               } else if (chunk.type === 'complete') {
                 onComplete(chunk.message!);
               } else if (chunk.type === 'error') {
-                onError(new Error(chunk.error));
+                const msg = typeof chunk.error === 'string' ? chunk.error : (chunk.error?.message ?? 'Erro desconhecido');
+                onError(new Error(msg));
               }
             } catch (parseError) {
               console.error('Erro ao parsear chunk:', parseError);
