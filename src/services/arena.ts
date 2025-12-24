@@ -93,6 +93,27 @@ export const arenaService = {
   sendChatMessage: async (arenaId: string, content: string) => {
     const response = await apiClient.post(`/arenas/${arenaId}/chat`, { content });
     return response.data;
+  },
+
+  // Participants
+  getParticipants: async (arenaId: string) => {
+    const response = await apiClient.get(`/arenas/${arenaId}/participants`);
+    return response.data;
+  },
+
+  inviteUser: async (arenaId: string, userId: string, role: string) => {
+    const response = await apiClient.post(`/arenas/${arenaId}/invite`, { user_id: userId, role });
+    return response.data;
+  },
+
+  updateInviteStatus: async (arenaId: string, status: 'accepted' | 'rejected') => {
+    const response = await apiClient.put(`/arenas/${arenaId}/invite/status`, { status });
+    return response.data;
+  },
+
+  searchUsers: async (query: string) => {
+    const response = await apiClient.get(`/arenas/users/search`, { params: { q: query } });
+    return response.data;
   }
 };
 

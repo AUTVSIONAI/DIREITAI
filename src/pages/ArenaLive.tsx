@@ -5,7 +5,7 @@ import Header from '../components/user/Header';
 import Sidebar from '../components/user/Sidebar';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
-import { Video, Mic, MicOff, VideoOff, Play, Square, Settings, Users } from 'lucide-react';
+import { Video, Mic, MicOff, VideoOff, Play, Square, Settings, Users, UserPlus, Check, X, Search } from 'lucide-react';
 
 const ArenaLive = () => {
   const { id } = useParams<{ id: string }>();
@@ -14,7 +14,15 @@ const ArenaLive = () => {
   const [arena, setArena] = useState<Arena | null>(null);
   const [questions, setQuestions] = useState<ArenaQuestion[]>([]);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Invitation State
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [inviteRole, setInviteRole] = useState('journalist');
+
   const [newQuestion, setNewQuestion] = useState('');
   const [newChatMessage, setNewChatMessage] = useState('');
   const [activeTab, setActiveTab] = useState<'chat' | 'questions'>('questions');
@@ -43,10 +51,12 @@ const ArenaLive = () => {
       loadArena(id);
       loadQuestions(id);
       loadChat(id);
+      loadParticipants(id);
       
       const interval = setInterval(() => {
         loadQuestions(id);
         loadChat(id);
+        loadParticipants(id);
         // Refresh arena status too
         arenaService.getArenaById(id).then(data => {
             if (data.status !== arena?.status) {
@@ -251,6 +261,53 @@ const ArenaLive = () => {
       }
     } catch (error) {
       console.error('Erro ao carregar chat:', error);
+    }
+  };
+
+  const loadParticipants = async (arenaId: string) => {
+    try {
+        const data = await arenaService.getParticipants(arenaId);
+        setParticipants(data);
+    } catch (error) {
+        console.error('Erro ao carregar participantes:', error);
+    }
+  };
+
+  const handleSearchUsers = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    try {
+        const results = await arenaService.searchUsers(searchQuery);
+        setSearchResults(results);
+    } catch (error) {
+        console.error('Erro ao buscar usuários:', error);
+    }
+  };
+
+  const handleInviteUser = async (userId: string) => {
+    if (!id) return;
+    try {
+        await arenaService.inviteUser(id, userId, inviteRole);
+        alert('Convite enviado!');
+        setSearchResults([]);
+        setSearchQuery('');
+        loadParticipants(id);
+    } catch (error) {
+        console.error('Erro ao convidar:', error);
+        alert('Erro ao enviar convite.');
+    }
+  };
+
+  const handleRespondInvite = async (status: 'accepted' | 'rejected') => {
+    if (!id) return;
+    try {
+        await arenaService.updateInviteStatus(id, status);
+        loadParticipants(id);
+        if (status === 'accepted') {
+            alert('Você entrou na arena como participante!');
+        }
+    } catch (error) {
+        console.error('Erro ao responder convite:', error);
     }
   };
 
@@ -567,6 +624,59 @@ const ArenaLive = () => {
             </div>
           )}
         </div>
+
+        {/* Participants Grid */}
+        <div className="bg-gray-900 border-t border-gray-800 p-4">
+             <div className="flex justify-between items-center mb-2">
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Sabatinadores & Convidados</h3>
+                {isBroadcaster && (
+                    <button 
+                        onClick={() => setShowInviteModal(true)}
+                        className="text-xs bg-blue-600 px-2 py-1 rounded hover:bg-blue-500 flex items-center"
+                    >
+                        <UserPlus className="w-3 h-3 mr-1" /> Convidar
+                    </button>
+                )}
+             </div>
+             <div className="flex gap-2 overflow-x-auto pb-2 min-h-[100px]">
+                {participants.map(p => (
+                   <div key={p.id} className="w-32 h-24 bg-gray-800 rounded relative group flex-shrink-0 overflow-hidden border border-gray-700">
+                      {/* Placeholder for video */}
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                          {p.users?.avatar_url ? (
+                              <img src={p.users.avatar_url} className="w-full h-full object-cover opacity-50" />
+                          ) : (
+                              <Users className="w-8 h-8 text-gray-600" />
+                          )}
+                      </div>
+                      
+                      {/* Name Label */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-1">
+                          <p className="text-xs font-bold truncate">{p.users?.full_name}</p>
+                          <p className="text-[10px] text-gray-400 capitalize">{p.role === 'journalist' ? 'Jornalista' : p.role}</p>
+                      </div>
+
+                      {/* Status */}
+                      {p.status === 'invited' && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                              <span className="text-xs text-yellow-400 font-bold animate-pulse">Convidado...</span>
+                          </div>
+                      )}
+                      
+                      {/* Active Video Indicator (Fake for now) */}
+                      {p.status === 'accepted' && (
+                          <div className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></div>
+                      )}
+                   </div>
+                ))}
+                
+                {participants.length === 0 && (
+                    <div className="flex items-center justify-center w-full text-gray-500 text-sm italic">
+                        Nenhum participante convidado.
+                    </div>
+                )}
+             </div>
+          </div>
       </div>
 
       {/* Sidebar - Chat/Questions */}
@@ -727,6 +837,97 @@ const ArenaLive = () => {
             )}
         </div>
       </div>
+      {/* Invitation Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-gray-800 w-full max-w-md rounded-lg border border-gray-700 p-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold">Convidar Participante</h3>
+                    <button onClick={() => setShowInviteModal(false)}><X className="w-6 h-6" /></button>
+                </div>
+                
+                <form onSubmit={handleSearchUsers} className="mb-4">
+                    <div className="flex gap-2">
+                        <input 
+                            type="text" 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Buscar usuário por nome..."
+                            className="flex-1 bg-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button type="submit" className="bg-blue-600 px-3 py-2 rounded hover:bg-blue-500">
+                            <Search className="w-5 h-5" />
+                        </button>
+                    </div>
+                </form>
+
+                <div className="mb-4">
+                    <label className="block text-sm text-gray-400 mb-1">Função</label>
+                    <select 
+                        value={inviteRole}
+                        onChange={(e) => setInviteRole(e.target.value)}
+                        className="w-full bg-gray-700 rounded px-3 py-2 text-white"
+                    >
+                        <option value="journalist">Jornalista</option>
+                        <option value="guest">Convidado</option>
+                        <option value="moderator">Moderador</option>
+                    </select>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto space-y-2">
+                    {searchResults.map(user => (
+                        <div key={user.id} className="flex items-center justify-between bg-gray-700/50 p-2 rounded">
+                            <div className="flex items-center">
+                                <div className="w-8 h-8 rounded-full bg-gray-600 overflow-hidden mr-2">
+                                    {user.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover" /> : null}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-sm">{user.full_name}</p>
+                                    <p className="text-xs text-gray-400">{user.email}</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => handleInviteUser(user.id)}
+                                className="bg-green-600 text-white p-1.5 rounded hover:bg-green-500"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                            </button>
+                        </div>
+                    ))}
+                    {searchResults.length === 0 && searchQuery && (
+                        <p className="text-center text-gray-500 text-sm">Nenhum usuário encontrado.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
+      
+      {/* Invite Acceptance Banner */}
+      {participants.find(p => p.user_id === userProfile?.id && p.status === 'invited') && (
+          <div className="fixed top-0 left-0 right-0 z-50 bg-blue-600 text-white p-4 flex items-center justify-between shadow-lg animate-slideDown">
+              <div className="flex items-center">
+                  <Video className="w-6 h-6 mr-3 animate-pulse" />
+                  <div>
+                      <p className="font-bold">Você foi convidado para participar desta live!</p>
+                      <p className="text-sm opacity-90">Função: {participants.find(p => p.user_id === userProfile?.id)?.role}</p>
+                  </div>
+              </div>
+              <div className="flex gap-2">
+                  <button 
+                      onClick={() => handleRespondInvite('accepted')}
+                      className="bg-white text-blue-600 px-4 py-2 rounded font-bold hover:bg-gray-100"
+                  >
+                      Aceitar e Entrar
+                  </button>
+                  <button 
+                      onClick={() => handleRespondInvite('rejected')}
+                      className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                  >
+                      Recusar
+                  </button>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
