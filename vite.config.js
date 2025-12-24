@@ -35,24 +35,24 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:5120',
+        target: process.env.VITE_API_URL || 'http://localhost:5120',
         changeOrigin: true,
         secure: false,
       },
       '/stripeapi': {
-        target: 'http://localhost:5120',
+        target: process.env.VITE_API_URL || 'http://localhost:5120',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/stripeapi/, '/api'),
       },
       '/api/stripeapi': {
-        target: 'http://localhost:5120',
+        target: process.env.VITE_API_URL || 'http://localhost:5120',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api\/stripeapi/, '/api'),
       },
       '/health': {
-        target: 'http://localhost:5120',
+        target: process.env.VITE_API_URL || 'http://localhost:5120',
         changeOrigin: true,
         secure: false,
       },

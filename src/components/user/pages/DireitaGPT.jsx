@@ -3,7 +3,7 @@ import { Bot, User, Send, Copy, Download, Trash2, Wifi, WifiOff, MessageSquare, 
 import { useAuth } from '../../../hooks/useAuth'
 import { AIService } from '../../../services/ai'
 import { apiClient } from '../../../utils/apiClient'
-import VoiceControls from '../common/VoiceControls'
+import VoiceControls from '../VoiceControls'
 import ConversationList from '../ConversationList'
 
 const DireitaGPT = () => {

@@ -38,6 +38,9 @@ const SurveyDetail = lazy(() => import('./pages/SurveyDetail'))
 const VerdadeOuFake = lazy(() => import('./pages/VerdadeOuFake'))
 const ConstitutionQuiz = lazy(() => import('./components/user/ConstitutionQuiz'))
 const QuizzesPage = lazy(() => import('./pages/Quizzes'))
+const ArenaLobby = lazy(() => import('./pages/ArenaLobby'))
+const ArenaLive = lazy(() => import('./pages/ArenaLive'))
+const ArenaManagement = lazy(() => import('./pages/Admin/ArenaManagement'))
 const ConstitutionQuizLevel2 = lazy(() => import('./components/user/ConstitutionQuizLevel2'))
 const ConstitutionQuizLevel3 = lazy(() => import('./components/user/ConstitutionQuizLevel3'))
 const ConstitutionQuizLevel4 = lazy(() => import('./components/user/ConstitutionQuizLevel4'))
@@ -179,6 +182,10 @@ const AppContent = () => {
           
           {/* Página da Loja */}
           <Route path="/store" element={<Store />} />
+
+          {/* Arena do Povo */}
+          <Route path="/arena" element={<PublicRoute requireAuth={true}><ArenaLobby /></PublicRoute>} />
+          <Route path="/arena/:id" element={<PublicRoute requireAuth={true}><ArenaLive /></PublicRoute>} />
 
           {/* Redirecionamentos para compatibilidade */}
           <Route path="/politicians" element={<Navigate to="/politicos" replace />} />

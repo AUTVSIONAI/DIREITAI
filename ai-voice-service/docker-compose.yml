@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  voice-api:
+    build: .
+    container_name: direitaai-voice
+    ports:
+      - "8005:8005"
+    command: uvicorn main:app --host 0.0.0.0 --port 8005
+    volumes:
+      - .:/app
+      - ./temp_audio:/app/temp_audio
+      - ./stored_voices:/app/stored_voices
+      # Persistir modelos baixados para não baixar toda vez
+      - ./tts_models:/root/.local/share/tts
+    environment:
+      - PYTHONUNBUFFERED=1
+      - COQUI_TOS_AGREED=1
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    # Habilitar GPU se disponível (necessário instalar NVIDIA Container Toolkit no host)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]

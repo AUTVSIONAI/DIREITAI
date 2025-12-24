@@ -11,3 +11,12 @@ build/
 backend-oficial/
 
 party_credentials.txt
+
+# Voice Service
+ai-voice-service/tts_models/
+ai-voice-service/temp_audio/
+ai-voice-service/stored_voices/
+*.wav
+*.mp3
+*.pth
+__pycache__/

@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 const Ranking = () => {
   const { userProfile } = useAuth()
   const navigate = useNavigate()
+  const [selectedType, setSelectedType] = useState('users') // 'users' or 'politicians'
   const [selectedScope, setSelectedScope] = useState('city')
   const [selectedPeriod, setSelectedPeriod] = useState('month')
   const [rankings, setRankings] = useState([])
@@ -15,129 +16,61 @@ const Ranking = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Mock ranking data
-  const mockRankings = {
-    city: {
-      week: [
-        { id: 1, username: 'PatriotaSP', points: 850, checkins: 12, city: 'São Paulo', avatar: null },
-        { id: 2, username: 'DefensorBR', points: 720, checkins: 10, city: 'São Paulo', avatar: null },
-        { id: 3, username: 'ConservadorSP', points: 680, checkins: 9, city: 'São Paulo', avatar: null },
-        { id: 4, username: 'LiberdadeSP', points: 620, checkins: 8, city: 'São Paulo', avatar: null },
-        { id: 5, username: 'TradicionalSP', points: 580, checkins: 7, city: 'São Paulo', avatar: null },
-        { id: 6, username: userProfile?.username || 'Você', points: userProfile?.points || 450, checkins: 6, city: 'São Paulo', avatar: null, isCurrentUser: true },
-      ],
-      month: [
-        { id: 1, username: 'PatriotaSP', points: 2850, checkins: 42, city: 'São Paulo', avatar: null },
-        { id: 2, username: 'DefensorBR', points: 2420, checkins: 38, city: 'São Paulo', avatar: null },
-        { id: 3, username: 'ConservadorSP', points: 2180, checkins: 35, city: 'São Paulo', avatar: null },
-        { id: 4, username: 'LiberdadeSP', points: 1920, checkins: 32, city: 'São Paulo', avatar: null },
-        { id: 5, username: 'TradicionalSP', points: 1780, checkins: 29, city: 'São Paulo', avatar: null },
-        { id: 6, username: userProfile?.username || 'Você', points: userProfile?.points || 1450, checkins: 26, city: 'São Paulo', avatar: null, isCurrentUser: true },
-      ]
-    },
-    state: {
-      week: [
-        { id: 1, username: 'PatriotaSP', points: 850, checkins: 12, city: 'São Paulo', avatar: null },
-        { id: 2, username: 'DefensorRJ', points: 780, checkins: 11, city: 'Rio de Janeiro', avatar: null },
-        { id: 3, username: 'ConservadorBH', points: 720, checkins: 10, city: 'Belo Horizonte', avatar: null },
-        { id: 4, username: 'LiberdadeSP', points: 680, checkins: 9, city: 'São Paulo', avatar: null },
-        { id: 5, username: 'TradicionalSP', points: 620, checkins: 8, city: 'São Paulo', avatar: null },
-        { id: 23, username: userProfile?.username || 'Você', points: userProfile?.points || 450, checkins: 6, city: 'São Paulo', avatar: null, isCurrentUser: true },
-      ],
-      month: [
-        { id: 1, username: 'PatriotaSP', points: 3850, checkins: 52, city: 'São Paulo', avatar: null },
-        { id: 2, username: 'DefensorRJ', points: 3420, checkins: 48, city: 'Rio de Janeiro', avatar: null },
-        { id: 3, username: 'ConservadorBH', points: 3180, checkins: 45, city: 'Belo Horizonte', avatar: null },
-        { id: 4, username: 'LiberdadeSP', points: 2920, checkins: 42, city: 'São Paulo', avatar: null },
-        { id: 5, username: 'TradicionalSP', points: 2780, checkins: 39, city: 'São Paulo', avatar: null },
-        { id: 23, username: userProfile?.username || 'Você', points: userProfile?.points || 1450, checkins: 26, city: 'São Paulo', avatar: null, isCurrentUser: true },
-      ]
-    },
-    country: {
-      week: [
-        { id: 1, username: 'PatriotaSP', points: 850, checkins: 12, city: 'São Paulo', avatar: null },
-        { id: 2, username: 'DefensorRJ', points: 820, checkins: 11, city: 'Rio de Janeiro', avatar: null },
-        { id: 3, username: 'ConservadorRS', points: 780, checkins: 11, city: 'Porto Alegre', avatar: null },
-        { id: 4, username: 'LiberdadeDF', points: 750, checkins: 10, city: 'Brasília', avatar: null },
-        { id: 5, username: 'TradicionalMG', points: 720, checkins: 10, city: 'Belo Horizonte', avatar: null },
-        { id: 156, username: userProfile?.username || 'Você', points: userProfile?.points || 450, checkins: 6, city: 'São Paulo', avatar: null, isCurrentUser: true },
-      ],
-      month: [
-        { id: 1, username: 'PatriotaSP', points: 4850, checkins: 62, city: 'São Paulo', avatar: null },
-        { id: 2, username: 'DefensorRJ', points: 4420, checkins: 58, city: 'Rio de Janeiro', avatar: null },
-        { id: 3, username: 'ConservadorRS', points: 4180, checkins: 55, city: 'Porto Alegre', avatar: null },
-        { id: 4, username: 'LiberdadeDF', points: 3920, checkins: 52, city: 'Brasília', avatar: null },
-        { id: 5, username: 'TradicionalMG', points: 3780, checkins: 49, city: 'Belo Horizonte', avatar: null },
-        { id: 156, username: userProfile?.username || 'Você', points: userProfile?.points || 1450, checkins: 26, city: 'São Paulo', avatar: null, isCurrentUser: true },
-      ]
-    }
-  }
-
   useEffect(() => {
-    fetchRankings()
-    fetchPlatformStats()
-  }, [selectedScope, selectedPeriod])
+    fetchRankings();
+  }, [selectedScope, selectedPeriod, selectedType]);
 
   const fetchRankings = async () => {
     try {
-      setLoading(true)
-      setError(null)
-      
-      // Usar API real de ranking
-      const response = await apiClient.get(`/users/ranking?scope=${selectedScope}&period=${selectedPeriod}`)
-      console.log('🏆 Ranking API Response:', response)
-      
-      if (response?.data?.rankings) {
-        setRankings(response.data.rankings || [])
-        setUserPosition(response.data.user_position || null)
-        console.log('✅ Usando dados reais do ranking:', response.data.rankings.length, 'usuários')
-      } else {
-        // Fallback para dados mock em caso de resposta vazia
-        console.log('⚠️ Caindo no fallback dos dados mock')
-        const currentRankings = mockRankings[selectedScope][selectedPeriod]
-        setRankings(currentRankings) // Mostrar todos os usuários, incluindo o atual
-        setUserPosition(currentRankings.find(user => user.isCurrentUser))
-      }
-    } catch (err) {
-      console.error('Error fetching rankings:', err)
-      setError('Erro ao carregar ranking')
-      // Fallback para dados mock em caso de erro
-      const currentRankings = mockRankings[selectedScope][selectedPeriod]
-      setRankings(currentRankings) // Mostrar todos os usuários, incluindo o atual
-      setUserPosition(currentRankings.find(user => user.isCurrentUser))
-    } finally {
-      setLoading(false)
-    }
-  }
+        setLoading(true);
+        setError(null);
 
-  const fetchPlatformStats = async () => {
-    try {
-      // Usar dados reais do ranking para calcular estatísticas da plataforma
-      const response = await apiClient.get(`/users/ranking?scope=${selectedScope}&period=${selectedPeriod}`)
-      console.log('📊 Platform Stats API Response:', response)
-      
-      if (response?.data?.rankings) {
-        const rankings = response.data.rankings
-        const totalUsers = rankings.length
-        const totalPoints = rankings.reduce((sum, user) => sum + (user.points || 0), 0)
-        const averagePoints = totalUsers > 0 ? Math.round(totalPoints / totalUsers) : 0
-        
-        const platformStats = {
-          totalUsers,
-          totalPoints,
-          averagePoints,
-          activeUsers: rankings.filter(user => user.points > 0).length
+        let data = [];
+        let userRank = null;
+
+        if (selectedType === 'users') {
+            const response = await apiClient.get('/rankings/users', { 
+                params: { scope: selectedScope, period: selectedPeriod } 
+            });
+            data = Array.isArray(response.data) ? response.data : [];
+            if (userProfile && data.length > 0) {
+                userRank = data.find(u => u.userId === userProfile.id);
+            }
+        } else {
+            const response = await apiClient.get('/rankings/politicians', {
+                params: { limit: 50 }
+            });
+            data = Array.isArray(response.data) ? response.data : [];
+            // No specific "user position" for politicians unless the user is a politician
         }
         
-        setPlatformStats(platformStats)
-        console.log('✅ Usando dados reais das estatísticas calculadas:', platformStats)
-      }
+        setRankings(data);
+        setUserPosition(userRank);
+
+        // Mock stats for now (or calculate from data)
+        const totalPoints = data.reduce((acc, item) => acc + (item.points || 0), 0);
+        setPlatformStats({
+            activeUsers: data.length * 15,
+            totalActivities: data.length * 42,
+            totalPoints: totalPoints
+        });
+        
+        setLoading(false);
     } catch (err) {
-      console.error('Error fetching platform stats:', err)
-      // Manter dados mockados como fallback
-      setPlatformStats(null)
+        console.error("Error fetching rankings:", err);
+        // Only set error if it's not a 404 (empty data)
+        if (err.response && err.response.status !== 404) {
+             setError("Erro ao carregar ranking");
+        } else {
+             setRankings([]); // Clear rankings if 404 or empty
+        }
+        setLoading(false);
     }
-  }
+  };
+
+  const fetchPlatformStats = async () => {
+     // Already handled in fetchRankings for efficiency
+  };
 
   const getRankIcon = (position) => {
     switch (position) {
@@ -217,9 +150,34 @@ const Ranking = () => {
 
       {/* Filters */}
       <div className="card">
-        <div className="flex items-center space-x-4 mb-4">
-          <Filter className="h-5 w-5 text-gray-400" />
-          <span className="font-medium text-gray-700">Filtros:</span>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center space-x-4">
+                <Filter className="h-5 w-5 text-gray-400" />
+                <span className="font-medium text-gray-700">Filtros:</span>
+            </div>
+            
+            <div className="flex bg-gray-100 rounded-lg p-1">
+                <button
+                    onClick={() => setSelectedType('users')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        selectedType === 'users' 
+                            ? 'bg-white text-primary-600 shadow-sm' 
+                            : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                >
+                    Usuários
+                </button>
+                <button
+                    onClick={() => setSelectedType('politicians')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        selectedType === 'politicians' 
+                            ? 'bg-white text-primary-600 shadow-sm' 
+                            : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                >
+                    Políticos
+                </button>
+            </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -250,8 +208,8 @@ const Ranking = () => {
         </div>
       </div>
 
-      {/* User Position */}
-      {userPosition && (
+      {/* User Position - Only for Users View */}
+      {selectedType === 'users' && userPosition && (
         <div className="card bg-primary-50 border-primary-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -292,14 +250,20 @@ const Ranking = () => {
       {/* Top Rankings */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Top Patriotas - {getScopeLabel(selectedScope)} ({getPeriodLabel(selectedPeriod)})
+          Top {selectedType === 'users' ? 'Patriotas' : 'Políticos'} - {getScopeLabel(selectedScope)} ({getPeriodLabel(selectedPeriod)})
         </h3>
         
         <div className="space-y-3">
-          {rankings.slice(0, 5).map((user, index) => {
+          {rankings.slice(0, 10).map((item, index) => {
             const position = index + 1
+            const name = selectedType === 'users' ? (item.username || 'Usuário') : item.name;
+            const subText = selectedType === 'users' ? item.city : `${item.party} - ${item.state}`;
+            const avatar = selectedType === 'users' ? item.avatar : item.photo_url;
+            const pointsLabel = selectedType === 'users' ? 'check-ins' : 'popularidade';
+            const pointsValue = selectedType === 'users' ? item.checkins : (item.points || 0);
+
             return (
-              <div key={user.id} className={`flex items-center justify-between p-4 rounded-lg border ${
+              <div key={item.id} className={`flex items-center justify-between p-4 rounded-lg border ${
                 position <= 3 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200' : 'bg-gray-50 border-gray-200'
               }`}>
                 <div className="flex items-center space-x-4">
@@ -308,16 +272,20 @@ const Ranking = () => {
                   </div>
                   
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-medium text-gray-700">
-                        {user.username ? user.username.charAt(0).toUpperCase() : '?'}
-                      </span>
-                    </div>
+                    {avatar ? (
+                        <img src={avatar} alt={name} className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                        <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-medium text-gray-700">
+                            {name ? name.charAt(0).toUpperCase() : '?'}
+                        </span>
+                        </div>
+                    )}
                     <div>
-                      <h4 className="font-medium text-gray-900">{user.username || 'Usuário sem nome'}</h4>
+                      <h4 className="font-medium text-gray-900">{name}</h4>
                       <div className="flex items-center space-x-2 text-sm text-gray-500">
                         <MapPin className="h-3 w-3" />
-                        <span>{user.city}</span>
+                        <span>{subText}</span>
                       </div>
                     </div>
                   </div>
@@ -325,11 +293,13 @@ const Ranking = () => {
                 
                 <div className="text-right">
                   <div className="font-bold text-lg text-gray-900">
-                    {user.points.toLocaleString()} pts
+                    {item.points?.toLocaleString() || 0} pts
                   </div>
-                  <div className="text-sm text-gray-500">
-                    {user.checkins} check-ins
-                  </div>
+                  {selectedType === 'users' && (
+                    <div className="text-sm text-gray-500">
+                        {item.checkins} check-ins
+                    </div>
+                  )}
                 </div>
               </div>
             )

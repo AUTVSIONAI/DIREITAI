@@ -265,6 +265,7 @@ export const useSpeechRecognition = () => {
 export const useSpeech = () => {
   const speechSynthesis = useSpeechSynthesis();
   const speechRecognition = useSpeechRecognition();
+  const [externalSpeaking, setExternalSpeaking] = useState(false);
 
   const getBrazilianVoices = useCallback(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return { female: null, male: null };
@@ -303,10 +304,104 @@ export const useSpeech = () => {
     };
   }, []);
 
-  const speakWithVoice = useCallback((text: string, voiceType: 'female' | 'male' = 'female') => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text.trim()) return;
+  const speakWithVoice = useCallback(async (text: string, voiceType: 'female' | 'male' | string = 'female', options: any = {}) => {
+    if (typeof window === 'undefined' || !text.trim()) return;
     
-    // Cancelar qualquer fala em andamento
+    // Se voiceType for um ID longo, assumimos que é um Voice ID do ElevenLabs
+    const isElevenLabsId = voiceType && voiceType.length > 20 && !voiceType.includes(' ');
+    const elevenLabsApiKey = import.meta.env.VITE_ELEVENLABS_API_KEY;
+
+    if (isElevenLabsId && elevenLabsApiKey && (!options?.provider || options.provider === 'elevenlabs')) {
+        try {
+            console.log('🎤 Usando ElevenLabs para voz:', voiceType);
+            setSpeaking(true); // Precisamos expor setSpeaking do useSpeechSynthesis ou criar estado local aqui
+            
+            const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceType}`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'audio/mpeg',
+                    'Content-Type': 'application/json',
+                    'xi-api-key': elevenLabsApiKey
+                },
+                body: JSON.stringify({
+                    text: text,
+                    model_id: "eleven_multilingual_v2",
+                    voice_settings: {
+                        stability: 0.5,
+                        similarity_boost: 0.75
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Erro na API do ElevenLabs');
+            }
+
+            const blob = await response.blob();
+            const audioUrl = URL.createObjectURL(blob);
+            const audio = new Audio(audioUrl);
+            
+            audio.onended = () => {
+                setSpeaking(false);
+                URL.revokeObjectURL(audioUrl);
+            };
+            
+            audio.onerror = () => {
+                setSpeaking(false);
+                URL.revokeObjectURL(audioUrl);
+            };
+
+            await audio.play();
+            return;
+        } catch (error) {
+            console.error('Erro ao usar ElevenLabs, caindo para voz nativa:', error);
+            // Fallback para voz nativa continua abaixo
+        }
+    }
+
+    // Suporte para Serviço de Voz Local (XTTS v2)
+    if (options?.provider === 'local' && options?.apiUrl) {
+      try {
+        console.log('🎤 Usando Serviço Local (XTTS) para voz:', voiceType);
+        setExternalSpeaking(true);
+
+        const formData = new FormData();
+        formData.append('text', text);
+        formData.append('voice_id', voiceType);
+        formData.append('language', 'pt');
+
+        const response = await fetch(`${options.apiUrl}/tts`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erro na API Local: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+
+        audio.onended = () => {
+          setSpeaking(false);
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        audio.onerror = () => {
+          setSpeaking(false);
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        await audio.play();
+        return;
+      } catch (error) {
+        console.error('Erro ao usar Serviço Local, caindo para voz nativa:', error);
+        // Fallback continua
+      }
+    }
+
+    // Cancelar qualquer fala em andamento (nativa)
     window.speechSynthesis.cancel();
     
     // Dividir texto em chunks menores para mobile (300 caracteres)
@@ -341,6 +436,7 @@ export const useSpeech = () => {
 
   return {
     ...speechSynthesis,
+    speaking: speechSynthesis.speaking || externalSpeaking,
     ...speechRecognition,
     speakWithVoice,
     getBrazilianVoices,

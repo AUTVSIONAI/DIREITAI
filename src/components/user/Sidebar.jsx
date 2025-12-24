@@ -21,7 +21,8 @@ import {
   Brain,
   Map,
   Activity,
-  Star
+  Star,
+  Video
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -46,6 +47,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { path: '/dashboard/agents', icon: Bot, label: 'Chat Político' },
     { path: '/dashboard/checkin', icon: MapPin, label: 'Check-in' },
     { path: '/dashboard/events', icon: Map, label: 'Mapa de Eventos' },
+    { path: '/arena', icon: Video, label: 'Arena do Povo' },
     { path: '/dashboard/ranking', icon: Trophy, label: 'Ranking' },
     { path: '/dashboard/store', icon: ShoppingBag, label: 'Loja' },
     { path: '/dashboard/achievements', icon: Award, label: 'Conquistas' },
@@ -55,6 +57,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
   const politicianMenu = [
     { path: '/dashboard/profile', icon: User, label: 'Perfil do Político' },
+    { path: '/dashboard/arenas', icon: Video, label: 'Minhas Arenas' },
     { path: '/dashboard/agents', icon: Bot, label: 'Gerenciamento do Agente' },
     { path: '/dashboard/direitagpt', icon: MessageCircle, label: 'DireitaGPT' },
     { path: '/dashboard/creative', icon: Sparkles, label: 'IA Criativa' },

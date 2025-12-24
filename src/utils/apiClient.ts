@@ -4,7 +4,8 @@
 import { supabase } from '../lib/supabase';
 
 // Configuração base da API (alinhada com src/lib/api.ts)
-const RAW_API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
+const envUrl = import.meta.env.VITE_API_URL;
+const RAW_API_BASE_URL = envUrl && envUrl.length > 0 ? envUrl : 'http://localhost:5120/api';
 const IS_BROWSER = typeof window !== 'undefined';
 const IS_NON_LOCAL_SITE = IS_BROWSER && !/localhost|127\.0\.0\.1/i.test(window.location.hostname);
 const HAS_ENV_BASE = typeof RAW_API_BASE_URL === 'string' && RAW_API_BASE_URL.length > 0;
@@ -12,7 +13,7 @@ const HAS_ENV_BASE = typeof RAW_API_BASE_URL === 'string' && RAW_API_BASE_URL.le
 // Caso contrário: em produção usar "/api" (proxy no Vercel), e em preview/dev cair para backend público.
 const API_BASE_URL = IS_NON_LOCAL_SITE
   ? '/api'
-  : (HAS_ENV_BASE ? RAW_API_BASE_URL : 'https://direitai-backend.vercel.app/api');
+  : RAW_API_BASE_URL; // Força uso do URL absoluto em local dev
 
 /**
  * Faz uma requisição para a API com a URL base correta e token de autenticação
@@ -42,7 +43,12 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
     mergedHeaders['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(url, {
+  // Force absolute URL for local dev to avoid proxy issues if not configured
+  const finalUrl = url.startsWith('/') && !url.startsWith('http') && !IS_NON_LOCAL_SITE
+    ? `http://localhost:5120${url}`
+    : url;
+
+  const response = await fetch(finalUrl, {
     ...options,
     headers: mergedHeaders,
   });

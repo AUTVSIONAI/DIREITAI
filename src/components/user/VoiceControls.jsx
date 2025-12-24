@@ -34,8 +34,26 @@ const VoiceControls = forwardRef(({
   const [showSettings, setShowSettings] = useState(false);
   const [speechRate, setSpeechRate] = useState(isMobile ? 0.8 : 0.9);
   const [speechVolume, setSpeechVolume] = useState(isMobile ? 0.8 : 1);
+  const [voiceProvider, setVoiceProvider] = useState('native'); // 'native', 'local', 'elevenlabs'
+  const [localVoices, setLocalVoices] = useState([]);
   const [selectedVoiceType, setSelectedVoiceType] = useState('female');
   const [availableVoices, setAvailableVoices] = useState({ female: null, male: null });
+
+  // Buscar vozes locais
+  useEffect(() => {
+    if (voiceProvider === 'local') {
+      const voiceServiceUrl = import.meta.env.VITE_VOICE_SERVICE_URL || 'http://localhost:8005';
+      fetch(`${voiceServiceUrl}/voices`)
+        .then(res => res.json())
+        .then(data => {
+          setLocalVoices(data);
+          if (data.length > 0 && !data.find(v => v.id === selectedVoiceType)) {
+            setSelectedVoiceType(data[0].id);
+          }
+        })
+        .catch(err => console.error('Erro ao buscar vozes locais:', err));
+    }
+  }, [voiceProvider]);
 
   // Expor métodos para o componente pai
   useImperativeHandle(ref, () => ({
@@ -51,11 +69,14 @@ const VoiceControls = forwardRef(({
           .replace(/\n+/g, '. ') // quebras de linha
           .trim();
         
+        const voiceServiceUrl = import.meta.env.VITE_VOICE_SERVICE_URL || 'http://localhost:8005';
         if (cleanText) {
           console.log('🎤 Falando mensagem via VoiceControls:', cleanText.substring(0, 50) + '...');
           speakWithVoice(cleanText, selectedVoiceType, {
             rate: speechRate,
-            volume: speechVolume
+            volume: speechVolume,
+            provider: voiceProvider,
+            apiUrl: voiceServiceUrl
           });
         }
       }
@@ -65,7 +86,7 @@ const VoiceControls = forwardRef(({
         stopSpeaking();
       }
     }
-  }), [voiceEnabled, speechSupported, speakWithVoice, selectedVoiceType, speechRate, speechVolume, speaking, stopSpeaking]);
+  }), [voiceEnabled, speechSupported, speakWithVoice, selectedVoiceType, speechRate, speechVolume, speaking, stopSpeaking, voiceProvider]);
 
   // Configurar vozes brasileiras disponíveis
   useEffect(() => {
@@ -194,27 +215,76 @@ const VoiceControls = forwardRef(({
                 Configurações de Voz
               </h3>
               
+              {/* Provedor de Voz */}
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Provedor
+                </label>
+                <select
+                  value={voiceProvider}
+                  onChange={(e) => {
+                      setVoiceProvider(e.target.value);
+                      // Reset selection when changing provider
+                      if (e.target.value === 'native') setSelectedVoiceType('female');
+                      else if (e.target.value === 'local' && localVoices.length > 0) setSelectedVoiceType(localVoices[0].id);
+                  }}
+                  className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  <option value="native">Nativo (Browser)</option>
+                  <option value="local">Local (XTTS v2)</option>
+                  <option value="elevenlabs">ElevenLabs</option>
+                </select>
+              </div>
+
               {/* Seleção de Voz */}
               <div className="mb-3">
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Voz Brasileira
+                  Voz {voiceProvider === 'native' ? 'Brasileira' : (voiceProvider === 'local' ? 'Clonada' : 'ID')}
                 </label>
-                <select
-                  value={selectedVoiceType}
-                  onChange={(e) => setSelectedVoiceType(e.target.value)}
-                  className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                >
-                  {availableVoices.female && (
-                    <option value="female">
-                      Feminina - {availableVoices.female.name}
-                    </option>
-                  )}
-                  {availableVoices.male && (
-                    <option value="male">
-                      Masculina - {availableVoices.male.name}
-                    </option>
-                  )}
-                </select>
+                
+                {voiceProvider === 'native' && (
+                    <select
+                      value={selectedVoiceType}
+                      onChange={(e) => setSelectedVoiceType(e.target.value)}
+                      className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                    >
+                      {availableVoices.female && (
+                        <option value="female">
+                          Feminina - {availableVoices.female.name}
+                        </option>
+                      )}
+                      {availableVoices.male && (
+                        <option value="male">
+                          Masculina - {availableVoices.male.name}
+                        </option>
+                      )}
+                    </select>
+                )}
+
+                {voiceProvider === 'local' && (
+                    <select
+                      value={selectedVoiceType}
+                      onChange={(e) => setSelectedVoiceType(e.target.value)}
+                      className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                    >
+                        {localVoices.length === 0 && <option value="">Nenhuma voz encontrada</option>}
+                        {localVoices.map(voice => (
+                            <option key={voice.id} value={voice.id}>
+                                {voice.name} ({voice.source})
+                            </option>
+                        ))}
+                    </select>
+                )}
+
+                {voiceProvider === 'elevenlabs' && (
+                    <input
+                        type="text"
+                        value={selectedVoiceType}
+                        onChange={(e) => setSelectedVoiceType(e.target.value)}
+                        placeholder="Voice ID do ElevenLabs"
+                        className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                    />
+                )}
               </div>
 
               {/* Velocidade */}

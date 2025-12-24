@@ -121,6 +121,18 @@ export interface Politician {
     parliamentary_secretaries?: number;
     last_updated?: string;
   };
+  // Configurações de Voz (Sistema Local ou API)
+  voice_config?: {
+    enabled: boolean;
+    voice_id?: string; // ID da voz no sistema (local ou externo)
+    provider?: 'local' | 'elevenlabs' | 'openai';
+    api_url?: string; // URL da API local (ex: http://localhost:8005)
+    settings?: {
+      stability?: number;
+      similarity_boost?: number;
+    };
+    reference_audio_url?: string; // URL do áudio usado para clonagem
+  };
   // Novos campos para políticos locais
   level?: 'federal' | 'estadual' | 'municipal';
   municipality?: string;
@@ -156,6 +168,17 @@ export interface CreatePoliticianData {
     twitter?: string;
     instagram?: string;
     website?: string;
+  };
+  voice_config?: {
+    enabled: boolean;
+    voice_id?: string;
+    provider?: 'local' | 'elevenlabs' | 'openai';
+    api_url?: string;
+    settings?: {
+      stability?: number;
+      similarity_boost?: number;
+    };
+    reference_audio_url?: string;
   };
   // Novos campos para políticos locais
   level?: 'federal' | 'estadual' | 'municipal';

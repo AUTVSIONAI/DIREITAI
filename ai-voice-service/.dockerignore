@@ -1,0 +1,9 @@
+tts_models/
+temp_audio/
+stored_voices/
+__pycache__/
+*.pyc
+.env
+.git
+venv/
+node_modules/

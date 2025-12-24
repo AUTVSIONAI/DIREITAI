@@ -26,6 +26,7 @@ const Agents = lazy(() => import('./pages/Agents'))
 const EventMap = lazy(() => import('./pages/EventMap'))
 const Affiliates = lazy(() => import('./pages/Affiliates'))
 const RoleAdmin = lazy(() => import('./pages/RoleAdmin'))
+const PoliticianArenas = lazy(() => import('./pages/PoliticianArenas'))
 const SuggestionsManagement = lazy(() => import('../admin/pages/SuggestionsManagement'))
 
 
@@ -62,6 +63,7 @@ const UserDashboard = () => {
             <Route path="/achievements" element={<Achievements />} />
             <Route path="plan" element={<Plan />} />
             <Route path="/events" element={<EventMap />} />
+            <Route path="/arenas" element={<PoliticianArenas />} />
             <Route path="/affiliates" element={<Affiliates />} />
             <Route path="/admin-role" element={<RoleAdmin />} />
             <Route path="/suggestions" element={<SuggestionsManagement />} />

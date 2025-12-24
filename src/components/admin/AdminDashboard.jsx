@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext'
 const Overview = React.lazy(() => import('./pages/Overview'))
 const UserManagement = React.lazy(() => import('./pages/UserManagement'))
 const EventManagement = React.lazy(() => import('./pages/EventManagement'))
+const ArenasManagement = React.lazy(() => import('./pages/ArenasManagement'))
 const UnifiedLiveMap = React.lazy(() => import('./pages/UnifiedLiveMap'))
 const ContentModeration = React.lazy(() => import('./pages/ContentModeration'))
 const StoreManagement = React.lazy(() => import('./pages/StoreManagement'))
@@ -26,6 +27,7 @@ const BlogManagement = React.lazy(() => import('./pages/BlogManagement'))
 const RatingsManagement = React.lazy(() => import('./pages/RatingsManagement'))
 const SurveysManagement = React.lazy(() => import('./pages/SurveysManagement'))
 const AffiliatesAdmin = React.lazy(() => import('./pages/AffiliatesAdmin'))
+const VoiceServiceControl = React.lazy(() => import('./pages/VoiceServiceControl'))
 
 // Loading component for Suspense fallback
 const PageLoader = () => (
@@ -39,7 +41,8 @@ const PageLoader = () => (
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { userProfile } = useAuth()
-  const role = String(userProfile?.role || '').toLowerCase()
+  // Se for admin flag, força role admin para ver tudo
+  const role = userProfile?.is_admin ? 'admin' : String(userProfile?.role || '').toLowerCase()
   const plan = String(userProfile?.plan || 'gratuito').toLowerCase()
   const tierOrder = { gratuito: 0, patriota: 1, cidadao: 2, cidadão: 2, premium: 3, pro: 4, elite: 5 }
   const tier = tierOrder[plan] ?? 0
@@ -117,6 +120,7 @@ const AdminDashboard = () => {
               <Route path="/" element={<Overview />} />
               <Route path="/users" element={can('users') ? <UserManagement /> : <NoAccess />} />
               <Route path="/events" element={can('events') ? <EventManagement /> : <NoAccess />} />
+              <Route path="/arenas" element={can('arenas') ? <ArenasManagement /> : <NoAccess />} />
               <Route path="/politicians" element={can('politicians') ? <PoliticiansManagement /> : <NoAccess />} />
               <Route path="/politicians/approval" element={can('politicians.approval') ? <PoliticianApproval /> : <NoAccess />} />
               <Route path="/politicians/sync" element={can('politicians.sync') ? <PoliticianSync /> : <NoAccess />} />
@@ -131,6 +135,7 @@ const AdminDashboard = () => {
               <Route path="/reports" element={can('reports') ? <FinancialReports /> : <NoAccess />} />
              <Route path="/affiliates" element={can('affiliates') ? <AffiliatesAdmin /> : <NoAccess />} />
               <Route path="/settings" element={can('settings') ? <SystemSettings /> : <NoAccess />} />
+              <Route path="/voice-service" element={can('all') ? <VoiceServiceControl /> : <NoAccess />} />
               <Route path="/logs" element={can('logs') ? <ApiLogs /> : <NoAccess />} />
               <Route path="/announcements" element={can('announcements') ? <Announcements /> : <NoAccess />} />
               <Route path="/notifications" element={can('notifications') ? <NotificationsManagement /> : <NoAccess />} />

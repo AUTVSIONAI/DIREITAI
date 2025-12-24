@@ -118,5 +118,5 @@ app.get('/api/admin/financial/top-products', async (req, res) => {
 })
 
 app.listen(PORT, () => {
-  console.log(`Stripe API server listening on http://localhost:${PORT}`)
+  console.log(`Stripe API server listening on port ${PORT}`)
 })

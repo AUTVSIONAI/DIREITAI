@@ -21,13 +21,16 @@ import {
   Star,
   BarChart3,
   X,
-  CheckCircle
+  CheckCircle,
+  Server,
+  Video
 } from 'lucide-react'
 
 const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
   const location = useLocation()
   const { userProfile } = useAuth()
-  const role = String(userProfile?.role || '').toLowerCase()
+  // Se for admin flag, força role admin para ver tudo
+  const role = userProfile?.is_admin ? 'admin' : String(userProfile?.role || '').toLowerCase()
   const plan = String(userProfile?.plan || 'gratuito').toLowerCase()
 
   const tierOrder = { gratuito: 0, patriota: 1, cidadao: 2, cidadão: 2, premium: 3, pro: 4, elite: 5 }
@@ -98,6 +101,12 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
       href: '/admin/events',
       icon: Calendar,
       current: location.pathname === '/admin/events'
+    },
+    {
+      name: 'Arena do Povo',
+      href: '/admin/arenas',
+      icon: Video,
+      current: location.pathname === '/admin/arenas'
     },
     {
       name: 'Políticos',
@@ -211,6 +220,12 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
       href: '/admin/settings',
       icon: Settings,
       current: location.pathname === '/admin/settings'
+    },
+    {
+      name: 'Infraestrutura de Voz',
+      href: '/admin/voice-service',
+      icon: Server,
+      current: location.pathname === '/admin/voice-service'
     }
   ]
 
@@ -219,6 +234,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
     if (href === '/admin') return 'dashboard'
     if (href.includes('/admin/users')) return 'users'
     if (href.includes('/admin/events')) return 'events'
+    if (href.includes('/admin/arenas')) return 'arenas'
     if (href.includes('/admin/politicians/approval')) return 'politicians.approval'
     if (href.includes('/admin/politicians/sync')) return 'politicians.sync'
     if (href.includes('/admin/politicians')) return 'politicians'
@@ -236,6 +252,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
     if (href.includes('/admin/announcements')) return 'announcements'
     if (href.includes('/admin/notifications')) return 'notifications'
     if (href.includes('/admin/settings')) return 'settings'
+    if (href.includes('/admin/voice-service')) return 'voice-service'
     return ''
   }
 
