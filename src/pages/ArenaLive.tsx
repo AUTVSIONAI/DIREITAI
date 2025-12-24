@@ -4,6 +4,7 @@ import { arenaService, Arena, ArenaQuestion } from '../services/arena';
 import Header from '../components/user/Header';
 import Sidebar from '../components/user/Sidebar';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 import { Video, Mic, MicOff, VideoOff, Play, Square, Settings, Users } from 'lucide-react';
 
 const ArenaLive = () => {
@@ -19,6 +20,14 @@ const ArenaLive = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'questions'>('questions');
   const [superChatAmount, setSuperChatAmount] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // WebRTC & Streaming State
+  const [viewersCount, setViewersCount] = useState(0);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map()); // Broadcaster stores PCs per viewer
+  const viewerPeerConnection = useRef<RTCPeerConnection | null>(null); // Viewer stores single PC
+  const signalingChannel = useRef<any>(null);
 
   // Broadcaster State
   const [isBroadcaster, setIsBroadcaster] = useState(false);
@@ -58,6 +67,146 @@ const ArenaLive = () => {
         }
     }
   }, [arena, userProfile]);
+
+  // WebRTC Signaling Logic
+  useEffect(() => {
+    if (!id || !userProfile || !arena) return;
+
+    const channel = supabase.channel(`arena_signaling_${id}`);
+    signalingChannel.current = channel;
+
+    const rtcConfig = {
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    };
+
+    channel
+      .on('broadcast', { event: 'viewer-join' }, async ({ payload }) => {
+        // Only broadcaster handles new viewers
+        if (!isBroadcaster || !isStreamActive || !streamRef.current) return;
+        
+        const { viewerId } = payload;
+        console.log(`Viewer joined: ${viewerId}`);
+        
+        // Limit peers to avoid killing mobile CPU
+        if (peerConnections.current.size >= 5) {
+            console.warn('Max viewers reached for P2P');
+            return;
+        }
+
+        const pc = new RTCPeerConnection(rtcConfig);
+        peerConnections.current.set(viewerId, pc);
+
+        // Add local tracks
+        streamRef.current.getTracks().forEach(track => {
+            pc.addTrack(track, streamRef.current!);
+        });
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                channel.send({
+                    type: 'broadcast',
+                    event: 'ice-candidate',
+                    payload: { target: viewerId, candidate: event.candidate }
+                });
+            }
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        channel.send({
+            type: 'broadcast',
+            event: 'offer',
+            payload: { target: viewerId, sdp: offer }
+        });
+      })
+      .on('broadcast', { event: 'offer' }, async ({ payload }) => {
+        // Viewer receives offer
+        if (isBroadcaster || payload.target !== userProfile.id) return;
+
+        const pc = new RTCPeerConnection(rtcConfig);
+        viewerPeerConnection.current = pc;
+
+        pc.ontrack = (event) => {
+            console.log('Received remote track');
+            setRemoteStream(event.streams[0]);
+        };
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                channel.send({
+                    type: 'broadcast',
+                    event: 'ice-candidate',
+                    payload: { target: 'broadcaster', sender: userProfile.id, candidate: event.candidate }
+                });
+            }
+        };
+
+        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        channel.send({
+            type: 'broadcast',
+            event: 'answer',
+            payload: { target: 'broadcaster', sender: userProfile.id, sdp: answer }
+        });
+      })
+      .on('broadcast', { event: 'answer' }, async ({ payload }) => {
+        // Broadcaster receives answer
+        if (!isBroadcaster || payload.target !== 'broadcaster') return;
+
+        const pc = peerConnections.current.get(payload.sender);
+        if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        }
+      })
+      .on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
+        if (isBroadcaster) {
+            if (payload.target !== 'broadcaster') return;
+            const pc = peerConnections.current.get(payload.sender);
+            if (pc && payload.candidate) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                } catch (e) { console.error('Error adding ICE', e); }
+            }
+        } else {
+            if (payload.target !== userProfile.id) return;
+            const pc = viewerPeerConnection.current;
+            if (pc && payload.candidate) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                } catch (e) { console.error('Error adding ICE', e); }
+            }
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+             if (!isBroadcaster && arena.status === 'live') {
+                 // Announce presence to request stream
+                 channel.send({
+                     type: 'broadcast',
+                     event: 'viewer-join',
+                     payload: { viewerId: userProfile.id }
+                 });
+             }
+        }
+      });
+
+    return () => {
+        channel.unsubscribe();
+        peerConnections.current.forEach(pc => pc.close());
+        peerConnections.current.clear();
+        if (viewerPeerConnection.current) viewerPeerConnection.current.close();
+    };
+  }, [id, userProfile, arena, isBroadcaster, isStreamActive]);
+
+  // Effect to attach remote stream to video element
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+        remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
   useEffect(() => {
     return () => {
@@ -253,9 +402,9 @@ const ArenaLive = () => {
   if (!arena) return null;
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen bg-gray-900 text-white overflow-hidden">
       {/* Main Content - Video */}
-      <div className="flex-1 flex flex-col relative">
+      <div className="flex-1 flex flex-col relative h-[60vh] md:h-auto">
         <div className="absolute top-4 left-4 z-10 flex gap-2">
             <button onClick={() => navigate('/arena')} className="bg-black/50 hover:bg-black/70 px-4 py-2 rounded text-sm backdrop-blur-sm">
                 ← Voltar
@@ -325,18 +474,46 @@ const ArenaLive = () => {
                )}
             </div>
           ) : (
-             <div className="text-center">
-                <div className="text-6xl mb-4 animate-pulse">🎥</div>
-                <h2 className="text-2xl font-bold mb-2">Transmissão da Arena</h2>
-                <p className="text-gray-400">
-                    {arena.status === 'live' ? 'AO VIVO AGORA' : 
-                     arena.status === 'scheduled' ? `Inicia em ${new Date(arena.scheduled_at).toLocaleString()}` : 
-                     'Transmissão Encerrada'}
-                </p>
+             <div className="text-center w-full h-full relative">
+                {remoteStream ? (
+                    <video 
+                        ref={remoteVideoRef} 
+                        autoPlay 
+                        playsInline
+                        className="w-full h-full object-contain bg-black"
+                    />
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-full p-4">
+                        <div className="text-6xl mb-4 animate-pulse">🎥</div>
+                        <h2 className="text-2xl font-bold mb-2">Transmissão da Arena</h2>
+                        <p className="text-gray-400 mb-4">
+                            {arena.status === 'live' ? 'AO VIVO - Conectando...' : 
+                             arena.status === 'scheduled' ? `Inicia em ${new Date(arena.scheduled_at).toLocaleString()}` : 
+                             'Transmissão Encerrada'}
+                        </p>
+                        {arena.status === 'live' && (
+                            <button 
+                                onClick={() => {
+                                    if (signalingChannel.current) {
+                                        signalingChannel.current.send({
+                                            type: 'broadcast',
+                                            event: 'viewer-join',
+                                            payload: { viewerId: userProfile?.id }
+                                        });
+                                    }
+                                }}
+                                className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-500 text-sm"
+                            >
+                                Reconectar Vídeo
+                            </button>
+                        )}
+                    </div>
+                )}
+                
                 {isBroadcaster && !isStreamActive && arena.status !== 'ended' && (
                     <button 
                         onClick={startStream}
-                        className="mt-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-bold flex items-center mx-auto transition-all transform hover:scale-105"
+                        className="absolute bottom-10 left-1/2 transform -translate-x-1/2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-bold flex items-center transition-all hover:scale-105 z-50"
                     >
                         <Video className="w-5 h-5 mr-2" />
                         Ativar Câmera e Microfone
@@ -393,7 +570,7 @@ const ArenaLive = () => {
       </div>
 
       {/* Sidebar - Chat/Questions */}
-      <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col">
+      <div className="w-full md:w-96 h-[40vh] md:h-full bg-gray-800 border-t md:border-t-0 md:border-l border-gray-700 flex flex-col z-20">
         {/* Tabs */}
         <div className="flex border-b border-gray-700">
           <button 
