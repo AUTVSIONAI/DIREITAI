@@ -203,7 +203,7 @@ const UnifiedLiveMap = () => {
         apiClient.get('/events/active'),
         apiClient.get('/checkins/recent'),
         apiClient.get('/admin/city-stats'),
-        apiClient.get('/manifestations'),
+        apiClient.get('/manifestations/admin'),
         apiClient.get('/manifestations/checkins/map')
       ])
 
@@ -226,9 +226,9 @@ const UnifiedLiveMap = () => {
   // Função para buscar manifestações
   const fetchManifestations = async () => {
     try {
-      const response = await apiClient.get('/manifestations')
-      if (response.success && response.data && response.data.data) {
-        const list = Array.isArray(response.data.data) ? response.data.data : []
+      const response = await apiClient.get('/manifestations/admin')
+      if (response.success && response.data && response.data) {
+        const list = Array.isArray(response.data) ? response.data : (response.data.data || [])
         const active = list.filter(m => (m.is_active !== false) && (m.status !== 'cancelled'))
         setManifestations(active)
       } else {

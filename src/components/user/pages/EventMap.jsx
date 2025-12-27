@@ -30,10 +30,12 @@ const EventMap = () => {
   // Estados de dados
   const [events, setEvents] = useState([])
   const [manifestations, setManifestations] = useState([])
+  const [avatarError, setAvatarError] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
   const [nearbyEvents, setNearbyEvents] = useState([])
   const [nearbyManifestations, setNearbyManifestations] = useState([])
   const [checkedInEvents, setCheckedInEvents] = useState([])
+  const [checkedInManifestations, setCheckedInManifestations] = useState([])
 
   // Estados de controle
   const [loading, setLoading] = useState(true)
@@ -208,10 +210,17 @@ const EventMap = () => {
     if (!user) return
     
     try {
-      const response = await apiClient.get('/checkins/user')
-      const checkins = response.data.checkins || []
-      const eventIds = checkins.map(checkin => checkin.event_id)
+      // Carregar check-ins de eventos
+      const eventsResponse = await apiClient.get('/checkins/user')
+      const eventCheckins = eventsResponse.data.checkins || []
+      const eventIds = eventCheckins.map(checkin => checkin.event_id)
       setCheckedInEvents(eventIds)
+
+      // Carregar check-ins de manifestações
+      const manifestationsResponse = await apiClient.get('/manifestations/my-checkins')
+      const manifestationCheckins = manifestationsResponse.data.data || []
+      const manifestationIds = manifestationCheckins.map(checkin => checkin.manifestation_id)
+      setCheckedInManifestations(manifestationIds)
     } catch (error) {
       console.error('Erro ao carregar check-ins:', error)
     }
@@ -378,17 +387,25 @@ const EventMap = () => {
       try {
         const map = mapRef.current?.getMap?.()
         if (map) {
-          // pequeno atraso para o layout estabilizar
-          setTimeout(() => {
-            map.resize()
-          }, 200)
+          // Force resize immediate
+          map.resize()
+          // And after a delay for animations
+          setTimeout(() => map.resize(), 100)
+          setTimeout(() => map.resize(), 300)
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Erro ao redimensionar mapa:', e)
+      }
     }
 
     document.addEventListener('fullscreenchange', handleResize)
     window.addEventListener('orientationchange', handleResize)
     window.addEventListener('resize', handleResize)
+    
+    // Monitorar visualViewport para teclados virtuais e barras de endereço móveis
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize)
+    }
 
     // ResizeObserver para detectar mudanças no container pai
     let resizeObserver
@@ -403,6 +420,9 @@ const EventMap = () => {
       document.removeEventListener('fullscreenchange', handleResize)
       window.removeEventListener('orientationchange', handleResize)
       window.removeEventListener('resize', handleResize)
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize)
+      }
       if (resizeObserver) {
         resizeObserver.disconnect()
       }
@@ -441,7 +461,7 @@ const EventMap = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-[100dvh] flex flex-col bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b p-3 sm:p-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
@@ -597,8 +617,24 @@ const EventMap = () => {
               latitude={userLocation.latitude}
               longitude={userLocation.longitude}
             >
-              <div className="bg-blue-600 rounded-full p-2 border-2 border-white shadow-lg">
-                <Navigation className="h-4 w-4 text-white" />
+              <div className="relative">
+                {user?.avatar_url && !avatarError ? (
+                  <div className="relative">
+                    <div className="absolute -inset-1 bg-blue-600 rounded-full opacity-75 animate-pulse"></div>
+                    <img 
+                      src={user.avatar_url} 
+                      alt="Eu" 
+                      className="w-10 h-10 rounded-full border-2 border-white shadow-lg relative z-10 object-cover bg-gray-200"
+                      onError={() => setAvatarError(true)}
+                    />
+                  </div>
+                ) : (
+                  <div className="bg-blue-600 rounded-full p-2 border-2 border-white shadow-lg relative z-10">
+                    <Navigation className="h-4 w-4 text-white" />
+                  </div>
+                )}
+                {/* Seta de direção (opcional, apenas decorativa) */}
+                <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-blue-600"></div>
               </div>
             </LazyMarker>
           )}
