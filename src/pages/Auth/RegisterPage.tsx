@@ -89,7 +89,7 @@ const RegisterPage = () => {
         email: formData.email,
         password: formData.password,
         username: formData.username,
-        fullName,
+        full_name: fullName,
       } as any);
 
       if (!result.success) {
@@ -109,22 +109,21 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-conservative-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-transparent py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="flex justify-center items-center space-x-2 mb-4">
-            <Flag className="h-8 w-8 text-primary-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Direitai.com</h1>
+          <div className="flex justify-center mb-6">
+            <img src="/logo.png" alt="Direitai" className="h-64 w-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
           </div>
-          <h2 className="text-xl text-gray-600">
+          <h2 className="text-xl text-gray-800 font-bold bg-white/50 backdrop-blur-sm rounded-lg py-2 px-4 inline-block">
             Junte-se ao Movimento Patriota
           </h2>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-gray-700 font-medium bg-white/30 backdrop-blur-sm rounded-lg py-1 px-3 inline-block">
             Crie sua conta e faça parte da maior comunidade conservadora do Brasil
           </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-8">
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-xl p-8 border border-gray-100/50">
           <form onSubmit={handleSubmit} className="space-y-6">
             {errors.general && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">

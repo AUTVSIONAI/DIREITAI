@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AdminService } from '../../../services/admin'
 import { FinancialReportsService, EventsService, storeManagementService, paymentsService } from '../../../services'
 import AIMemoryService from '../../../services/aiMemory'
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react'
 
 const Overview = () => {
+  const navigate = useNavigate()
   const formatNumber = (val) => {
     const num = Number(val ?? 0)
     try {
@@ -85,7 +87,7 @@ const Overview = () => {
           todayCheckins: s.checkinsToday || 0,
           activeEvents: (eventsActive?.total ?? s.activeEvents ?? 0),
           monthlyRevenue: monthlyRevenue,
-          aiConversations: (aiStats?.total_conversations ?? s.aiConversationsToday ?? 0),
+          aiConversations: (s.aiConversationsToday ?? aiStats?.total_conversations ?? 0),
           moderatedContent: s.pendingModeration || 0
         });
         setRecentEvents(adminOverview?.recentEvents || []);
@@ -349,19 +351,31 @@ const Overview = () => {
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Ações Rápidas</h3>
           <div className="space-y-3">
-            <button className="w-full btn-primary">
+            <button 
+              onClick={() => navigate('/admin/events')}
+              className="w-full btn-primary"
+            >
               <Calendar className="h-4 w-4 mr-2" />
               Criar Evento
             </button>
-            <button className="w-full btn-secondary">
+            <button 
+              onClick={() => navigate('/admin/users')}
+              className="w-full btn-secondary"
+            >
               <User className="h-4 w-4 mr-2" />
               Gerenciar Usuários
             </button>
-            <button className="w-full btn-secondary">
+            <button 
+              onClick={() => navigate('/admin/moderation')}
+              className="w-full btn-secondary"
+            >
               <Shield className="h-4 w-4 mr-2" />
               Moderar Conteúdo
             </button>
-            <button className="w-full btn-secondary">
+            <button 
+              onClick={() => navigate('/admin/reports')}
+              className="w-full btn-secondary"
+            >
               <Activity className="h-4 w-4 mr-2" />
               Ver Relatórios
             </button>

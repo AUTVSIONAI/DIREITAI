@@ -4,6 +4,7 @@ import { signIn, signUp, supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { Flag, Shield, Users, ArrowLeft } from 'lucide-react'
 import { apiClient } from '../../lib/api'
+import AuthService from '../../services/auth'
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true)
@@ -69,24 +70,28 @@ const Login = () => {
           navigate('/dashboard')
         }
       } else {
-        // Cadastro de usuário (inclui full_name padrão para evitar erros em triggers)
-        const signUpPromise = signUp(email, password, { username, full_name: username })
-        const { data, error } = await withTimeout(signUpPromise)
+        // Cadastro de usuário via AuthService para garantir auto-login se possível
+        const result = await AuthService.register({
+            email,
+            password,
+            username,
+            full_name: username
+        });
 
-        if (error) {
-          setError(error.message)
-          setLoading(false)
-          return
+        if (!result.success) {
+            setError(result.error || 'Erro ao realizar cadastro');
+            setLoading(false);
+            return;
         }
 
-        // Se a confirmação de email estiver habilitada, não haverá sessão
-        const sessionToken = data?.session?.access_token
-        if (sessionToken) {
-          apiClient.setAuthToken(sessionToken)
-          navigate('/dashboard')
+        if (result.session) {
+            // Sessão criada com sucesso (auto-login)
+            const token = result.session.access_token;
+            if (token) apiClient.setAuthToken(token);
+            navigate('/dashboard');
         } else {
-          // Feedback amigável de sucesso de cadastro sem sessão
-          setError('Cadastro realizado! Verifique seu email para confirmar a conta e depois faça login.')
+            // Fallback caso não tenha sessão
+             setError('Cadastro realizado! Verifique seu email para confirmar a conta e depois faça login.')
         }
       }
     } catch (error) {
@@ -97,7 +102,7 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-conservative-50">
+    <div className="min-h-screen flex items-center justify-center bg-transparent">
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
           <div className="flex justify-between items-center mb-4">
@@ -108,10 +113,9 @@ const Login = () => {
               <ArrowLeft className="h-5 w-5" />
               <span className="text-sm">Voltar para Site</span>
             </button>
-            <div className="flex items-center space-x-2">
-              <Flag className="h-8 w-8 text-primary-600" />
-              <h1 className="text-3xl font-bold text-gray-900">Direitai.com</h1>
-            </div>
+            <div className="flex justify-center mb-6">
+            <img src="/logo.png" alt="Direitai" className="h-64 w-auto" onError={(e) => { e.target.style.display = 'none' }} />
+          </div>
             <div className="w-24"></div> {/* Spacer for centering */}
           </div>
           <h2 className="text-xl text-gray-600">

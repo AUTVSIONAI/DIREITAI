@@ -10,8 +10,10 @@ const HAS_ENV_BASE = typeof RAW_API_BASE_URL === 'string' && RAW_API_BASE_URL.le
 
 // Estratégia de baseURL:
 // - Em produção (site não local), sempre usar '/api' para evitar CORS e aproveitar rewrites do Vercel.
-// - Em ambiente local, se VITE_API_URL estiver definido, usa exatamente esse valor; caso contrário, usa '/api' (proxy do Vite).
-const API_BASE_URL = IS_NON_LOCAL_SITE ? '/api' : (HAS_ENV_BASE ? RAW_API_BASE_URL : '/api');
+// - Em ambiente local (dev), FORÇAR localhost:5120 para garantir conexão com backend local, a menos que VITE_USE_PROD esteja setado.
+const LOCAL_DEV_API_URL = 'http://localhost:5120/api';
+const USE_LOCAL_API = !IS_NON_LOCAL_SITE && import.meta.env.DEV && !import.meta.env.VITE_USE_PROD;
+const API_BASE_URL = IS_NON_LOCAL_SITE ? '/api' : (USE_LOCAL_API ? LOCAL_DEV_API_URL : (HAS_ENV_BASE ? RAW_API_BASE_URL : '/api'));
 
 
 
@@ -172,6 +174,14 @@ class ApiClientImpl implements ApiClient {
           // 3) Aplicar Authorization no request se o token existir
           if (token) {
             (config.headers as any).Authorization = `Bearer ${token}`;
+            // Log apenas em rotas de gamificação para debug
+            if (String(config?.url || '').includes('/gamification/')) {
+               console.log('[API] Adding token to gamification request:', String(config?.url || ''));
+            }
+          } else {
+             if (String(config?.url || '').includes('/gamification/')) {
+               console.warn('[API] ⚠️ No token available for gamification request:', String(config?.url || ''));
+            }
           }
 
           const reqUrl = String(config?.url || '');
@@ -230,18 +240,13 @@ class ApiClientImpl implements ApiClient {
           try {
             const urlPath = String(response?.config?.url || '').toLowerCase();
             const method = String(response?.config?.method || 'get').toLowerCase();
+            /* 
+            // Interceptação REMOVIDA para permitir carregar planos reais do backend
             const isPlansGet = method === 'get' && (urlPath.includes('/plans') || urlPath.includes('/plans/admin'));
             if (isPlansGet) {
-              const required = [
-                { id: 'gratuito', slug: 'gratuito', name: 'Patriota Gratuito', description: '', price_monthly: 0, price_yearly: 0, features: [], limits: { ai_conversations: 10, fake_news_analyses: 1 }, is_active: true, is_popular: false, is_visible: true, sort_order: 0, color: 'gray', icon: 'Users' },
-                { id: 'patriota', slug: 'patriota', name: 'Patriota', description: '', price_monthly: 9.90, price_yearly: 99.00, features: [], limits: { ai_conversations: 20, fake_news_analyses: 2 }, is_active: true, is_popular: false, is_visible: true, sort_order: 1, color: 'blue', icon: 'Star' },
-                { id: 'cidadao', slug: 'cidadao', name: 'Patriota Cidadão', description: '', price_monthly: 19.90, price_yearly: 199.00, features: [], limits: { ai_conversations: 50, fake_news_analyses: 5 }, is_active: true, is_popular: false, is_visible: true, sort_order: 2, color: 'blue', icon: 'Star' },
-                { id: 'premium', slug: 'premium', name: 'Patriota Premium', description: '', price_monthly: 39.90, price_yearly: 399.00, features: [], limits: { ai_conversations: 100, fake_news_analyses: 10 }, is_active: true, is_popular: true, is_visible: true, sort_order: 3, color: 'green', icon: 'Zap' },
-                { id: 'pro', slug: 'pro', name: 'Patriota Pro', description: '', price_monthly: 69.90, price_yearly: 699.00, features: [], limits: { ai_conversations: -1, fake_news_analyses: 20 }, is_active: true, is_popular: false, is_visible: true, sort_order: 4, color: 'purple', icon: 'Crown' },
-                { id: 'elite', slug: 'elite', name: 'Patriota Elite', description: '', price_monthly: 119.90, price_yearly: 1199.00, features: [], limits: { ai_conversations: -1, fake_news_analyses: -1 }, is_active: true, is_popular: false, is_visible: true, sort_order: 5, color: 'yellow', icon: 'Trophy' },
-              ];
-              (response as any).data = required;
+               // Código removido
             }
+            */
           } catch {}
           return response;
         },
@@ -327,6 +332,7 @@ class ApiClientImpl implements ApiClient {
 
       // Se o backend local retornar erro de rede (status 0), tentar fallback automático para produção
       const isLocalApi = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1') || API_BASE_URL.startsWith('/api');
+      /* FALLBACK DESATIVADO PARA DEBUG
       if (isLocalApi && (statusCode === 0)) {
         try {
           const altConfig: AxiosRequestConfig = {
@@ -353,6 +359,8 @@ class ApiClientImpl implements ApiClient {
           // Se o fallback também falhar, continuar retornando a resposta original
         }
       }
+      */
+
       
       // Tratamento de 401 sem erro (por validateStatus < 500): tentar refresh e refazer uma vez
       if (statusCode === 401) {

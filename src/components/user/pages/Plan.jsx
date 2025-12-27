@@ -260,7 +260,8 @@ const Plan = () => {
                 icon: p.icon === 'Crown' ? Crown : p.icon === 'Star' ? Star : Users,
                 monthlyPrice,
                 yearlyPrice,
-                checkoutPlanId: match ? match.id : null,
+                // Fallback to p.id if match not found, as p.id usually matches backend keys (patriota, cidadao, etc)
+                checkoutPlanId: match ? match.id : p.id,
               }
             })
           : [...fallbackPlans]

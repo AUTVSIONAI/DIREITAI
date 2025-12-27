@@ -3,15 +3,39 @@ import { useNavigate } from 'react-router-dom';
 import { arenaService, Arena } from '../services/arena';
 import Header from '../components/user/Header';
 import Sidebar from '../components/user/Sidebar';
+import { Mail, Check, X } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const ArenaLobby = () => {
   const [arenas, setArenas] = useState<Arena[]>([]);
+  const [invites, setInvites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
     loadArenas();
+    loadInvites();
   }, []);
+
+  const loadInvites = async () => {
+    try {
+      const data = await arenaService.getMyInvites();
+      setInvites(data);
+    } catch (error) {
+      console.error('Erro ao carregar convites:', error);
+    }
+  };
+
+  const handleAcceptInvite = async (arenaId: string) => {
+    try {
+      await arenaService.updateInviteStatus(arenaId, 'accepted');
+      toast.success('Convite aceito! Entrando na arena...');
+      navigate(`/arena/${arenaId}`);
+    } catch (error) {
+      console.error('Erro ao aceitar convite:', error);
+      toast.error('Erro ao aceitar convite');
+    }
+  };
 
   const loadArenas = async () => {
     try {
@@ -55,6 +79,43 @@ const ArenaLobby = () => {
                 <p className="mt-2 text-gray-600">Participe de lives interativas com políticos e faça suas perguntas.</p>
               </div>
             </div>
+
+            {invites.length > 0 && (
+              <div className="mb-12 bg-blue-50 border border-blue-200 rounded-xl p-6">
+                <h2 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
+                    <Mail className="w-6 h-6" />
+                    Convites Pendentes ({invites.length})
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {invites.map((invite) => (
+                        <div key={invite.id} className="bg-white rounded-lg shadow-md overflow-hidden border-l-4 border-blue-500">
+                             <div className="p-5">
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wide bg-blue-100 px-2 py-1 rounded">
+                                        {getStatusLabel(invite.status)}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                        {new Date(invite.scheduled_at).toLocaleDateString('pt-BR')}
+                                    </span>
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">{invite.title}</h3>
+                                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{invite.description}</p>
+                                <div className="flex items-center gap-2 mb-4 text-sm text-gray-700">
+                                    <span className="font-semibold">Sua função:</span>
+                                    <span className="capitalize bg-gray-100 px-2 py-0.5 rounded text-gray-800">{invite.participant_role === 'journalist' ? 'Jornalista' : invite.participant_role}</span>
+                                </div>
+                                <button 
+                                    onClick={() => handleAcceptInvite(invite.id)}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2 transition-colors"
+                                >
+                                    <Check className="w-4 h-4" /> Aceitar e Entrar
+                                </button>
+                             </div>
+                        </div>
+                    ))}
+                </div>
+              </div>
+            )}
 
             {loading ? (
               <div className="flex justify-center py-12">

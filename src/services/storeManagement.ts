@@ -163,16 +163,20 @@ class StoreManagementService {
   }
 
   async uploadProductImage(formData: FormData): Promise<{ data: { imageUrl: string } }> {
-    const response = await apiClient.post('/store/upload/image', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const response = await apiClient.post('/upload/store-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     })
     const payload: any = response.data
     const url = payload?.data?.url || payload?.url || payload?.data?.imageUrl || payload?.imageUrl || ''
     return { data: { imageUrl: url } }
   }
   async uploadProductFile(formData: FormData) {
-    const response = await apiClient.post('/store/upload/file', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const response = await apiClient.post('/upload/store-file', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     })
     const payload: any = response.data
     const url = payload?.data?.url || payload?.url || payload?.data?.fileUrl || payload?.fileUrl || ''

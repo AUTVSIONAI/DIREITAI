@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api';
 import type {
   UserProfile,
   LoginCredentials,
@@ -49,6 +50,38 @@ export class AuthService {
    */
   static async register(userData: RegisterData): Promise<AuthResponse> {
     try {
+      // Tentar registro via Backend API para garantir auto-aprovação e login imediato
+      try {
+        const response = await apiClient.post<any>('/auth/register', {
+            email: userData.email,
+            password: userData.password,
+            username: userData.username,
+            fullName: userData.full_name
+        });
+
+        if (response.success && response.data) {
+             const { session, auth_user, user } = response.data;
+             const targetUser = auth_user || user;
+
+             if (targetUser && session) {
+                 // Definir sessão localmente
+                 const { error: sessionError } = await supabase.auth.setSession(session);
+                 if (sessionError) console.warn('Erro ao definir sessão:', sessionError);
+
+                 // O perfil já foi criado pelo backend na tabela 'users', não precisamos criar novamente.
+                 // Vamos apenas retornar os dados corretos.
+
+                 return {
+                    user: targetUser,
+                    session: session,
+                    success: true
+                 };
+             }
+        }
+      } catch (backendError) {
+          console.warn('Registro via backend falhou, tentando método local:', backendError);
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
@@ -64,27 +97,29 @@ export class AuthService {
         throw new Error(error.message);
       }
 
-      // Criar perfil do usuário
+      // Criar perfil do usuário se o cadastro local funcionar (fallback)
       if (data.user) {
         const now = new Date().toISOString();
-        const profile: UserProfile = {
-          id: data.user.id,
+        // Mapear para a estrutura da tabela 'users'
+        const profileData = {
+          auth_id: data.user.id,
           email: userData.email,
           username: userData.username,
           full_name: userData.full_name || userData.username,
-          plan: 'free',
-          role: 'user',
+          plan: 'gratuito', // Backend usa 'gratuito'
           points: 0,
-          level: 1,
-          total_checkins: 0,
-          total_ai_conversations: 0,
-          total_achievements: 0,
-          is_active: true,
-          is_verified: false,
-          created_at: now,
-          updated_at: now
+          created_at: now
         };
-        await this.createUserProfile(profile);
+        
+        // Inserir na tabela 'users'
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert([profileData]);
+          
+        if (profileError) {
+             console.error('Erro ao criar perfil localmente:', profileError);
+             // Não lançar erro aqui para não impedir o login, mas logar
+        }
       }
 
       return {
@@ -255,9 +290,20 @@ export class AuthService {
    * Criar perfil do usuário
    */
   static async createUserProfile(profile: UserProfile): Promise<UserProfile> {
+    // Mapear para users
+    const userData = {
+       auth_id: profile.id,
+       email: profile.email,
+       username: profile.username,
+       full_name: profile.full_name,
+       plan: profile.plan === 'free' ? 'gratuito' : profile.plan,
+       points: profile.points || 0,
+       created_at: profile.created_at
+    };
+
     const { data, error } = await supabase
-      .from('user_profiles')
-      .insert([profile])
+      .from('users')
+      .insert([userData])
       .select()
       .single();
 
@@ -265,7 +311,7 @@ export class AuthService {
       throw new Error(error.message);
     }
 
-    return data;
+    return { ...profile, ...data, id: data.auth_id };
   }
 
   /**
@@ -274,9 +320,9 @@ export class AuthService {
   static async getUserProfile(userId: string): Promise<UserProfile | null> {
     try {
       const { data, error } = await supabase
-        .from('user_profiles')
+        .from('users')
         .select('*')
-        .eq('id', userId)
+        .eq('auth_id', userId)
         .single();
 
       if (error) {
@@ -286,7 +332,26 @@ export class AuthService {
         throw new Error(error.message);
       }
 
-      return data;
+      // Mapear de users para UserProfile
+      return {
+         id: data.auth_id,
+         email: data.email,
+         username: data.username,
+         full_name: data.full_name,
+         plan: data.plan === 'gratuito' ? 'free' : data.plan,
+         role: 'user',
+         points: data.points,
+         level: 1,
+         total_checkins: 0,
+         total_ai_conversations: 0,
+         total_achievements: 0,
+         is_active: true,
+         is_verified: false,
+         created_at: data.created_at,
+         updated_at: data.created_at,
+         // Manter compatibilidade com campos extras se existirem no retorno
+         ...data
+      };
     } catch (error) {
       console.error('Erro ao obter perfil do usuário:', error);
       return null;
@@ -297,13 +362,15 @@ export class AuthService {
    * Atualizar perfil do usuário
    */
   static async updateUserProfile(userId: string, updates: UpdateProfileData): Promise<UserProfile> {
+    // Filtrar campos que existem em users
+    const validUpdates: any = {};
+    if (updates.username) validUpdates.username = updates.username;
+    if (updates.full_name) validUpdates.full_name = updates.full_name;
+    
     const { data, error } = await supabase
-      .from('user_profiles')
-      .update({
-        ...updates,
-        updatedAt: new Date().toISOString()
-      })
-      .eq('id', userId)
+      .from('users')
+      .update(validUpdates)
+      .eq('auth_id', userId)
       .select()
       .single();
 
@@ -311,7 +378,24 @@ export class AuthService {
       throw new Error(error.message);
     }
 
-    return data;
+    return {
+         id: data.auth_id,
+         email: data.email,
+         username: data.username,
+         full_name: data.full_name,
+         plan: data.plan === 'gratuito' ? 'free' : data.plan,
+         role: 'user',
+         points: data.points,
+         level: 1,
+         total_checkins: 0,
+         total_ai_conversations: 0,
+         total_achievements: 0,
+         is_active: true,
+         is_verified: false,
+         created_at: data.created_at,
+         updated_at: data.created_at,
+         ...data
+    };
   }
 
   /**

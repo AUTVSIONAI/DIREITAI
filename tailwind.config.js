@@ -7,44 +7,50 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Cores principais do DireitaAI - Esquema Profissional
+        // Cores Patriotas do Brasil
         primary: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#1e293b',
-          700: '#0f172a',
-          800: '#020617',
-          900: '#0c1220',
-          950: '#020408',
-        },
-        conservative: {
-          50: '#fefdf8',
-          100: '#fefbf0',
-          200: '#fef7e0',
-          300: '#feefbb',
-          400: '#fde68a',
-          500: '#fbbf24',
-          600: '#d97706',
-          700: '#b45309',
-          800: '#92400e',
-          900: '#78350f',
+          50: '#eef6ff',
+          100: '#d9eaff',
+          200: '#bcdaff',
+          300: '#8ec2ff',
+          400: '#599eff',
+          500: '#2d7aff',
+          600: '#0055ff',
+          700: '#0044cc', // Azul mais vibrante para UI
+          800: '#002776', // Azul Oficial da Bandeira
+          900: '#001a4d',
+          950: '#000d26',
         },
         secondary: {
-          50: '#fefce8',
-          100: '#fef9c3',
-          200: '#fef08a',
-          300: '#fde047',
-          400: '#facc15',
-          500: '#eab308',
-          600: '#ca8a04',
-          700: '#a16207',
-          800: '#854d0e',
-          900: '#713f12',
-          950: '#422006',
+          50: '#fffaeb',
+          100: '#fff3c7',
+          200: '#ffe685',
+          300: '#ffdf00', // Amarelo Oficial da Bandeira
+          400: '#e6c800',
+          500: '#cca300',
+          600: '#a37a00',
+          700: '#7a5500',
+          800: '#523600',
+          900: '#291b00',
+          950: '#140d00',
+        },
+        patriotic: {
+          green: '#009c3b', // Verde Oficial
+          yellow: '#ffdf00', // Amarelo Oficial
+          blue: '#002776', // Azul Oficial
+          white: '#ffffff',
+        },
+        conservative: {
+          50: '#f0fdf4',
+          100: '#dcfce7',
+          200: '#bbf7d0',
+          300: '#86efac',
+          400: '#4ade80',
+          500: '#22c55e',
+          600: '#009c3b', // Verde Oficial como tom principal
+          700: '#15803d',
+          800: '#166534',
+          900: '#14532d',
         },
         success: {
           50: '#f0fdf4',

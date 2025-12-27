@@ -16,7 +16,9 @@ import {
   XCircle,
   Clock,
   Target,
-  BarChart3
+  BarChart3,
+  Archive,
+  Megaphone
 } from 'lucide-react'
 import { AdminService } from '../../../services/admin'
 import { NotificationsService } from '../../../services/notifications'
@@ -26,6 +28,7 @@ const NotificationsManagement = () => {
   const [notifications, setNotifications] = useState([])
   const [campaigns, setCampaigns] = useState([])
   const [templates, setTemplates] = useState([])
+  const [announcements, setAnnouncements] = useState([])
   const [analytics, setAnalytics] = useState(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -35,6 +38,7 @@ const NotificationsManagement = () => {
     status: ''
   })
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showCreateAnnouncementModal, setShowCreateAnnouncementModal] = useState(false)
   const [selectedNotification, setSelectedNotification] = useState(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
@@ -45,16 +49,22 @@ const NotificationsManagement = () => {
     pending: 0,
     failed: 0
   })
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [viewItem, setViewItem] = useState(null)
+  const [viewType, setViewType] = useState(null)
 
   useEffect(() => {
-    loadData()
-  }, [activeTab, filters])
+    const timer = setTimeout(() => {
+      loadData()
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [activeTab, filters, searchTerm])
 
   // Funções para ações dos botões
   const handleDeleteNotification = async (notificationId) => {
     if (window.confirm('Tem certeza que deseja deletar esta notificação?')) {
       try {
-        await AdminService.deleteAdminUser(notificationId) // Usar função apropriada quando disponível
+        await NotificationsService.deleteNotification(notificationId)
         loadData()
       } catch (error) {
         console.error('Erro ao deletar notificação:', error)
@@ -63,9 +73,22 @@ const NotificationsManagement = () => {
     }
   }
 
+  const handleArchiveNotification = async (notificationId) => {
+    if (window.confirm('Tem certeza que deseja arquivar esta notificação?')) {
+      try {
+        await NotificationsService.archiveNotification(notificationId)
+        loadData()
+      } catch (error) {
+        console.error('Erro ao arquivar notificação:', error)
+        alert('Erro ao arquivar notificação')
+      }
+    }
+  }
+
   const handleViewNotification = (notification) => {
-    setSelectedNotification(notification)
-    // Implementar modal de visualização
+    setViewItem(notification)
+    setViewType('notification')
+    setShowViewModal(true)
   }
 
   const handleDeleteTemplate = async (templateId) => {
@@ -81,8 +104,9 @@ const NotificationsManagement = () => {
   }
 
   const handleViewTemplate = (template) => {
-    setSelectedNotification(template)
-    // Implementar modal de visualização
+    setViewItem(template)
+    setViewType('template')
+    setShowViewModal(true)
   }
 
   const handleEditTemplate = (template) => {
@@ -110,8 +134,9 @@ const NotificationsManagement = () => {
   }
 
   const handleViewCampaign = (campaign) => {
-    setSelectedNotification(campaign)
-    // Implementar modal de visualização
+    setViewItem(campaign)
+    setViewType('campaign')
+    setShowViewModal(true)
   }
 
   const loadData = async () => {
@@ -120,8 +145,9 @@ const NotificationsManagement = () => {
       if (activeTab === 'notifications') {
         // Use AdminService with proper token handling
         try {
+          const isRead = filters.status === 'read' ? true : filters.status === 'unread' ? false : undefined;
           const response = await AdminService.getAdminNotifications(
-            undefined, // read filter
+            isRead, // read filter
             filters.priority || undefined, // priority filter
             1, // page
             20 // limit
@@ -148,11 +174,30 @@ const NotificationsManagement = () => {
         }
       } else if (activeTab === 'templates') {
         try {
-          const response = await NotificationsService.getNotificationTemplates()
+          const isActive = filters.status === 'active' ? true : filters.status === 'inactive' ? false : undefined;
+          const response = await NotificationsService.getNotificationTemplates(
+            filters.type || undefined,
+            undefined, // category
+            searchTerm || undefined,
+            isActive
+          )
           setTemplates(response.templates || [])
         } catch (error) {
           console.error('Error loading templates:', error)
           setTemplates([])
+        }
+      } else if (activeTab === 'announcements') {
+        try {
+          const isActive = filters.status === 'active' ? true : filters.status === 'inactive' ? false : undefined;
+          const isArchived = filters.status === 'archived' ? true : undefined;
+          const response = await NotificationsService.listAdminAnnouncements({
+            active: isActive,
+            archived: isArchived
+          })
+          setAnnouncements(response || [])
+        } catch (error) {
+          console.error('Error loading announcements:', error)
+          setAnnouncements([])
         }
       } else if (activeTab === 'analytics') {
         try {
@@ -181,6 +226,17 @@ const NotificationsManagement = () => {
       setShowCreateModal(false)
     } catch (error) {
       console.error('Erro ao enviar notificação:', error)
+    }
+  }
+
+  const handleSaveAnnouncement = async (data) => {
+    try {
+      await NotificationsService.createAdminAnnouncement(data)
+      loadData()
+      setShowCreateAnnouncementModal(false)
+    } catch (error) {
+      console.error('Erro ao criar anúncio:', error)
+      alert('Erro ao criar anúncio. Verifique o console para mais detalhes.')
     }
   }
 
@@ -351,6 +407,227 @@ const NotificationsManagement = () => {
     )
   }
 
+  // Modal de Criação de Anúncio
+  const CreateAnnouncementModal = ({ isOpen, onClose, onSubmit }) => {
+    const [formData, setFormData] = useState({
+      title: '',
+      message: '',
+      type: 'info',
+      priority: 'normal',
+      target_audience: 'all',
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: '',
+      active: true
+    })
+
+    if (!isOpen) return null
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-semibold">Criar Novo Anúncio</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <XCircle className="h-6 w-6" />
+            </button>
+          </div>
+
+          <form onSubmit={(e) => {
+            e.preventDefault()
+            onSubmit(formData)
+          }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Título
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Mensagem
+              </label>
+              <textarea
+                value={formData.message}
+                onChange={(e) => setFormData({...formData, message: e.target.value})}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo
+                </label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({...formData, type: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="info">Informação</option>
+                  <option value="warning">Aviso</option>
+                  <option value="success">Sucesso</option>
+                  <option value="error">Erro</option>
+                  <option value="maintenance">Manutenção</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Prioridade
+                </label>
+                <select
+                  value={formData.priority}
+                  onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="low">Baixa</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">Alta</option>
+                  <option value="critical">Crítica</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Data Início
+                </label>
+                <input
+                  type="date"
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({...formData, start_date: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Data Fim (Opcional)
+                </label>
+                <input
+                  type="date"
+                  value={formData.end_date}
+                  onChange={(e) => setFormData({...formData, end_date: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Público Alvo
+              </label>
+              <select
+                value={formData.target_audience}
+                onChange={(e) => setFormData({...formData, target_audience: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">Todos os Usuários</option>
+                <option value="lawyers">Advogados</option>
+                <option value="clients">Clientes</option>
+                <option value="admins">Administradores</option>
+              </select>
+            </div>
+
+            <div className="border-t pt-4 mt-4">
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Configurações de Exibição</h4>
+              
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Estilo</label>
+                  <select
+                    value={formData.style}
+                    onChange={(e) => setFormData({...formData, style: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="banner">Banner</option>
+                    <option value="modal">Modal</option>
+                    <option value="toast">Toast</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Posição</label>
+                  <select
+                    value={formData.position}
+                    onChange={(e) => setFormData({...formData, position: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="top">Topo</option>
+                    <option value="bottom">Rodapé</option>
+                    <option value="center">Centro (Modal)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex space-x-6">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="create_is_dismissible"
+                    checked={formData.is_dismissible}
+                    onChange={(e) => setFormData({...formData, is_dismissible: e.target.checked})}
+                    className="mr-2"
+                  />
+                  <label htmlFor="create_is_dismissible" className="text-sm font-medium text-gray-700">Permitir fechar</label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="create_is_persistent"
+                    checked={formData.is_persistent}
+                    onChange={(e) => setFormData({...formData, is_persistent: e.target.checked})}
+                    className="mr-2"
+                  />
+                  <label htmlFor="create_is_persistent" className="text-sm font-medium text-gray-700">Persistente</label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="create_active"
+                checked={formData.active}
+                onChange={(e) => setFormData({...formData, active: e.target.checked})}
+                className="mr-2"
+              />
+              <label htmlFor="create_active" className="text-sm font-medium text-gray-700">
+                Ativo
+              </label>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Criar Anúncio
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
 // Modal de Edição
 const EditModal = ({ isOpen, onClose, item, type }) => {
     const [formData, setFormData] = useState({
@@ -359,7 +636,19 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
       content: '',
       type: 'info',
       category: 'system',
-      is_active: true
+      is_active: true,
+      // Announcement fields
+      title: '',
+      message: '',
+      priority: 'normal',
+      target_audience: 'all',
+      start_date: '',
+      end_date: '',
+      active: true,
+      style: 'banner',
+      position: 'top',
+      is_dismissible: true,
+      is_persistent: false
     })
 
     useEffect(() => {
@@ -382,6 +671,21 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
             status: item.status || 'draft',
             is_active: item.is_active !== undefined ? item.is_active : true
           })
+        } else if (type === 'announcement') {
+          setFormData({
+            title: item.title || '',
+            message: item.message || '',
+            type: item.type || 'info',
+            priority: item.priority || 'normal',
+            target_audience: item.target_audience || 'all',
+            start_date: item.start_date ? item.start_date.split('T')[0] : '',
+            end_date: item.end_date ? item.end_date.split('T')[0] : '',
+            active: item.active !== undefined ? item.active : true,
+            style: item.style || 'banner',
+            position: item.position || 'top',
+            is_dismissible: item.is_dismissible !== undefined ? item.is_dismissible : true,
+            is_persistent: item.is_persistent || false
+          })
         }
       }
     }, [item, isOpen, type])
@@ -394,6 +698,21 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
         } else if (type === 'campaign') {
           // Implementar atualização de campanha quando a API estiver disponível
           console.log('Atualizando campanha:', item.id, formData)
+        } else if (type === 'announcement') {
+          await NotificationsService.updateAdminAnnouncement(item.id, {
+            title: formData.title,
+            message: formData.message,
+            type: formData.type,
+            priority: formData.priority,
+            target_audience: formData.target_audience,
+            start_date: formData.start_date,
+            end_date: formData.end_date,
+            active: formData.active,
+            style: formData.style,
+            position: formData.position,
+            is_dismissible: formData.is_dismissible,
+            is_persistent: formData.is_persistent
+          })
         }
         loadData()
         onClose()
@@ -410,7 +729,7 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
         <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-semibold">
-              Editar {type === 'template' ? 'Template' : 'Campanha'}
+              Editar {type === 'template' ? 'Template' : type === 'announcement' ? 'Anúncio' : 'Campanha'}
             </h3>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <XCircle className="h-6 w-6" />
@@ -418,6 +737,161 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {type === 'announcement' ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Título</label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Mensagem</label>
+                  <textarea
+                    value={formData.message}
+                    onChange={(e) => setFormData({...formData, message: e.target.value})}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
+                    <select
+                      value={formData.type}
+                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="info">Informação</option>
+                      <option value="warning">Aviso</option>
+                      <option value="success">Sucesso</option>
+                      <option value="error">Erro</option>
+                      <option value="maintenance">Manutenção</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                    <select
+                      value={formData.priority}
+                      onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="low">Baixa</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">Alta</option>
+                      <option value="critical">Crítica</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Data Início</label>
+                    <input
+                      type="date"
+                      value={formData.start_date}
+                      onChange={(e) => setFormData({...formData, start_date: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Data Fim</label>
+                    <input
+                      type="date"
+                      value={formData.end_date}
+                      onChange={(e) => setFormData({...formData, end_date: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Público Alvo</label>
+                  <select
+                    value={formData.target_audience}
+                    onChange={(e) => setFormData({...formData, target_audience: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="all">Todos os Usuários</option>
+                    <option value="lawyers">Advogados</option>
+                    <option value="clients">Clientes</option>
+                    <option value="admins">Administradores</option>
+                  </select>
+                </div>
+
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Configurações de Exibição</h4>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Estilo</label>
+                      <select
+                        value={formData.style}
+                        onChange={(e) => setFormData({...formData, style: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="banner">Banner</option>
+                        <option value="modal">Modal</option>
+                        <option value="toast">Toast</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Posição</label>
+                      <select
+                        value={formData.position}
+                        onChange={(e) => setFormData({...formData, position: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="top">Topo</option>
+                        <option value="bottom">Rodapé</option>
+                        <option value="center">Centro (Modal)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex space-x-6">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="edit_is_dismissible"
+                        checked={formData.is_dismissible}
+                        onChange={(e) => setFormData({...formData, is_dismissible: e.target.checked})}
+                        className="mr-2"
+                      />
+                      <label htmlFor="edit_is_dismissible" className="text-sm font-medium text-gray-700">Permitir fechar</label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="edit_is_persistent"
+                        checked={formData.is_persistent}
+                        onChange={(e) => setFormData({...formData, is_persistent: e.target.checked})}
+                        className="mr-2"
+                      />
+                      <label htmlFor="edit_is_persistent" className="text-sm font-medium text-gray-700">Persistente</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="edit_active"
+                    checked={formData.active}
+                    onChange={(e) => setFormData({...formData, active: e.target.checked})}
+                    className="mr-2"
+                  />
+                  <label htmlFor="edit_active" className="text-sm font-medium text-gray-700">Ativo</label>
+                </div>
+              </div>
+            ) : (
+              <>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Nome
@@ -526,6 +1000,8 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
                 Ativo
               </label>
             </div>
+            </>
+            )}
 
             <div className="flex justify-end space-x-3 pt-4">
               <button
@@ -548,6 +1024,217 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
     )
   }
 
+  // Modal de Visualização
+  const ViewModal = ({ isOpen, onClose, item, type }) => {
+    if (!isOpen || !item) return null
+
+    const renderContent = () => {
+      switch (type) {
+        case 'notification':
+          return (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Título</label>
+                <p className="mt-1 text-gray-900">{item.title}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Mensagem</label>
+                <p className="mt-1 text-gray-900">{item.message}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Tipo</label>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1
+                    ${item.type === 'error' ? 'bg-red-100 text-red-800' :
+                      item.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                      item.type === 'success' ? 'bg-green-100 text-green-800' :
+                      'bg-blue-100 text-blue-800'}`}>
+                    {item.type}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Prioridade</label>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1
+                    ${item.priority === 'high' || item.priority === 'critical' ? 'bg-red-100 text-red-800' :
+                      item.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'}`}>
+                    {item.priority}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Data de Envio</label>
+                <p className="mt-1 text-gray-900">
+                  {new Date(item.created_at).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )
+        case 'template':
+          return (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Nome</label>
+                <p className="mt-1 text-gray-900">{item.name}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Assunto</label>
+                <p className="mt-1 text-gray-900">{item.subject}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Conteúdo</label>
+                <div className="mt-1 p-3 bg-gray-50 rounded-lg text-sm text-gray-900 whitespace-pre-wrap">
+                  {item.content}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Tipo</label>
+                  <p className="mt-1 text-gray-900 capitalize">{item.type}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Categoria</label>
+                  <p className="mt-1 text-gray-900 capitalize">{item.category}</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Status</label>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1
+                  ${item.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                  {item.is_active ? 'Ativo' : 'Inativo'}
+                </span>
+              </div>
+            </div>
+          )
+        case 'campaign':
+          return (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Nome</label>
+                <p className="mt-1 text-gray-900">{item.name}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Assunto</label>
+                <p className="mt-1 text-gray-900">{item.subject}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Status</label>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1
+                  ${item.status === 'sent' ? 'bg-green-100 text-green-800' :
+                    item.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                    item.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+                    'bg-red-100 text-red-800'}`}>
+                  {item.status}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+                <div className="text-center">
+                  <p className="text-xs text-gray-500">Enviados</p>
+                  <p className="font-semibold">{item.stats?.sent || 0}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500">Aberturas</p>
+                  <p className="font-semibold">{item.stats?.opened || 0}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500">Cliques</p>
+                  <p className="font-semibold">{item.stats?.clicked || 0}</p>
+                </div>
+              </div>
+            </div>
+          )
+        case 'announcement':
+          return (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Título</label>
+                <p className="mt-1 text-gray-900">{item.title}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Mensagem</label>
+                <p className="mt-1 text-gray-900">{item.message}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Tipo</label>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1
+                    ${item.type === 'error' ? 'bg-red-100 text-red-800' :
+                      item.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                      item.type === 'success' ? 'bg-green-100 text-green-800' :
+                      'bg-blue-100 text-blue-800'}`}>
+                    {item.type}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Prioridade</label>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1
+                    ${item.priority === 'high' || item.priority === 'critical' ? 'bg-red-100 text-red-800' :
+                      item.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'}`}>
+                    {item.priority}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Vigência</label>
+                <p className="mt-1 text-gray-900">
+                  {new Date(item.start_date).toLocaleDateString('pt-BR')}
+                  {item.end_date ? ` - ${new Date(item.end_date).toLocaleDateString('pt-BR')}` : ''}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Status</label>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1
+                  ${item.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                  {item.active ? 'Ativo' : 'Inativo'}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+                <div className="text-center">
+                  <p className="text-xs text-gray-500">Visualizações</p>
+                  <p className="font-semibold">{item.view_count || 0}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500">Cliques</p>
+                  <p className="font-semibold">{item.click_count || 0}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-500">Dispensados</p>
+                  <p className="font-semibold">{item.dismiss_count || 0}</p>
+                </div>
+              </div>
+            </div>
+          )
+        default:
+          return null
+      }
+    }
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-semibold capitalize">
+              Detalhes da {type === 'notification' ? 'Notificação' : type === 'template' ? 'Template' : 'Campanha'}
+            </h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <XCircle className="h-6 w-6" />
+            </button>
+          </div>
+          {renderContent()}
+          <div className="flex justify-end pt-6">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -556,13 +1243,26 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
           <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Notificações</h1>
           <p className="text-gray-600">Gerencie notificações, campanhas e templates</p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Nova Notificação</span>
-        </button>
+        <div className="flex space-x-2">
+          {activeTab === 'notifications' && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Nova Notificação</span>
+            </button>
+          )}
+          {activeTab === 'announcements' && (
+            <button
+              onClick={() => setShowCreateAnnouncementModal(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Novo Anúncio</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -598,6 +1298,7 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
         <nav className="-mb-px flex space-x-8">
           {[
             { id: 'notifications', label: 'Notificações', icon: Bell },
+            { id: 'announcements', label: 'Anúncios', icon: Megaphone },
             { id: 'campaigns', label: 'Campanhas', icon: Target },
             { id: 'templates', label: 'Templates', icon: Edit },
             { id: 'analytics', label: 'Análises', icon: BarChart3 }
@@ -667,8 +1368,33 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">Todos os status</option>
-            <option value="read">Lidas</option>
-            <option value="unread">Não lidas</option>
+            {activeTab === 'notifications' && (
+              <>
+                <option value="read">Lidas</option>
+                <option value="unread">Não lidas</option>
+              </>
+            )}
+            {activeTab === 'templates' && (
+              <>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+              </>
+            )}
+            {activeTab === 'campaigns' && (
+              <>
+                <option value="draft">Rascunho</option>
+                <option value="scheduled">Agendada</option>
+                <option value="sent">Enviada</option>
+                <option value="cancelled">Cancelada</option>
+              </>
+            )}
+            {activeTab === 'announcements' && (
+              <>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+                <option value="archived">Arquivados</option>
+              </>
+            )}
           </select>
         </div>
       </div>
@@ -756,6 +1482,107 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
                         </button>
                         <button 
                           onClick={() => handleDeleteNotification(notification.id)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Deletar"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : activeTab === 'announcements' ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Anúncio
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tipo
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Prioridade
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Vigência
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Ações
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {announcements.map((announcement) => (
+                  <tr key={announcement.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {announcement.title}
+                        </div>
+                        <div className="text-sm text-gray-500 truncate max-w-xs">
+                          {announcement.message}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="capitalize text-sm text-gray-900">
+                        {announcement.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={getPriorityBadge(announcement.priority)}>
+                        {announcement.priority}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        announcement.active 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {announcement.active ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(announcement.start_date).toLocaleDateString('pt-BR')}
+                      {announcement.end_date ? ` - ${new Date(announcement.end_date).toLocaleDateString('pt-BR')}` : ''}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleToggleAnnouncementActive(announcement.id, announcement.active)}
+                          className={`${announcement.active ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900'}`}
+                          title={announcement.active ? 'Desativar' : 'Ativar'}
+                        >
+                          {announcement.active ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                        </button>
+                        {announcement.is_archived ? (
+                          <button 
+                            onClick={() => handleUnarchiveAnnouncement(announcement.id)}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="Desarquivar"
+                          >
+                            <Archive className="h-4 w-4" />
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => handleArchiveAnnouncement(announcement.id)}
+                            className="text-gray-600 hover:text-gray-900"
+                            title="Arquivar"
+                          >
+                            <Archive className="h-4 w-4" />
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => handleDeleteAnnouncement(announcement.id)}
                           className="text-red-600 hover:text-red-900"
                           title="Deletar"
                         >
@@ -1038,6 +1865,13 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
         onSubmit={handleSendBroadcast}
       />
 
+      {/* Create Announcement Modal */}
+      <CreateAnnouncementModal
+        isOpen={showCreateAnnouncementModal}
+        onClose={() => setShowCreateAnnouncementModal(false)}
+        onSubmit={handleSaveAnnouncement}
+      />
+
       {/* Edit Modal */}
       <EditModal
         isOpen={showEditModal}
@@ -1048,6 +1882,13 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
         }}
         item={editingItem}
         type={editType}
+      />
+
+      <ViewModal
+        isOpen={showViewModal}
+        onClose={() => setShowViewModal(false)}
+        item={viewItem}
+        type={viewType}
       />
 
     </div>

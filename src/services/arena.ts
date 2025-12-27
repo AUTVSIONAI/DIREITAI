@@ -8,6 +8,9 @@ export interface Arena {
   scheduled_at: string;
   duration_minutes: number;
   status: 'scheduled' | 'live' | 'ended';
+  started_at?: string;
+  created_at?: string;
+  updated_at?: string;
   rules: string;
   superchat_config: any;
   politicians?: {
@@ -29,8 +32,8 @@ export interface ArenaQuestion {
   is_answered: boolean;
   created_at: string;
   users?: {
-    name: string;
-    photo_url: string;
+    full_name: string;
+    avatar_url: string;
     role?: string;
   };
 }
@@ -96,6 +99,11 @@ export const arenaService = {
   },
 
   // Participants
+  getMyInvites: async () => {
+    const response = await apiClient.get('/arenas/my-invites');
+    return response.data;
+  },
+
   getParticipants: async (arenaId: string) => {
     const response = await apiClient.get(`/arenas/${arenaId}/participants`);
     return response.data;
@@ -113,6 +121,26 @@ export const arenaService = {
 
   searchUsers: async (query: string) => {
     const response = await apiClient.get(`/arenas/users/search`, { params: { q: query } });
+    return response.data;
+  },
+
+  inviteExternal: async (arenaId: string, name: string, email: string, role: string) => {
+    const response = await apiClient.post(`/arenas/${arenaId}/invite-external`, { name, email, role });
+    return response.data;
+  },
+
+  toggleHand: async (arenaId: string, hand_raised: boolean) => {
+    const response = await apiClient.put(`/arenas/${arenaId}/participants/hand`, { hand_raised });
+    return response.data;
+  },
+
+  updateParticipantPermissions: async (arenaId: string, userId: string, permissions: { can_speak?: boolean; can_video?: boolean; hand_raised?: boolean }) => {
+    const response = await apiClient.post(`/arenas/${arenaId}/participants/${userId}/permissions`, permissions);
+    return response.data;
+  },
+
+  removeParticipant: async (arenaId: string, userId: string) => {
+    const response = await apiClient.delete(`/arenas/${arenaId}/participants/${userId}`);
     return response.data;
   }
 };

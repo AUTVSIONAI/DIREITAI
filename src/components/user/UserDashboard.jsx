@@ -37,7 +37,7 @@ const UserDashboard = () => {
   const isPolitician = role === 'politician'
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-transparent">
       {/* Sidebar */}
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       
@@ -47,7 +47,7 @@ const UserDashboard = () => {
         <Header setSidebarOpen={setSidebarOpen} />
         
         {/* Page Content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-transparent p-6">
           <Suspense fallback={<PageLoader />}>
             <Routes>
             <Route path="/" element={isPolitician ? <Agents onlyMyAgent={true} /> : <Overview />} />

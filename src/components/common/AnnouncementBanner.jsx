@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, ExternalLink, Info, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
 import { NotificationsService } from '../../services/notifications';
 import { useAuth } from '../../contexts/AuthContext';
+import DetailsModal from './DetailsModal';
 
 const AnnouncementBanner = ({ className = '' }) => {
   const { user } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const viewedIdsRef = useRef(new Set());
+
   const [locallyDismissed, setLocallyDismissed] = useState(() => {
     try {
       const raw = localStorage.getItem('dismissedAnnouncements');
@@ -23,6 +27,15 @@ const AnnouncementBanner = ({ className = '' }) => {
         const response = await NotificationsService.getAnnouncementBanners();
         const announcementsData = Array.isArray(response) ? response : [];
         setAnnouncements(announcementsData);
+
+        // Registrar visualizações
+        announcementsData.forEach(announcement => {
+          if (!viewedIdsRef.current.has(announcement.id)) {
+            NotificationsService.viewAnnouncementBanner(announcement.id).catch(console.error);
+            viewedIdsRef.current.add(announcement.id);
+          }
+        });
+
       } catch (error) {
         // Tratar 401/403 graciosamente para usuários não autenticados
         if (error?.response?.status === 401 || error?.response?.status === 403) {
@@ -57,12 +70,11 @@ const AnnouncementBanner = ({ className = '' }) => {
   const handleAnnouncementClick = async (announcement) => {
     try {
       await NotificationsService.clickAnnouncementBanner(announcement.id);
-      
-      if (announcement.action?.url) {
-        window.open(announcement.action.url, '_blank');
-      }
+      setSelectedAnnouncement(announcement);
     } catch (error) {
       console.error('Erro ao registrar clique no anúncio:', error);
+      // Ainda abrir o modal mesmo se falhar o registro do clique
+      setSelectedAnnouncement(announcement);
     }
   };
 
@@ -161,20 +173,21 @@ const AnnouncementBanner = ({ className = '' }) => {
                   </p>
                   
                   {/* Botão de ação */}
-                  {announcement.action?.text && announcement.action?.url && (
-                    <button
-                      onClick={() => handleAnnouncementClick(announcement)}
-                      className="mt-2 inline-flex items-center text-xs text-blue-700 hover:text-blue-800"
-                    >
-                      {announcement.action.text}
-                      <ExternalLink className="h-4 w-4 ml-1" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleAnnouncementClick(announcement)}
+                    className="mt-2 inline-flex items-center text-xs font-medium underline opacity-80 hover:opacity-100 focus:outline-none"
+                  >
+                    {announcement.action?.label || 'Ver detalhes'}
+                    <ExternalLink className="h-3 w-3 ml-1" />
+                  </button>
                 </div>
 
                 <button
-                  onClick={() => dismissAnnouncement(announcement.id)}
-                  className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismissAnnouncement(announcement.id);
+                  }}
+                  className="p-1 ml-2 text-gray-400 hover:text-gray-600 rounded focus:outline-none"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -183,6 +196,13 @@ const AnnouncementBanner = ({ className = '' }) => {
           </div>
         </div>
       ))}
+
+      <DetailsModal
+        isOpen={!!selectedAnnouncement}
+        onClose={() => setSelectedAnnouncement(null)}
+        item={selectedAnnouncement}
+        type="announcement"
+      />
     </div>
   );
 };

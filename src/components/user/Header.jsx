@@ -33,7 +33,7 @@ const Header = ({ setSidebarOpen }) => {
   }
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
+    <header className="bg-white/90 backdrop-blur-sm shadow-sm border-b border-gray-200/50">
       <div className="flex items-center justify-between px-6 py-4">
         {/* Left side */}
         <div className="flex items-center">
@@ -45,7 +45,7 @@ const Header = ({ setSidebarOpen }) => {
           </button>
           
           <div className="ml-4 lg:ml-0">
-            <h1 className="text-2xl font-semibold text-gray-900">
+            <h1 className="text-2xl font-bold text-patriotic-blue">
               Central do Patriota
             </h1>
             <p className="text-sm text-gray-500">

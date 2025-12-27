@@ -100,53 +100,48 @@ const HomePage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-transparent">
       {/* Header */}
-      <header className="bg-white/95 backdrop-blur-md shadow-lg border-b border-gray-100 sticky top-0 z-50">
+      <header className="bg-white/90 backdrop-blur-md shadow-lg border-b border-gray-100/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-3">
-              <div className="bg-gradient-to-br from-conservative-500 to-conservative-600 p-2 rounded-xl">
-                <Flag className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-primary-700 to-primary-900 bg-clip-text text-transparent">
-                Direitai.com
-              </span>
+            <div className="flex items-center">
+              <img src="/logo.png" alt="Direitai" className="h-48 w-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
             </div>
             <div className="flex items-center space-x-6">
               {/* Navigation Menu */}
               <nav className="hidden md:flex items-center space-x-1">
                 <Link 
                   to="/blog" 
-                  className="text-gray-700 hover:text-primary-700 hover:bg-primary-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-all duration-200"
+                  className="text-gray-700 hover:text-patriotic-blue hover:bg-patriotic-yellow/10 px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 transition-all duration-200"
                 >
                   <BookOpen className="h-4 w-4" />
                   <span>Blog</span>
                 </Link>
                 <Link 
                   to="/politicos" 
-                  className="text-gray-700 hover:text-primary-700 hover:bg-primary-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-all duration-200"
+                  className="text-gray-700 hover:text-patriotic-blue hover:bg-patriotic-yellow/10 px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 transition-all duration-200"
                 >
                   <UserCheck className="h-4 w-4" />
                   <span>Políticos</span>
                 </Link>
                 <Link 
                   to="/pesquisas" 
-                  className="text-gray-700 hover:text-primary-700 hover:bg-primary-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-all duration-200"
+                  className="text-gray-700 hover:text-patriotic-blue hover:bg-patriotic-yellow/10 px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 transition-all duration-200"
                 >
                   <BarChart3 className="h-4 w-4" />
                   <span>Pesquisas</span>
                 </Link>
                 <Link 
                   to="/resultados" 
-                  className="text-gray-700 hover:text-primary-700 hover:bg-primary-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-all duration-200"
+                  className="text-gray-700 hover:text-patriotic-blue hover:bg-patriotic-yellow/10 px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 transition-all duration-200"
                 >
                   <TrendingUp className="h-4 w-4" />
                   <span>Resultados</span>
                 </Link>
                 <Link 
                   to="/verdade-ou-fake" 
-                  className="text-gray-700 hover:text-primary-700 hover:bg-primary-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-all duration-200"
+                  className="text-gray-700 hover:text-patriotic-blue hover:bg-patriotic-yellow/10 px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 transition-all duration-200"
                 >
                   <Shield className="h-4 w-4" />
                   <span>Verdade ou Fake</span>
@@ -174,26 +169,27 @@ const HomePage = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary-700 via-primary-800 to-primary-900 py-24 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-primary-800 via-primary-900 to-primary-950 py-24 overflow-hidden">
         {/* Background Pattern */}
-        <div className="absolute inset-0 bg-gradient-to-br from-black/10 to-black/20"></div>
+        <div className="absolute inset-0 bg-[url('/bg-flag.svg')] bg-cover bg-center opacity-10 mix-blend-overlay"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-black/20 to-black/40"></div>
         
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <div className="inline-flex items-center px-4 py-2 rounded-full bg-conservative-500/20 text-conservative-300 text-sm font-medium mb-6 backdrop-blur-sm">
-              <Flag className="h-4 w-4 mr-2" />
+            <div className="inline-flex items-center px-4 py-2 rounded-full bg-secondary-400/20 text-secondary-300 text-sm font-medium mb-6 backdrop-blur-sm border border-secondary-500/30">
+              <Flag className="h-4 w-4 mr-2 text-secondary-400" />
               Plataforma Oficial dos Patriotas Brasileiros
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
+            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight drop-shadow-lg">
               A Central do{' '}
-              <span className="bg-gradient-to-r from-conservative-400 to-conservative-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-secondary-300 to-secondary-500 bg-clip-text text-transparent filter drop-shadow-md">
                 Patriota
               </span>{' '}
               Brasileiro
             </h1>
             
-            <p className="text-xl md:text-2xl text-primary-200 mb-10 max-w-4xl mx-auto leading-relaxed">
+            <p className="text-xl md:text-2xl text-gray-200 mb-10 max-w-4xl mx-auto leading-relaxed drop-shadow">
               Conecte-se com outros conservadores, participe de eventos patrióticos e 
               converse com nossa IA especializada em política de direita.
             </p>
@@ -201,7 +197,7 @@ const HomePage = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link 
                 to="/login" 
-                className="group bg-gradient-to-r from-conservative-500 to-conservative-600 hover:from-conservative-600 hover:to-conservative-700 text-white px-10 py-4 rounded-xl text-lg font-semibold flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                className="group bg-gradient-to-r from-patriotic-green to-emerald-600 hover:from-emerald-500 hover:to-patriotic-green text-white px-10 py-4 rounded-xl text-lg font-bold flex items-center justify-center space-x-2 shadow-lg hover:shadow-green-500/50 transition-all duration-300 transform hover:-translate-y-1 border-b-4 border-green-800 active:border-b-0 active:translate-y-0"
               >
                 <span>Começar Agora</span>
                 <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -214,12 +210,12 @@ const HomePage = () => {
         </div>
         
         {/* Decorative Elements */}
-        <div className="absolute top-20 left-10 w-20 h-20 bg-conservative-500/20 rounded-full blur-xl"></div>
-        <div className="absolute bottom-20 right-10 w-32 h-32 bg-conservative-400/20 rounded-full blur-xl"></div>
+        <div className="absolute top-20 left-10 w-32 h-32 bg-secondary-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-20 right-10 w-48 h-48 bg-patriotic-green/10 rounded-full blur-3xl"></div>
       </section>
 
       {/* Stats Section */}
-      <section className="py-16 bg-white">
+      <section className="py-16 bg-white/90 backdrop-blur-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
@@ -235,7 +231,7 @@ const HomePage = () => {
       </section>
 
       {/* Features Section */}
-      <section className="py-24 bg-gradient-to-br from-gray-50 to-gray-100">
+      <section className="py-24 bg-white/80 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
             <h2 className="text-4xl font-bold bg-gradient-to-r from-primary-700 to-primary-900 bg-clip-text text-transparent mb-6">
@@ -250,20 +246,19 @@ const HomePage = () => {
             {features.map((feature, index) => {
               const Icon = feature.icon;
               const gradients = [
-                "from-blue-500 to-blue-600",
-                "from-green-500 to-green-600", 
-                "from-purple-500 to-purple-600",
-                "from-orange-500 to-orange-600",
-                "from-red-500 to-red-600",
-                "from-indigo-500 to-indigo-600",
-                "from-pink-500 to-pink-600",
-                "from-teal-500 to-teal-600"
+                "from-patriotic-blue to-blue-600",
+                "from-patriotic-green to-green-600", 
+                "from-secondary-400 to-secondary-500",
+                "from-patriotic-blue to-indigo-600",
+                "from-patriotic-green to-emerald-600",
+                "from-secondary-500 to-amber-500"
               ];
               const gradient = gradients[index % gradients.length];
               
               const FeatureCard = (
-                <div className="group bg-white rounded-2xl shadow-lg p-8 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-gray-100">
-                  <div className={`bg-gradient-to-r ${gradient} text-white p-4 rounded-xl inline-block mb-6 group-hover:scale-110 transition-transform duration-300`}>
+                <div className="group bg-white rounded-2xl shadow-lg p-8 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-gray-100 h-full relative overflow-hidden">
+                  <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${gradient} opacity-10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150 duration-500`}></div>
+                  <div className={`bg-gradient-to-r ${gradient} text-white p-4 rounded-xl inline-block mb-6 group-hover:scale-110 transition-transform duration-300 shadow-md`}>
                     <Icon className="h-8 w-8" />
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-primary-700 transition-colors duration-300">
@@ -290,7 +285,7 @@ const HomePage = () => {
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-24 bg-white relative overflow-hidden">
+      <section className="py-24 bg-white/90 backdrop-blur-sm relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 to-conservative-50/30"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="text-center mb-20">
@@ -342,13 +337,13 @@ const HomePage = () => {
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
               <Link 
                 to="/login" 
-                className="bg-white text-primary-700 px-10 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl shadow-lg"
+                className="bg-patriotic-yellow text-patriotic-blue px-10 py-4 rounded-xl font-bold text-lg hover:bg-yellow-400 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl shadow-lg border-b-4 border-yellow-600 active:border-b-0 active:translate-y-1"
               >
                 Cadastrar Agora
               </Link>
               <Link 
                 to="/blog" 
-                className="border-2 border-white text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-white hover:text-primary-700 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl"
+                className="border-2 border-white text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-white hover:text-patriotic-blue transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl"
               >
                 Conhecer Mais
               </Link>
@@ -372,17 +367,12 @@ const HomePage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white py-16">
+      <footer className="bg-gradient-to-br from-primary-900 via-primary-800 to-primary-900 text-white py-16 border-t border-primary-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div className="col-span-1 md:col-span-2">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="bg-gradient-to-br from-conservative-500 to-conservative-600 p-2 rounded-xl">
-                  <Flag className="h-6 w-6 text-white" />
-                </div>
-                <span className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                  Direitai.com
-                </span>
+              <div className="flex items-center mb-6">
+                <img src="/logo.png" alt="Direitai" className="h-48 w-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
               </div>
               <p className="text-gray-300 mb-6 leading-relaxed text-lg">
                 A maior plataforma conservadora do Brasil. Conectando patriotas, defendendo valores e fortalecendo a democracia brasileira.

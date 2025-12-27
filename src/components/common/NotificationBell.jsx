@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Bell, X, Check, ExternalLink, Clock, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
 import { NotificationsService } from '../../services/notifications';
 import { useAuth } from '../../contexts/AuthContext';
+import DetailsModal from './DetailsModal';
 
 const NotificationBell = ({ className = '' }) => {
   const { user } = useAuth();
@@ -9,6 +10,7 @@ const NotificationBell = ({ className = '' }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState(null);
   const dropdownRef = useRef(null);
 
   // Fechar dropdown ao clicar fora
@@ -86,13 +88,17 @@ const NotificationBell = ({ className = '' }) => {
       await markAsRead(notification.id);
     }
     
-    if (notification.action_url) {
-      try {
+    // Registrar clique e abrir modal de detalhes
+    try {
+      if (notification.action_url) {
         await NotificationsService.markNotificationAsClicked(notification.id);
-        window.open(notification.action_url, '_blank');
-      } catch (error) {
-        console.error('Erro ao registrar clique:', error);
       }
+      setSelectedNotification(notification);
+      setIsOpen(false); // Fechar o dropdown
+    } catch (error) {
+      console.error('Erro ao registrar clique:', error);
+      setSelectedNotification(notification);
+      setIsOpen(false);
     }
   };
 
@@ -182,7 +188,8 @@ const NotificationBell = ({ className = '' }) => {
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                  onClick={() => handleNotificationClick(notification)}
+                  className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${
                     !notification.is_read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                   }`}
                 >
@@ -223,7 +230,10 @@ const NotificationBell = ({ className = '' }) => {
                             <div className="flex items-center space-x-1">
                               {notification.action_url && (
                                 <button
-                                  onClick={() => handleNotificationClick(notification)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleNotificationClick(notification);
+                                  }}
                                   className="p-1 text-gray-400 hover:text-blue-600 rounded"
                                   title="Abrir link"
                                 >
@@ -233,7 +243,10 @@ const NotificationBell = ({ className = '' }) => {
                               
                               {!notification.is_read && (
                                 <button
-                                  onClick={() => markAsRead(notification.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    markAsRead(notification.id);
+                                  }}
                                   className="p-1 text-gray-400 hover:text-green-600 rounded"
                                   title="Marcar como lida"
                                 >
@@ -242,7 +255,10 @@ const NotificationBell = ({ className = '' }) => {
                               )}
                               
                               <button
-                                onClick={() => dismissNotification(notification.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  dismissNotification(notification.id);
+                                }}
                                 className="p-1 text-gray-400 hover:text-red-600 rounded"
                                 title="Dispensar"
                               >
@@ -275,6 +291,13 @@ const NotificationBell = ({ className = '' }) => {
           )}
         </div>
       )}
+
+      <DetailsModal
+        isOpen={!!selectedNotification}
+        onClose={() => setSelectedNotification(null)}
+        item={selectedNotification}
+        type="notification"
+      />
     </div>
   );
 };

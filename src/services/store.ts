@@ -67,15 +67,25 @@ export class StoreService {
       }
     }
 
-    const response = await apiClient.get(`/products?${params.toString()}`);
+    const response = await apiClient.get(`/store/products?${params.toString()}`);
     return response.data;
+  }
+
+  /**
+   * Obter categorias
+   */
+  static async getCategories(): Promise<{ id: string; name: string }[]> {
+    const response = await apiClient.get('/store/categories');
+    // Mapear array de strings para objetos { id, name }
+    const categories = response.data?.categories || [];
+    return categories.map((c: string) => ({ id: c, name: c }));
   }
 
   /**
    * Obter produto específico
    */
   static async getProduct(productId: string): Promise<Product> {
-    const response = await apiClient.get(`/products/${productId}`);
+    const response = await apiClient.get(`/store/products/${productId}`);
     return response.data;
   }
 

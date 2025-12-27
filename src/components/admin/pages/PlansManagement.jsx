@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, ToggleLeft, ToggleRight, ChevronUp, ChevronDown, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit, Trash2, ToggleLeft, ToggleRight, ChevronUp, ChevronDown, RefreshCw } from 'lucide-react';
 import { apiClient } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 
@@ -20,34 +20,42 @@ const PlansManagement = () => {
     fake_news_analyses_limit: '',
     is_active: true,
     is_popular: false,
-    is_visible: true,
     sort_order: 0,
     color: 'blue',
     icon: 'Package'
   });
 
   useEffect(() => {
-    const ensureAuth = async () => {
+    const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
         if (token) {
           apiClient.setAuthToken(token);
+          console.log('Token definido');
+        } else {
+          console.log('Nenhum token encontrado');
         }
-      } catch {}
+      } catch (e) {
+        console.error('Erro no auth:', e);
+      }
+      fetchPlans();
     };
-    ensureAuth();
-    fetchPlans();
+    init();
   }, []);
 
   const fetchPlans = async () => {
     try {
       setLoading(true);
+      console.log('Buscando planos...');
       const response = await apiClient.get('/plans/admin');
+      console.log('Resposta planos:', response);
       const payload = response?.data;
       const list = Array.isArray(payload)
         ? payload
         : (payload?.data && Array.isArray(payload.data) ? payload.data : []);
+      
+      console.log('Lista processada:', list);
       setPlans(list);
       setForbidden(false);
     } catch (error) {
@@ -55,7 +63,7 @@ const PlansManagement = () => {
       if (error.response?.status === 403) {
         setForbidden(true);
       } else {
-        alert('Erro ao carregar planos');
+        alert('Erro ao carregar planos: ' + (error.response?.data?.error || error.message));
       }
       if (!Array.isArray(plans)) setPlans([]);
     } finally {
@@ -177,28 +185,6 @@ const PlansManagement = () => {
     }
   };
 
-  const handleToggleVisibility = async (planId, currentVisibility) => {
-    try {
-      const response = await apiClient.patch(`/plans/${planId}/visibility`, {
-        is_visible: !currentVisibility
-      });
-      
-      if (response && response.data && response.data.success) {
-        alert(`Plano ${currentVisibility ? 'ocultado' : 'tornado visível'} com sucesso!`);
-        fetchPlans();
-      } else {
-        alert('Erro ao alterar visibilidade do plano: ' + (response?.data?.message || 'Resposta inválida'));
-      }
-    } catch (error) {
-      console.error('Erro ao alterar visibilidade do plano:', error);
-      if (error.response?.status === 403) {
-        alert('Acesso negado. Faça login com uma conta de administrador.');
-      } else {
-        alert('Erro ao alterar visibilidade do plano');
-      }
-    }
-  };
-
   const handleReorder = async (planId, direction) => {
     try {
       const response = await apiClient.patch(`/plans/${planId}/reorder`, {
@@ -241,45 +227,31 @@ const PlansManagement = () => {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Gerenciamento de Planos</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Gerenciamento de Planos ({plans.length})</h1>
         <div className="flex items-center gap-2">
+          <button
+            onClick={fetchPlans}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-lg"
+            title="Recarregar lista"
+          >
+            <RefreshCw size={20} />
+          </button>
           <button
             onClick={async () => {
               try {
-                const existingSlugs = new Set((plans || []).map(p => String(p.slug || '').toLowerCase()))
-                const required = [
-                  { slug: 'gratuito', name: 'Patriota Gratuito', description: '', price_monthly: 0, price_yearly: 0, features: [], limits: { ai_conversations: 10, fake_news_analyses: 1 }, is_active: true, is_popular: false, is_visible: true, sort_order: 0, color: 'gray', icon: 'Users' },
-                  { slug: 'patriota', name: 'Patriota', description: '', price_monthly: 9.90, price_yearly: 99.00, features: [], limits: { ai_conversations: 20, fake_news_analyses: 2 }, is_active: true, is_popular: false, is_visible: true, sort_order: 1, color: 'blue', icon: 'Star' },
-                  { slug: 'cidadao', name: 'Patriota Cidadão', description: '', price_monthly: 19.90, price_yearly: 199.00, features: [], limits: { ai_conversations: 50, fake_news_analyses: 5 }, is_active: true, is_popular: false, is_visible: true, sort_order: 2, color: 'blue', icon: 'Star' },
-                  { slug: 'premium', name: 'Patriota Premium', description: '', price_monthly: 39.90, price_yearly: 399.00, features: [], limits: { ai_conversations: 100, fake_news_analyses: 10 }, is_active: true, is_popular: true, is_visible: true, sort_order: 3, color: 'green', icon: 'Zap' },
-                  { slug: 'pro', name: 'Patriota Pro', description: '', price_monthly: 69.90, price_yearly: 699.00, features: [], limits: { ai_conversations: -1, fake_news_analyses: 20 }, is_active: true, is_popular: false, is_visible: true, sort_order: 4, color: 'purple', icon: 'Crown' },
-                  { slug: 'elite', name: 'Patriota Elite', description: '', price_monthly: 119.90, price_yearly: 1199.00, features: [], limits: { ai_conversations: -1, fake_news_analyses: -1 }, is_active: true, is_popular: false, is_visible: true, sort_order: 5, color: 'yellow', icon: 'Trophy' },
-                ]
-                let created = 0
-                for (const plan of required) {
-                  if (existingSlugs.has(plan.slug)) continue
-                  const resp = await apiClient.post('/plans', {
-                    name: plan.name,
-                    slug: plan.slug,
-                    description: plan.description,
-                    price_monthly: plan.price_monthly,
-                    price_yearly: plan.price_yearly,
-                    features: plan.features,
-                    limits: plan.limits,
-                    is_active: plan.is_active,
-                    is_popular: plan.is_popular,
-                    is_visible: plan.is_visible,
-                    sort_order: plan.sort_order,
-                    color: plan.color,
-                    icon: plan.icon,
-                  })
-                  if (resp?.success) created += 1
+                if (!window.confirm('Isso criará os planos B2B (Político, Jornalista, Partido). Continuar?')) return;
+                
+                const response = await apiClient.post('/plans/seed-b2b');
+                
+                if (response && response.data && response.data.success) {
+                  alert(`Planos B2B semeados com sucesso!`);
+                  await fetchPlans();
+                } else {
+                  alert('Erro ao semear planos: ' + (response?.data?.error || 'Erro desconhecido'));
                 }
-                await fetchPlans()
-                alert(`Seed concluído. Planos criados: ${created}`)
               } catch (e) {
-                console.error('Erro ao semear planos:', e)
-                alert('Erro ao semear planos B2B')
+                console.error('Erro ao semear planos B2B:', e);
+                alert('Erro ao semear planos B2B. Verifique o console.');
               }
             }}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
@@ -449,15 +421,6 @@ const PlansManagement = () => {
                     />
                     Plano Popular
                   </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.is_visible}
-                      onChange={(e) => setFormData({ ...formData, is_visible: e.target.checked })}
-                      className="mr-2"
-                    />
-                    Visível para Usuários
-                  </label>
                 </div>
               </div>
             </div>
@@ -543,9 +506,6 @@ const PlansManagement = () => {
                 Status
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Visibilidade
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Ações
               </th>
             </tr>
@@ -597,22 +557,6 @@ const PlansManagement = () => {
                   }`}>
                     {plan.is_active ? 'Ativo' : 'Inativo'}
                   </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <button
-                      onClick={() => handleToggleVisibility(plan.id, plan.is_visible)}
-                      className={`${plan.is_visible ? 'text-green-600 hover:text-green-900' : 'text-gray-400 hover:text-gray-600'}`}
-                      title={plan.is_visible ? 'Visível para usuários' : 'Oculto dos usuários'}
-                    >
-                      {plan.is_visible ? <Eye size={16} /> : <EyeOff size={16} />}
-                    </button>
-                    <span className={`ml-2 text-xs ${
-                      plan.is_visible ? 'text-green-600' : 'text-gray-400'
-                    }`}>
-                      {plan.is_visible ? 'Visível' : 'Oculto'}
-                    </span>
-                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex space-x-2">

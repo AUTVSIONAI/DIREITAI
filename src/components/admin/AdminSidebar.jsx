@@ -270,19 +270,20 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
 
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col
+        fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-patriotic-blue to-primary-900 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex items-center justify-between h-16 px-4 bg-gray-900 flex-shrink-0">
+        <div className="flex items-center justify-between h-16 px-4 bg-patriotic-blue flex-shrink-0 border-b border-primary-800">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+            <img src="/logo.png" alt="Admin Panel" className="h-8 w-auto" onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }} />
+            <div className="w-8 h-8 bg-patriotic-green rounded-lg flex items-center justify-center" style={{display: 'none'}}>
               <span className="text-white font-bold text-sm">D</span>
             </div>
             <span className="text-white font-bold text-lg">Admin Panel</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-white hover:text-gray-300"
+            className="lg:hidden text-white hover:text-patriotic-yellow"
           >
             <X className="h-6 w-6" />
           </button>

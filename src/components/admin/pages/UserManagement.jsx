@@ -16,7 +16,10 @@ import {
   Plus,
   Eye,
   Trash2,
-  Loader2
+  Loader2,
+  Zap,
+  Trophy,
+  Star
 } from 'lucide-react';
 import { AdminService } from '../../../services/admin';
 import { useSearchParams } from 'react-router-dom'
@@ -128,7 +131,7 @@ const UserManagement = () => {
       }
     }
     const qpPlan = params.get('plan');
-    const validPlans = ['all', 'gratuito', 'engajado', 'premium'];
+    const validPlans = ['all', 'gratuito', 'patriota', 'cidadao', 'engajado', 'lider', 'elite'];
     if (qpPlan) {
       if (validPlans.includes(qpPlan)) {
         if (qpPlan !== selectedPlan) setSelectedPlan(qpPlan);
@@ -185,8 +188,11 @@ const UserManagement = () => {
   const getPlanBadge = (plan) => {
     const badges = {
       gratuito: { color: 'bg-gray-100 text-gray-800', icon: User, label: 'Gratuito' },
-      engajado: { color: 'bg-blue-100 text-blue-800', icon: Shield, label: 'Engajado' },
-      premium: { color: 'bg-yellow-100 text-yellow-800', icon: Crown, label: 'Premium' }
+      patriota: { color: 'bg-blue-100 text-blue-800', icon: Star, label: 'Patriota' },
+      cidadao: { color: 'bg-blue-200 text-blue-900', icon: Star, label: 'Cidadão' },
+      engajado: { color: 'bg-indigo-100 text-indigo-800', icon: Shield, label: 'Engajado' },
+      lider: { color: 'bg-purple-100 text-purple-800', icon: Crown, label: 'Líder' },
+      elite: { color: 'bg-yellow-100 text-yellow-800', icon: Trophy, label: 'Elite' }
     }
     return badges[plan] || badges.gratuito
   }
@@ -459,8 +465,11 @@ const UserManagement = () => {
             >
               <option value="all">Todos os Planos</option>
               <option value="gratuito">Gratuito</option>
+              <option value="patriota">Patriota</option>
+              <option value="cidadao">Cidadão</option>
               <option value="engajado">Engajado</option>
-              <option value="premium">Premium</option>
+              <option value="lider">Líder</option>
+              <option value="elite">Elite</option>
             </select>
 
             <select
@@ -839,8 +848,12 @@ const UserManagement = () => {
                     className="w-full border border-gray-300 rounded-md px-3 py-2"
                   >
                     <option value="gratuito">Gratuito</option>
+                    <option value="patriota">Patriota</option>
+                    <option value="cidadao">Cidadão</option>
                     <option value="engajado">Engajado</option>
                     <option value="premium">Premium</option>
+                    <option value="pro">Pro</option>
+                    <option value="elite">Elite</option>
                   </select>
                 </div>
                 <div>
@@ -960,8 +973,12 @@ const UserManagement = () => {
                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="gratuito">Gratuito</option>
-                  <option value="engajado">Engajado</option>
+                  <option value="patriota">Patriota</option>
+                  <option value="cidadao">Cidadão</option>
+                  <option value="engajado">Engajado (Legado)</option>
                   <option value="premium">Premium</option>
+                  <option value="pro">Pro</option>
+                  <option value="elite">Elite</option>
                 </select>
               </div>
               

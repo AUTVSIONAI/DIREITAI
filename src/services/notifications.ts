@@ -24,6 +24,36 @@ import type {
  */
 export class NotificationsService {
   /**
+   * Obter banners de anúncio ativos
+   */
+  static async getAnnouncementBanners(): Promise<AnnouncementBanner[]> {
+    // Busca notificações do tipo anúncio/sistema que devem aparecer como banner
+    const response = await apiClient.get('/notifications', {
+      params: {
+        type: 'announcement',
+        is_active: true,
+        limit: 5
+      }
+    });
+    
+    // Mapeia notificações para formato de banner se necessário
+    // Assumindo que o backend retorna Notification[] e precisamos converter
+    const notifications = response.data.notifications || [];
+    
+    return notifications.map((n: any) => ({
+      id: n.id,
+      title: n.title,
+      message: n.message || n.content,
+      type: n.category === 'warning' ? 'warning' : n.category === 'error' ? 'error' : 'info',
+      link: n.action_url,
+      linkText: n.action_label || 'Saiba mais',
+      dismissible: true, // Por padrão
+      startDate: n.created_at,
+      endDate: n.expires_at
+    }));
+  }
+
+  /**
    * Obter notificações do usuário
    */
   static async getUserNotifications(
@@ -262,11 +292,15 @@ export class NotificationsService {
    */
   static async getNotificationTemplates(
     type?: string,
-    category?: string
-  ): Promise<NotificationTemplate[]> {
+    category?: string,
+    search?: string,
+    isActive?: boolean
+  ): Promise<{ templates: NotificationTemplate[], total: number, page: number, totalPages: number }> {
     const params = new URLSearchParams();
     if (type) params.append('type', type);
     if (category) params.append('category', category);
+    if (search) params.append('search', search);
+    if (isActive !== undefined) params.append('is_active', isActive.toString());
 
     const response = await apiClient.get(
       `/notifications/templates?${params.toString()}`
@@ -746,12 +780,30 @@ export class NotificationsService {
 
   static async listAdminAnnouncements(params?: {
     active?: boolean;
+    archived?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<AnnouncementBanner[]> {
     const response = await apiClient.get('/announcements/admin/all', {
       params: params || {}
     });
+    // The backend returns { announcements: [], total: ..., totalPages: ... }
+    return response.data.announcements || [];
+  }
+
+  /**
+   * Arquivar anúncio (admin)
+   */
+  static async archiveAdminAnnouncement(id: string): Promise<AnnouncementBanner> {
+    const response = await apiClient.patch(`/announcements/admin/${id}/archive`);
+    return response.data;
+  }
+
+  /**
+   * Desarquivar anúncio (admin)
+   */
+  static async unarchiveAdminAnnouncement(id: string): Promise<AnnouncementBanner> {
+    const response = await apiClient.patch(`/announcements/admin/${id}/unarchive`);
     return response.data;
   }
 

@@ -90,12 +90,11 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       {/* Desktop Sidebar */}
       <div className="hidden lg:flex lg:flex-shrink-0">
         <div className="flex flex-col w-64">
-          <div className="flex flex-col flex-grow bg-white border-r border-gray-200 pt-5 pb-4 overflow-y-auto">
+          <div className="flex flex-col flex-grow bg-white/90 backdrop-blur-sm border-r border-gray-200/50 pt-5 pb-4 overflow-y-auto">
             {/* Logo */}
-            <div className="flex items-center flex-shrink-0 px-4 mb-8">
-              <Flag className="h-8 w-8 text-primary-600" />
-              <span className="ml-2 text-xl font-bold text-gray-900">Direitai</span>
-            </div>
+        <div className="flex items-center flex-shrink-0 px-4 mb-8">
+          <img src="/logo.png" alt="Direitai" className="w-56 h-auto" onError={(e) => { e.target.style.display = 'none' }} />
+        </div>
             
             {/* Navigation */}
             <nav className="mt-5 flex-1 px-2 space-y-1">
@@ -129,14 +128,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       </div>
 
       {/* Mobile Sidebar */}
-      <div className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white transform ${
+      <div className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white/95 backdrop-blur-sm transform ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
       } transition-transform duration-300 ease-in-out`}>
         <div className="flex flex-col h-full">
-          <div className="flex items-center flex-shrink-0 px-4 py-4 border-b border-gray-200">
-            <Flag className="h-8 w-8 text-primary-600" />
-            <span className="ml-2 text-xl font-bold text-gray-900">Direitai</span>
-          </div>
+            <div className="flex items-center flex-shrink-0 px-4 py-4 border-b border-gray-200/50">
+              <img src="/logo.png" alt="Direitai" className="h-20 w-auto" onError={(e) => { e.target.style.display = 'none' }} />
+            </div>
           
           <nav className="mt-5 flex-1 px-2 space-y-1 overflow-y-auto">
             {menuItems.map((item) => {
@@ -159,7 +157,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             })}
           </nav>
           
-          <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200">
+          <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200/50">
             <p className="text-xs text-gray-500 text-center">
               Central do Patriota v1.0
             </p>

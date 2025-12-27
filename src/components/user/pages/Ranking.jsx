@@ -29,9 +29,20 @@ const Ranking = () => {
         let userRank = null;
 
         if (selectedType === 'users') {
-            const response = await apiClient.get('/rankings/users', { 
-                params: { scope: selectedScope, period: selectedPeriod } 
-            });
+            const params = { 
+                scope: selectedScope, 
+                period: selectedPeriod 
+            };
+            
+            // Add location params if scope requires it
+            if (selectedScope === 'city' && userProfile?.city) {
+                params.city = userProfile.city;
+            }
+            if (selectedScope === 'state' && userProfile?.state) {
+                params.state = userProfile.state;
+            }
+
+            const response = await apiClient.get('/rankings/users', { params });
             data = Array.isArray(response.data) ? response.data : [];
             if (userProfile && data.length > 0) {
                 userRank = data.find(u => u.userId === userProfile.id);
@@ -256,9 +267,9 @@ const Ranking = () => {
         <div className="space-y-3">
           {rankings.slice(0, 10).map((item, index) => {
             const position = index + 1
-            const name = selectedType === 'users' ? (item.username || 'Usuário') : item.name;
-            const subText = selectedType === 'users' ? item.city : `${item.party} - ${item.state}`;
-            const avatar = selectedType === 'users' ? item.avatar : item.photo_url;
+            const name = selectedType === 'users' ? (item.username || item.full_name || item.users?.full_name || 'Usuário') : item.name;
+            const subText = selectedType === 'users' ? (item.city || 'Local não informado') : `${item.party} - ${item.state}`;
+            const avatar = selectedType === 'users' ? (item.avatar || item.avatar_url || item.users?.avatar_url) : item.photo_url;
             const pointsLabel = selectedType === 'users' ? 'check-ins' : 'popularidade';
             const pointsValue = selectedType === 'users' ? item.checkins : (item.points || 0);
 

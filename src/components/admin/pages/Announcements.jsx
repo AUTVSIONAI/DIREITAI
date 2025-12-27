@@ -7,7 +7,9 @@ import {
   SpeakerWaveIcon,
   ExclamationTriangleIcon,
   InformationCircleIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  ArchiveBoxIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { NotificationsService } from '../../../services/notifications';
 
@@ -23,6 +25,7 @@ const Announcements = () => {
     type: 'info',
     priority: 'normal',
     targetAudience: 'all',
+    startDate: '',
     expiresAt: '',
     isActive: true
   });
@@ -63,7 +66,9 @@ const Announcements = () => {
     priority: mapPriorityToUI(a.priority),
     targetAudience: a.target_audience?.type || a.targetAudience || 'all',
     isActive: Boolean(a.is_active ?? a.active ?? true),
+    isArchived: Boolean(a.is_archived ?? false),
     createdAt: a.created_at ? new Date(a.created_at) : new Date(),
+    startDate: a.start_date ? new Date(a.start_date) : null,
     expiresAt: a.end_date ? new Date(a.end_date) : null,
     author: a.created_by?.username || a.author || 'Admin'
   });
@@ -74,6 +79,7 @@ const Announcements = () => {
     type: fd.type,
     priority: mapPriorityToAdmin(fd.priority),
     target_audience: { type: fd.targetAudience || 'all' },
+    start_date: fd.startDate ? new Date(fd.startDate).toISOString() : undefined,
     end_date: fd.expiresAt ? new Date(fd.expiresAt).toISOString() : undefined,
     is_active: fd.isActive
   });
@@ -83,10 +89,17 @@ const Announcements = () => {
     try {
       setLoading(true);
       setError(null);
-      const params =
-        filters.status === 'all'
-          ? {}
-          : { active: filters.status === 'active' };
+      let params = {};
+      
+      if (filters.status === 'archived') {
+        params.archived = true;
+      } else if (filters.status === 'active') {
+        params.active = true;
+      } else if (filters.status === 'inactive') {
+        params.active = false;
+      }
+      // 'all' sends no params, which defaults to all non-archived
+      
       const data = await NotificationsService.listAdminAnnouncements(params);
       setAnnouncements((data || []).map(toUI));
     } catch (err) {
@@ -122,7 +135,7 @@ const Announcements = () => {
       resetForm();
     } catch (err) {
       console.error('Erro ao salvar anúncio:', err);
-      setError('Não foi possível salvar o anúncio. Verifique os dados e tente novamente.');
+      setError(err.response?.data?.error || err.message || 'Não foi possível salvar o anúncio. Verifique os dados e tente novamente.');
     }
   };
 
@@ -148,6 +161,7 @@ const Announcements = () => {
       type: announcement.type,
       priority: announcement.priority,
       targetAudience: announcement.targetAudience,
+      startDate: announcement.startDate ? announcement.startDate.toISOString().split('T')[0] : '',
       expiresAt: announcement.expiresAt ? announcement.expiresAt.toISOString().split('T')[0] : '',
       isActive: announcement.isActive
     });
@@ -162,6 +176,35 @@ const Announcements = () => {
     } catch (err) {
       console.error('Erro ao excluir anúncio:', err);
       setError('Falha ao excluir anúncio. Tente novamente.');
+    }
+  };
+
+  const handleArchive = async (announcement) => {
+    try {
+      if (announcement.isArchived) {
+        await NotificationsService.unarchiveAdminAnnouncement(announcement.id);
+      } else {
+        await NotificationsService.archiveAdminAnnouncement(announcement.id);
+      }
+      // Reload or update local state
+      // Simplest is to remove from list if current filter hides it, or update isArchived
+      if (filters.status === 'archived' && announcement.isArchived) {
+        // Was archived, now unarchived -> remove from 'archived' view
+        setAnnouncements(prev => prev.filter(a => a.id !== announcement.id));
+      } else if (filters.status !== 'archived' && !announcement.isArchived) {
+        // Was not archived, now archived -> remove from 'all/active/inactive' view
+        setAnnouncements(prev => prev.filter(a => a.id !== announcement.id));
+      } else {
+        // Just toggle state
+        setAnnouncements(prev => prev.map(a => 
+          a.id === announcement.id 
+            ? { ...a, isArchived: !a.isArchived } 
+            : a
+        ));
+      }
+    } catch (err) {
+      console.error('Erro ao arquivar/desarquivar anúncio:', err);
+      setError('Falha ao alterar status de arquivamento.');
     }
   };
 
@@ -276,6 +319,7 @@ const Announcements = () => {
                 <option value="all">Todos</option>
                 <option value="active">Ativos</option>
                 <option value="inactive">Inativos</option>
+                <option value="archived">Arquivados</option>
               </select>
             </div>
             <div>
@@ -391,8 +435,20 @@ const Announcements = () => {
                     </div>
                     
                     <div className="flex items-center space-x-2 ml-4">
-                      <button
-                        onClick={() => toggleActive(announcement.id)}
+      <button
+        onClick={() => handleArchive(announcement)}
+        className={`p-2 rounded-md ${
+          announcement.isArchived 
+            ? 'text-purple-600 hover:bg-purple-100' 
+            : 'text-gray-400 hover:bg-gray-100'
+        }`}
+        title={announcement.isArchived ? 'Desarquivar' : 'Arquivar'}
+      >
+        {announcement.isArchived ? <ArrowPathIcon className="h-4 w-4" /> : <ArchiveBoxIcon className="h-4 w-4" />}
+      </button>
+
+      <button
+        onClick={() => toggleActive(announcement.id)}
                         className={`p-2 rounded-md ${
                           announcement.isActive 
                             ? 'text-green-600 hover:bg-green-100' 

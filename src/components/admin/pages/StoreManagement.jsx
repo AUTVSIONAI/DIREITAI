@@ -188,14 +188,13 @@ const StoreManagement = () => {
     try {
       setUploadingImage(true)
       const formData = new FormData()
-      // enviar com ambos os nomes de campo para compatibilidade
       formData.append('image', imageFile)
-      formData.append('file', imageFile)
       const response = await storeManagementService.uploadProductImage(formData)
       return response.data.imageUrl
     } catch (error) {
       console.error('Erro ao fazer upload da imagem:', error)
-      alert('Falha no upload da imagem. Salvaremos o produto sem imagem.')
+      const msg = error.response?.data?.error || error.response?.data?.message || error.message || 'Erro desconhecido'
+      alert(`Falha no upload da imagem: ${msg}. Salvaremos o produto sem imagem.`)
       return null
     } finally {
       setUploadingImage(false)
@@ -207,14 +206,13 @@ const StoreManagement = () => {
     try {
       setUploadingPdf(true)
       const formData = new FormData()
-      // enviar com ambos os nomes de campo para compatibilidade
       formData.append('file', pdfFile)
-      formData.append('pdf', pdfFile)
       const response = await storeManagementService.uploadProductFile(formData)
       return response.data.fileUrl
     } catch (error) {
       console.error('Erro ao fazer upload do PDF:', error)
-      alert('Falha no upload do PDF. Salvaremos o produto sem download.')
+      const msg = error.response?.data?.error || error.response?.data?.message || error.message || 'Erro desconhecido'
+      alert(`Falha no upload do PDF: ${msg}. Salvaremos o produto sem download.`)
       return null
     } finally {
       setUploadingPdf(false)

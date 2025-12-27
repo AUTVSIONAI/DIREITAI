@@ -1,12 +1,20 @@
+
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config({ path: '../.env' });
 
-// Configurações
-const supabaseUrl = 'https://vussgslenvyztckeuyap.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ1c3Nnc2xlbnZ5enRja2V1eWFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyODE5ODUsImV4cCI6MjA2OTg1Nzk4NX0.a3WlLKS1HrSCqWuG80goBsoUaUhtpRsV8mqmTAYpIAo';
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('Missing Supabase credentials');
+  process.exit(1);
+}
 
-async function checkUsersTable() {
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+async function checkUsersSchema() {
+  console.log('Checking users table schema...');
+  
   const { data, error } = await supabase
     .from('users')
     .select('*')
@@ -15,12 +23,15 @@ async function checkUsersTable() {
   if (error) {
     console.error('Error fetching users:', error);
   } else {
+    console.log('Users table access successful.');
     if (data && data.length > 0) {
-      console.log('Columns in users table:', Object.keys(data[0]));
+      console.log('Columns:', Object.keys(data[0]));
     } else {
-      console.log('No data in users table to infer columns.');
+      console.log('Users table is empty, cannot verify columns directly via select.');
+      // Try to insert a dummy record to see if it accepts 'points' or check error? 
+      // Or just assume if select works, table exists.
     }
   }
 }
 
-checkUsersTable();
+checkUsersSchema();

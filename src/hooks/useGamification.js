@@ -199,7 +199,13 @@ export const useGamification = () => {
 
   useEffect(() => {
     const init = async () => {
-      if (!userProfile?.id) return
+      if (!userProfile?.id) {
+         console.log('⏳ useGamification: userProfile.id ainda não disponível');
+         return;
+      }
+      
+      console.log('🚀 useGamification: Iniciando fetch para userId:', userProfile.id);
+      
       await Promise.all([
         fetchUserPoints(),
         fetchRecentActivities(),
