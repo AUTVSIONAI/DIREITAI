@@ -45,6 +45,7 @@ const EventMap = () => {
   // Estados de UI
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [selectedManifestation, setSelectedManifestation] = useState(null)
+  const [nearManifestation, setNearManifestation] = useState(null)
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState({
     city: '',
@@ -53,6 +54,7 @@ const EventMap = () => {
   })
 
   const mapRef = useRef(null)
+  const mapContainerRef = useRef(null)
 
   // Obter localização do usuário
   const getUserLocation = useCallback(() => {
@@ -247,6 +249,84 @@ const EventMap = () => {
     }
   }
 
+  // Fazer check-in em manifestação
+  const handleManifestationCheckIn = async (manifestation) => {
+    if (!user || !userLocation) {
+      alert('É necessário estar logado e permitir acesso à localização')
+      return
+    }
+
+    try {
+      setCheckingIn(manifestation.id)
+      
+      // Calcular distância localmente primeiro para validação rápida
+      const distance = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        manifestation.latitude,
+        manifestation.longitude
+      )
+      
+      // Converter para metros
+      const distanceInMeters = distance * 1000
+      
+      if (distanceInMeters > manifestation.radius) {
+        alert(`Você está a ${Math.round(distanceInMeters)}m do centro da manifestação. Aproxime-se mais ${Math.round(distanceInMeters - manifestation.radius)}m para fazer check-in.`)
+        return
+      }
+
+      const response = await apiClient.post('/manifestations/checkins', {
+        manifestation_id: manifestation.id,
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude
+      })
+      
+      const data = response.data
+      // Adicionar aos eventos com check-in (usando ID da manifestação com prefixo para diferenciar se necessário, ou assumindo lista unificada)
+      // Como o estado checkedInEvents parece armazenar apenas IDs, vamos assumir que podemos guardar IDs de manifestação também
+      // Ou criar um estado separado se necessário. Por enquanto, alertar sucesso.
+      
+      alert(`Check-in na manifestação realizado com sucesso!`)
+      setNearManifestation(null) // Remove o alerta após check-in
+      loadManifestations() // Atualizar contadores
+    } catch (error) {
+      console.error('Erro no check-in da manifestação:', error)
+      const errMsg = error.response?.data?.error || error.response?.data?.message || 'Erro ao fazer check-in. Tente novamente.'
+      alert(errMsg)
+    } finally {
+      setCheckingIn(null)
+    }
+  }
+
+  // Monitorar geofence para manifestações
+  useEffect(() => {
+    if (!userLocation || !manifestations.length) return
+
+    // Encontrar manifestação mais próxima que o usuário está DENTRO do raio
+    const activeManifestation = manifestations.find(m => {
+      if (!m.latitude || !m.longitude || !m.radius) return false
+      
+      const distance = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        m.latitude,
+        m.longitude
+      )
+      
+      // Converter km para metros e comparar com raio
+      return (distance * 1000) <= m.radius
+    })
+
+    // Se encontrou uma manifestação e ainda não fizemos check-in nela (opcional: verificar histórico)
+    // Por enquanto, apenas mostra se estiver dentro
+    if (activeManifestation) {
+      // Evitar re-setar se já for a mesma
+      setNearManifestation(prev => prev?.id === activeManifestation.id ? prev : activeManifestation)
+    } else {
+      setNearManifestation(null)
+    }
+  }, [userLocation, manifestations])
+
   // Efeitos
   useEffect(() => {
     getUserLocation()
@@ -310,10 +390,22 @@ const EventMap = () => {
     window.addEventListener('orientationchange', handleResize)
     window.addEventListener('resize', handleResize)
 
+    // ResizeObserver para detectar mudanças no container pai
+    let resizeObserver
+    if (mapContainerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        handleResize()
+      })
+      resizeObserver.observe(mapContainerRef.current)
+    }
+
     return () => {
       document.removeEventListener('fullscreenchange', handleResize)
       window.removeEventListener('orientationchange', handleResize)
       window.removeEventListener('resize', handleResize)
+      if (resizeObserver) {
+        resizeObserver.disconnect()
+      }
     }
   }, [])
 
@@ -478,7 +570,7 @@ const EventMap = () => {
       )}
 
       {/* Mapa */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative" ref={mapContainerRef}>
         {loading && (
           <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
             <div className="text-center">
@@ -694,6 +786,41 @@ const EventMap = () => {
           </LazyPopup>
         )}
         </LazyMap>
+
+        {/* Alerta de Manifestação Próxima */}
+        {nearManifestation && !checkingIn && (
+          <div className="absolute bottom-8 left-4 right-4 sm:left-auto sm:right-4 sm:bottom-10 z-50 animate-bounce-in">
+            <div className="bg-red-600 text-white p-4 rounded-lg shadow-xl border-2 border-white max-w-sm w-full">
+              <div className="flex items-start space-x-3">
+                <div className="bg-white/20 p-2 rounded-full">
+                  <MapPin className="h-6 w-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-lg leading-tight mb-1">Você está na manifestação!</h3>
+                  <p className="text-red-100 text-sm mb-3">{nearManifestation.name}</p>
+                  <button
+                    onClick={() => handleManifestationCheckIn(nearManifestation)}
+                    disabled={checkingIn === nearManifestation.id}
+                    className="w-full bg-white text-red-600 font-bold py-2 px-4 rounded shadow hover:bg-red-50 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    {checkingIn === nearManifestation.id ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4" />
+                    )}
+                    <span>Fazer Check-in Agora</span>
+                  </button>
+                </div>
+                <button 
+                  onClick={() => setNearManifestation(null)}
+                  className="text-red-200 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Legenda */}

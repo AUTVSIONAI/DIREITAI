@@ -453,6 +453,11 @@ const UnifiedLiveMap = () => {
       }
 
       // Alinhar payload com serviço antigo (não enviar created_by; backend deve definir)
+      const parseDate = (dateStr) => {
+        if (!dateStr) return null
+        return new Date(dateStr).toISOString()
+      }
+
       const manifestationData = {
         name: manifestationForm.name,
         description: manifestationForm.description,
@@ -463,8 +468,8 @@ const UnifiedLiveMap = () => {
         latitude: parseFloat(manifestationForm.latitude),
         longitude: parseFloat(manifestationForm.longitude),
         radius: parseInt(manifestationForm.radius) || 500,
-        start_date: manifestationForm.start_date || new Date().toISOString(),
-        end_date: manifestationForm.end_date || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 horas depois
+        start_date: parseDate(manifestationForm.start_date) || new Date().toISOString(),
+        end_date: parseDate(manifestationForm.end_date) || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 horas depois
         max_participants: manifestationForm.max_participants ? parseInt(manifestationForm.max_participants) : undefined
       }
 
@@ -1031,7 +1036,7 @@ const UnifiedLiveMap = () => {
                       📏 Raio: {selectedManifestation.radius}m
                     </p>
                     <p className="text-xs text-gray-500">
-                      👥 Limite: {selectedManifestation.max_participants || 'Ilimitado'}
+                      👥 Participantes: {selectedManifestation.checkin_count || 0} / {selectedManifestation.max_participants || 'Ilimitado'}
                     </p>
                     <div className="flex items-center justify-between mt-2">
                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
