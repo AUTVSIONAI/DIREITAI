@@ -33,6 +33,7 @@ const UnifiedLiveMap = () => {
   // Garantir que o apiClient tenha Authorization configurado
   useApiAuth()
   const [isAdmin, setIsAdmin] = useState(false)
+  const mapRef = useRef(null)
   // Estados do mapa
   const [viewport, setViewport] = useState({
     latitude: -14.2350,
@@ -165,6 +166,31 @@ const UnifiedLiveMap = () => {
       }
     }
     verifyAdmin()
+  }, [])
+
+  // Fix map resize issue on mobile/resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (mapRef.current) {
+        mapRef.current.resize()
+      }
+    }
+    
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize()
+    })
+    
+    const mapContainer = document.querySelector('.mapboxgl-map')
+    if (mapContainer) {
+      resizeObserver.observe(mapContainer)
+    }
+
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', handleResize)
+    }
   }, [])
 
   const loadMapData = async () => {
@@ -911,6 +937,7 @@ const UnifiedLiveMap = () => {
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="h-64 sm:h-80 md:h-96 lg:h-[600px]">
           <LazyMap
+            ref={mapRef}
             {...viewport}
             onMove={evt => setViewport(evt.viewState)}
             style={{ width: '100%', height: '100%' }}
@@ -1035,8 +1062,11 @@ const UnifiedLiveMap = () => {
                     <p className="text-xs text-gray-500">
                       📏 Raio: {selectedManifestation.radius}m
                     </p>
+                    <p className="text-xs text-gray-500 font-medium text-blue-600">
+                      ✅ Confirmados (Pré-checkin): {selectedManifestation.rsvp_count || 0}
+                    </p>
                     <p className="text-xs text-gray-500">
-                      👥 Participantes: {selectedManifestation.checkin_count || 0} / {selectedManifestation.max_participants || 'Ilimitado'}
+                      📍 Check-ins (No Local): {selectedManifestation.checkin_count || 0} / {selectedManifestation.max_participants || 'Ilimitado'}
                     </p>
                     <div className="flex items-center justify-between mt-2">
                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
