@@ -17,12 +17,19 @@ const LazyMap = React.forwardRef((props, ref) => {
   const normalizedProps = {
     ...rest,
     mapboxAccessToken: token,
+    reuseMaps: true, // Reutilizar instância do mapa para evitar perda de contexto e recarregamento
+    preserveDrawingBuffer: true, // Previne que o canvas fique branco/transparente em alguns dispositivos
+    trackResize: true,
     ...(viewState ? { viewState } : {}),
     ...(normalizedInitialViewState ? { initialViewState: normalizedInitialViewState } : {}),
   }
 
   return (
-    <Map ref={ref} {...normalizedProps} />
+    <Map 
+      ref={ref} 
+      {...normalizedProps} 
+      style={{ ...props.style, position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+    />
   )
 })
 

@@ -35,7 +35,15 @@ const EventMap = () => {
   const [nearbyEvents, setNearbyEvents] = useState([])
   const [nearbyManifestations, setNearbyManifestations] = useState([])
   const [checkedInEvents, setCheckedInEvents] = useState([])
-  const [checkedInManifestations, setCheckedInManifestations] = useState([])
+  const [checkedInManifestations, setCheckedInManifestations] = useState(() => {
+    // Inicializar com dados do localStorage para evitar "piscada" do banner
+    try {
+      const saved = localStorage.getItem('manifestation_checkins')
+      return saved ? JSON.parse(saved) : []
+    } catch (e) {
+      return []
+    }
+  })
 
   // Estados de controle
   const [loading, setLoading] = useState(true)
@@ -221,7 +229,15 @@ const EventMap = () => {
       const manifestationsResponse = await apiClient.get('/manifestations/my-checkins')
       const manifestationCheckins = manifestationsResponse.data.data || []
       const manifestationIds = manifestationCheckins.map(checkin => checkin.manifestation_id)
-      setCheckedInManifestations(manifestationIds)
+      
+      setCheckedInManifestations(prev => {
+        // Combinar dados do backend com dados locais para evitar que o banner reapareça
+        // caso o backend demore ou falhe momentaneamente
+        const combined = [...new Set([...prev, ...manifestationIds])]
+        // Atualizar cache local
+        localStorage.setItem('manifestation_checkins', JSON.stringify(combined))
+        return combined
+      })
     } catch (error) {
       console.error('Erro ao carregar check-ins:', error)
     }
@@ -333,9 +349,15 @@ const EventMap = () => {
     })
 
     // Se encontrou uma manifestação e ainda não fizemos check-in nela
-    if (activeManifestation && !checkedInManifestations.includes(activeManifestation.id)) {
-      // Evitar re-setar se já for a mesma
-      setNearManifestation(prev => prev?.id === activeManifestation.id ? prev : activeManifestation)
+    if (activeManifestation) {
+      const isCheckedIn = checkedInManifestations.some(id => String(id) === String(activeManifestation.id))
+      
+      if (!isCheckedIn) {
+        // Evitar re-setar se já for a mesma
+        setNearManifestation(prev => prev?.id === activeManifestation.id ? prev : activeManifestation)
+      } else {
+        setNearManifestation(null)
+      }
     } else {
       setNearManifestation(null)
     }
@@ -429,7 +451,8 @@ const EventMap = () => {
   }, [])
 
   const getEventStatusColor = (event) => {
-    if (checkedInEvents.includes(event.id)) return 'bg-green-500'
+    const isCheckedIn = checkedInEvents.some(id => String(id) === String(event.id))
+    if (isCheckedIn) return 'bg-green-500'
     if (userLocation) {
       const distance = calculateDistance(
         userLocation.latitude,
@@ -444,7 +467,8 @@ const EventMap = () => {
   }
 
   const getEventStatusText = (event) => {
-    if (checkedInEvents.includes(event.id)) return 'Check-in realizado'
+    const isCheckedIn = checkedInEvents.some(id => String(id) === String(event.id))
+    if (isCheckedIn) return 'Check-in realizado'
     if (userLocation) {
       const distance = calculateDistance(
         userLocation.latitude,
@@ -589,7 +613,7 @@ const EventMap = () => {
       )}
 
       {/* Mapa */}
-      <div className="flex-1 relative" ref={mapContainerRef}>
+      <div className="flex-1 relative w-full h-full overflow-hidden isolate" ref={mapContainerRef} style={{ touchAction: 'none' }}>
         {loading && (
           <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
             <div className="text-center">

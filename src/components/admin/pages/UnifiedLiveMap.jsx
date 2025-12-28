@@ -964,7 +964,7 @@ const UnifiedLiveMap = () => {
 
       {/* Mapa */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="h-64 sm:h-80 md:h-96 lg:h-[600px]">
+        <div className="h-64 sm:h-80 md:h-96 lg:h-[600px] relative">
           <LazyMap
             ref={mapRef}
             {...viewport}
