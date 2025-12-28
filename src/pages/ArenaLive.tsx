@@ -1070,7 +1070,26 @@ const ArenaLive = () => {
     );
   }
 
-  if (!arena) return null;
+  if (!arena) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+        <div className="text-center p-8 bg-gray-800 rounded-lg shadow-xl max-w-md mx-4">
+          <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <X className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold mb-2">Arena não encontrada</h2>
+          <p className="text-gray-400 mb-6">Não foi possível carregar os dados desta arena. Ela pode ter sido removida ou você não tem permissão para acessá-la.</p>
+          <button 
+            onClick={() => navigate('/arena')} 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Voltar para a Arena
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (arena.status === 'ended') {
     return (

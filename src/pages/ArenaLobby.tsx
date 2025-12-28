@@ -10,6 +10,7 @@ const ArenaLobby = () => {
   const [arenas, setArenas] = useState<Arena[]>([]);
   const [invites, setInvites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
