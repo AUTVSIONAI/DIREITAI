@@ -21,7 +21,7 @@ const EventMap = () => {
   const { user } = useAuth()
   
   // Estados do mapa
-  const [viewport, setViewport] = useState({
+  const [initialViewState] = useState({
     latitude: -14.2350,
     longitude: -51.9253,
     zoom: 6
@@ -80,12 +80,14 @@ const EventMap = () => {
           longitude: position.coords.longitude
         }
         setUserLocation(location)
-        setViewport(prev => ({
-          ...prev,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          zoom: 10
-        }))
+        
+        // Mover o mapa suavemente
+        mapRef.current?.flyTo({
+          center: [location.longitude, location.latitude],
+          zoom: 10,
+          duration: 2000
+        })
+
         setLocationError(null)
       },
       async (error) => {
