@@ -578,7 +578,7 @@ const EventMap = () => {
               </span>
             )}
             <span className="text-green-600">
-              {checkedInEvents.length} check-ins realizados
+              {checkedInEvents.length + checkedInManifestations.length} check-ins realizados
             </span>
           </div>
           <div className="flex items-center space-x-2 text-gray-500">
@@ -849,18 +849,18 @@ const EventMap = () => {
         {/* Alerta de Manifestação Próxima */}
         {nearManifestation && !checkingIn && (
           <div className="absolute bottom-8 left-4 right-4 sm:left-auto sm:right-4 sm:bottom-10 z-50 animate-bounce-in">
-            <div className="bg-red-600 text-white p-4 rounded-lg shadow-xl border-2 border-white max-w-sm w-full">
+            <div className="bg-green-600 text-white p-4 rounded-lg shadow-xl border-2 border-white max-w-sm w-full">
               <div className="flex items-start space-x-3">
                 <div className="bg-white/20 p-2 rounded-full">
                   <MapPin className="h-6 w-6 text-white" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-lg leading-tight mb-1">Você está na manifestação!</h3>
-                  <p className="text-red-100 text-sm mb-3">{nearManifestation.name}</p>
+                  <p className="text-green-100 text-sm mb-3">{nearManifestation.name}</p>
                   <button
                     onClick={() => handleManifestationCheckIn(nearManifestation)}
                     disabled={checkingIn === nearManifestation.id}
-                    className="w-full bg-white text-red-600 font-bold py-2 px-4 rounded shadow hover:bg-red-50 transition-colors flex items-center justify-center space-x-2"
+                    className="w-full bg-white text-green-600 font-bold py-2 px-4 rounded shadow hover:bg-green-50 transition-colors flex items-center justify-center space-x-2"
                   >
                     {checkingIn === nearManifestation.id ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />
@@ -872,7 +872,7 @@ const EventMap = () => {
                 </div>
                 <button 
                   onClick={() => setNearManifestation(null)}
-                  className="text-red-200 hover:text-white"
+                  className="text-green-200 hover:text-white"
                 >
                   <X className="h-5 w-5" />
                 </button>

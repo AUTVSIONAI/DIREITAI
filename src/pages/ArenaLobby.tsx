@@ -68,9 +68,9 @@ const ArenaLobby = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       <div className="flex-1 flex flex-col">
-        <Header />
+        <Header setSidebarOpen={setSidebarOpen} />
         <main className="flex-1 p-6">
           <div className="max-w-7xl mx-auto">
             <div className="flex justify-between items-center mb-8">
