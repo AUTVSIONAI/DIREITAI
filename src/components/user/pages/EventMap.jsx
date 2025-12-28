@@ -98,7 +98,13 @@ const EventMap = () => {
             : error?.code === 3
               ? 'Tempo excedido para obter localização.'
               : 'Não foi possível obter sua localização. Verifique as permissões.'
+        
         setLocationError(friendly)
+        
+        // Se for desktop e negado, mostrar alerta explicativo
+        if (error?.code === 1) {
+             alert('Para visualizar sua posição e fazer check-ins, é necessário permitir o acesso à localização nas configurações do seu navegador (ícone de cadeado ou permissões na barra de endereço).')
+        }
 
         // Fallback por IP: tenta obter lat/long aproximado
         try {
@@ -115,7 +121,7 @@ const EventMap = () => {
                 zoom: 8
               }))
               // Atualiza mensagem para indicar localização aproximada
-              setLocationError('Usando localização aproximada por IP. Para check-in, habilite o GPS.')
+              setLocationError('Usando localização aproximada por IP. Para check-in preciso, habilite o GPS.')
             }
           }
         } catch (e) {
@@ -124,8 +130,8 @@ const EventMap = () => {
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000 // 5 minutos
+        timeout: 20000, // Aumentado para 20s
+        maximumAge: 0 // Forçar nova leitura
       }
     )
   }, [])
@@ -335,7 +341,9 @@ const EventMap = () => {
 
     // Encontrar manifestação mais próxima que o usuário está DENTRO do raio
     const activeManifestation = manifestations.find(m => {
-      if (!m.latitude || !m.longitude || !m.radius) return false
+      if (!m.latitude || !m.longitude) return false
+      
+      const radius = m.radius || 500 // Default 500m se não definido
       
       const distance = calculateDistance(
         userLocation.latitude,
@@ -344,8 +352,9 @@ const EventMap = () => {
         m.longitude
       )
       
-      // Converter km para metros e comparar com raio
-      return (distance * 1000) <= m.radius
+      // Converter km para metros e comparar com raio (com margem de erro de 100m para GPS impreciso)
+      // console.log(`Distância para ${m.name}: ${distance * 1000}m (Raio: ${radius}m)`)
+      return (distance * 1000) <= (radius + 100)
     })
 
     // Se encontrou uma manifestação e ainda não fizemos check-in nela
@@ -409,46 +418,8 @@ const EventMap = () => {
     }
   }, [loadAllData, loadUserCheckins, lastRefresh])
 
-  // Fix map resize issue on mobile/resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (mapRef.current) {
-        // Usar setTimeout para garantir que o container já foi redimensionado
-        setTimeout(() => {
-          mapRef.current.resize()
-        }, 200)
-      }
-    }
-    
-    // ResizeObserver para detectar mudanças no container pai
-    const resizeObserver = new ResizeObserver(() => {
-      handleResize()
-    })
-    
-    // Observar o container do mapa (se acessível via classe ou ref)
-    if (mapContainerRef.current) {
-      resizeObserver.observe(mapContainerRef.current)
-    }
-
-    document.addEventListener('fullscreenchange', handleResize)
-    window.addEventListener('orientationchange', handleResize)
-    window.addEventListener('resize', handleResize)
-    
-    // Monitorar visualViewport para teclados virtuais e barras de endereço móveis
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleResize)
-    }
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleResize)
-      window.removeEventListener('orientationchange', handleResize)
-      window.removeEventListener('resize', handleResize)
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleResize)
-      }
-      resizeObserver.disconnect()
-    }
-  }, [])
+  // Removido o listener manual de resize que causava conflitos no mobile
+  // A propriedade trackResize={true} do LazyMap já lida com isso nativamente
 
   const getEventStatusColor = (event) => {
     const isCheckedIn = checkedInEvents.some(id => String(id) === String(event.id))
