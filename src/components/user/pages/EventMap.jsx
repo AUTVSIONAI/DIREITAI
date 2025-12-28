@@ -381,22 +381,6 @@ const EventMap = () => {
     }
   }, [loadAllData, loadUserCheckins, lastRefresh])
 
-  useEffect(() => {
-    const handleResize = () => {
-      try {
-        const map = mapRef.current?.getMap?.()
-        if (map) {
-          // Force resize immediate
-          map.resize()
-          // And after a delay for animations
-          setTimeout(() => map.resize(), 100)
-          setTimeout(() => map.resize(), 300)
-        }
-      } catch (e) {
-        console.warn('Erro ao redimensionar mapa:', e)
-      }
-    }
-
   // Fix map resize issue on mobile/resize
   useEffect(() => {
     const handleResize = () => {
@@ -902,3 +886,4 @@ const EventMap = () => {
   }
 
 export default EventMap
+

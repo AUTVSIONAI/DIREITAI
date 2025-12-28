@@ -11,6 +11,9 @@ const RegisterPage = () => {
     confirmPassword: '',
     firstName: '',
     lastName: '',
+    gender: '',
+    city: '',
+    state: '',
     acceptTerms: false
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -20,8 +23,10 @@ const RegisterPage = () => {
   
   const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+    
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
@@ -54,6 +59,18 @@ const RegisterPage = () => {
 
     if (!formData.lastName.trim()) {
       newErrors.lastName = 'Sobrenome é obrigatório';
+    }
+
+    if (!formData.gender) {
+      newErrors.gender = 'Gênero é obrigatório';
+    }
+
+    if (!formData.city.trim()) {
+      newErrors.city = 'Cidade é obrigatória';
+    }
+
+    if (!formData.state.trim()) {
+      newErrors.state = 'Estado é obrigatório';
     }
 
     if (!formData.password) {
@@ -90,6 +107,9 @@ const RegisterPage = () => {
         password: formData.password,
         username: formData.username,
         full_name: fullName,
+        gender: formData.gender,
+        city: formData.city,
+        state: formData.state,
       } as any);
 
       if (!result.success) {
@@ -167,6 +187,72 @@ const RegisterPage = () => {
                 />
                 {errors.lastName && (
                   <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Gênero *
+              </label>
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white ${
+                  errors.gender ? 'border-red-300' : 'border-gray-300'
+                }`}
+              >
+                <option value="">Selecione...</option>
+                <option value="male">Masculino</option>
+                <option value="female">Feminino</option>
+                <option value="other">Outro</option>
+              </select>
+              {errors.gender && (
+                <p className="mt-1 text-sm text-red-600">{errors.gender}</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cidade *
+                </label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleChange}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                    errors.city ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="Sua cidade"
+                />
+                {errors.city && (
+                  <p className="mt-1 text-sm text-red-600">{errors.city}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estado (UF) *
+                </label>
+                <input
+                  type="text"
+                  name="state"
+                  maxLength={2}
+                  value={formData.state}
+                  onChange={(e) => {
+                    e.target.value = e.target.value.toUpperCase();
+                    handleChange(e);
+                  }}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                    errors.state ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="SP"
+                />
+                {errors.state && (
+                  <p className="mt-1 text-sm text-red-600">{errors.state}</p>
                 )}
               </div>
             </div>
