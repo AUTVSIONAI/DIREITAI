@@ -31,6 +31,9 @@ $$;
 
 -- 3. Criar ou Atualizar a função calculate_distance (Haversine)
 -- Necessária para triggers de validação de distância
+DROP FUNCTION IF EXISTS public.calculate_distance(double precision, double precision, double precision, double precision);
+DROP FUNCTION IF EXISTS public.calculate_distance(numeric, numeric, numeric, numeric);
+
 CREATE OR REPLACE FUNCTION public.calculate_distance(
     lat1 double precision,
     lon1 double precision,
