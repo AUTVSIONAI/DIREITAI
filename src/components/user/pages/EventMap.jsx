@@ -598,8 +598,7 @@ const EventMap = () => {
 
         <LazyMap
           ref={mapRef}
-          viewState={viewport}
-          onMove={evt => setViewport(evt.viewState)}
+          initialViewState={initialViewState}
           style={{ width: '100%', height: '100%' }}
           mapStyle="mapbox://styles/mapbox/streets-v12"
         >
