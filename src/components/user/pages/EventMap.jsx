@@ -285,17 +285,23 @@ const EventMap = () => {
         return
       }
 
-      const response = await apiClient.post('/manifestations/checkins', {
-        manifestation_id: manifestation.id,
+      const response = await apiClient.post(`/manifestations/${manifestation.id}/checkin`, {
         latitude: userLocation.latitude,
-        longitude: userLocation.longitude
+        longitude: userLocation.longitude,
+        device_info: {
+          platform: 'web',
+          userAgent: navigator.userAgent
+        }
       })
       
       const data = response.data
       
       alert(`Check-in na manifestação realizado com sucesso!`)
       // Atualiza estado local imediatamente para esconder o banner
-      setCheckedInManifestations(prev => [...prev, manifestation.id])
+      const newCheckins = [...checkedInManifestations, manifestation.id]
+      setCheckedInManifestations(newCheckins)
+      localStorage.setItem('manifestation_checkins', JSON.stringify(newCheckins))
+      
       setNearManifestation(null) // Remove o alerta após check-in
       loadManifestations() // Atualizar contadores
     } catch (error) {
