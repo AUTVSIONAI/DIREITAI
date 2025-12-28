@@ -101,6 +101,12 @@ const UnifiedLiveMap = () => {
   const [selectedUserCheckin, setSelectedUserCheckin] = useState(null)
   const [selectedCluster, setSelectedCluster] = useState(null)
 
+  // Estados de Analytics
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false)
+  const [analyticsData, setAnalyticsData] = useState(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [selectedManifestationForAnalytics, setSelectedManifestationForAnalytics] = useState(null)
+
   // Estados de modal de manifestações
   const [showManifestationModal, setShowManifestationModal] = useState(false)
   const [editingManifestation, setEditingManifestation] = useState(null)
@@ -251,6 +257,29 @@ const UnifiedLiveMap = () => {
       }
     } catch (error) {
       console.error('Erro ao buscar check-ins de usuários:', error)
+    }
+  }
+
+  // Carregar dados de analytics
+  const loadAnalytics = async (manifestation) => {
+    try {
+      setSelectedManifestationForAnalytics(manifestation)
+      setAnalyticsLoading(true)
+      setAnalyticsData(null)
+      setShowAnalyticsModal(true)
+      setSelectedManifestation(null) // Fechar popup do mapa
+
+      const response = await apiClient.get(`/manifestations/${manifestation.id}/analytics`)
+      if (response.data && (response.data.success || response.data.data)) {
+        setAnalyticsData(response.data.data || response.data)
+      } else {
+         console.error('Formato de resposta analytics inválido:', response)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar analytics:', error)
+      alert('Erro ao carregar dados de análise.')
+    } finally {
+      setAnalyticsLoading(false)
     }
   }
 
@@ -1092,6 +1121,12 @@ const UnifiedLiveMap = () => {
                      
                      <div className="flex space-x-2 mt-3">
                        <button
+                         onClick={() => loadAnalytics(selectedManifestation)}
+                         className="flex-1 px-3 py-1 text-xs font-medium text-purple-700 bg-purple-100 rounded hover:bg-purple-200"
+                       >
+                         📊 Relatório
+                       </button>
+                       <button
                          onClick={() => {
                            setEditingManifestation(selectedManifestation)
                            setShowManifestationModal(true)
@@ -1527,6 +1562,140 @@ const UnifiedLiveMap = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Analytics */}
+      {showAnalyticsModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 p-4">
+          <div className="relative top-4 sm:top-20 mx-auto p-4 sm:p-5 border w-full sm:w-11/12 md:w-3/4 lg:w-4/5 max-w-5xl shadow-lg rounded-md bg-white max-h-[95vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-900">
+                Relatório de Check-ins: {selectedManifestationForAnalytics?.name}
+              </h3>
+              <button
+                onClick={() => setShowAnalyticsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {analyticsLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                <span className="ml-3 text-lg text-gray-600">Carregando dados...</span>
+              </div>
+            ) : analyticsData ? (
+              <div className="space-y-6">
+                {/* Cards de Resumo */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <h4 className="text-sm font-medium text-blue-600 mb-1">Total Check-ins</h4>
+                    <p className="text-2xl font-bold text-gray-900">{analyticsData.total_checkins}</p>
+                  </div>
+                  <div className="bg-pink-50 p-4 rounded-lg border border-pink-100">
+                    <h4 className="text-sm font-medium text-pink-600 mb-1">Mulheres</h4>
+                    <p className="text-2xl font-bold text-gray-900">{analyticsData.gender_distribution.female}</p>
+                    <p className="text-xs text-gray-500">
+                      {analyticsData.total_checkins > 0 
+                        ? Math.round((analyticsData.gender_distribution.female / analyticsData.total_checkins) * 100) 
+                        : 0}%
+                    </p>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <h4 className="text-sm font-medium text-blue-800 mb-1">Homens</h4>
+                    <p className="text-2xl font-bold text-gray-900">{analyticsData.gender_distribution.male}</p>
+                    <p className="text-xs text-gray-500">
+                       {analyticsData.total_checkins > 0 
+                        ? Math.round((analyticsData.gender_distribution.male / analyticsData.total_checkins) * 100) 
+                        : 0}%
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                    <h4 className="text-sm font-medium text-gray-600 mb-1">Não Informado</h4>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {analyticsData.gender_distribution.unknown + analyticsData.gender_distribution.other}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Distribuição por Região */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h4 className="text-lg font-semibold mb-4 text-gray-800 flex items-center">
+                    <Globe className="h-5 w-5 mr-2 text-blue-500" /> Distribuição por Estado/Região
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                    {Object.entries(analyticsData.region_distribution).map(([region, count]) => (
+                      <div key={region} className="bg-gray-50 p-2 rounded text-center">
+                        <div className="text-sm font-bold text-gray-700">{region}</div>
+                        <div className="text-xs text-gray-500">{count} usuários</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tabela de Usuários */}
+                <div className="bg-white border rounded-lg overflow-hidden">
+                  <div className="px-4 py-3 border-b bg-gray-50 flex justify-between items-center">
+                    <h4 className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Users className="h-5 w-5 mr-2 text-green-600" /> Lista de Participantes
+                    </h4>
+                    <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border">
+                      Exibindo {analyticsData.users_list.length} registros
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto max-h-[400px]">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gênero</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Localização</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Horário Check-in</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {analyticsData.users_list.map((user, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                              <div className="text-xs text-gray-500">{user.email}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                ${user.gender?.toLowerCase() === 'feminino' || user.gender?.toLowerCase() === 'mulher' ? 'bg-pink-100 text-pink-800' : 
+                                  user.gender?.toLowerCase() === 'masculino' || user.gender?.toLowerCase() === 'homem' ? 'bg-blue-100 text-blue-800' : 
+                                  'bg-gray-100 text-gray-800'}`}>
+                                {user.gender}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {user.city} - {user.state}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(user.checked_in_at).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                        {analyticsData.users_list.length === 0 && (
+                          <tr>
+                            <td colSpan="4" className="px-6 py-10 text-center text-gray-500">
+                              Nenhum check-in registrado ainda.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-10 text-red-500">
+                Não foi possível carregar os dados.
+              </div>
+            )}
           </div>
         </div>
       )}

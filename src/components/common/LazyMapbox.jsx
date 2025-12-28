@@ -22,52 +22,36 @@ const LazyMap = React.forwardRef((props, ref) => {
   }
 
   return (
-    <Suspense fallback={<div>Carregando mapa...</div>}>
-      <Map ref={ref} {...normalizedProps} />
-    </Suspense>
+    <Map ref={ref} {...normalizedProps} />
   )
 })
 
 const LazyMarker = (props) => (
-  <Suspense fallback={null}>
-    <Marker {...props} />
-  </Suspense>
+  <Marker {...props} />
 )
 
 const LazyPopup = (props) => (
-  <Suspense fallback={null}>
-    <Popup {...props} />
-  </Suspense>
+  <Popup {...props} />
 )
 
 const LazyNavigationControl = (props) => (
-  <Suspense fallback={null}>
-    <NavigationControl {...props} />
-  </Suspense>
+  <NavigationControl {...props} />
 )
 
 const LazyScaleControl = (props) => (
-  <Suspense fallback={null}>
-    <ScaleControl {...props} />
-  </Suspense>
+  <ScaleControl {...props} />
 )
 
 const LazyFullscreenControl = (props) => (
-  <Suspense fallback={null}>
-    <FullscreenControl {...props} />
-  </Suspense>
+  <FullscreenControl {...props} />
 )
 
 const LazySource = (props) => (
-  <Suspense fallback={null}>
-    <Source {...props} />
-  </Suspense>
+  <Source {...props} />
 )
 
 const LazyLayer = (props) => (
-  <Suspense fallback={null}>
-    <Layer {...props} />
-  </Suspense>
+  <Layer {...props} />
 )
 
 export { LazyMap, LazyMarker, LazyPopup, LazyNavigationControl, LazyScaleControl, LazyFullscreenControl, LazySource, LazyLayer }

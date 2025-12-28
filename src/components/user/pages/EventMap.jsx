@@ -165,7 +165,8 @@ const EventMap = () => {
   // Carregar manifestações
   const loadManifestations = useCallback(async () => {
     try {
-      const response = await apiClient.get('/manifestations')
+      // Aumentado o limite para 500 para garantir que todas apareçam no mapa
+      const response = await apiClient.get('/manifestations?limit=500')
       const manifestationsData = response.data.data || []
       const active = Array.isArray(manifestationsData) 
         ? manifestationsData.filter(m => (m.is_active !== false) && (m.status !== 'cancelled'))
@@ -291,11 +292,10 @@ const EventMap = () => {
       })
       
       const data = response.data
-      // Adicionar aos eventos com check-in (usando ID da manifestação com prefixo para diferenciar se necessário, ou assumindo lista unificada)
-      // Como o estado checkedInEvents parece armazenar apenas IDs, vamos assumir que podemos guardar IDs de manifestação também
-      // Ou criar um estado separado se necessário. Por enquanto, alertar sucesso.
       
       alert(`Check-in na manifestação realizado com sucesso!`)
+      // Atualiza estado local imediatamente para esconder o banner
+      setCheckedInManifestations(prev => [...prev, manifestation.id])
       setNearManifestation(null) // Remove o alerta após check-in
       loadManifestations() // Atualizar contadores
     } catch (error) {
@@ -326,15 +326,14 @@ const EventMap = () => {
       return (distance * 1000) <= m.radius
     })
 
-    // Se encontrou uma manifestação e ainda não fizemos check-in nela (opcional: verificar histórico)
-    // Por enquanto, apenas mostra se estiver dentro
-    if (activeManifestation) {
+    // Se encontrou uma manifestação e ainda não fizemos check-in nela
+    if (activeManifestation && !checkedInManifestations.includes(activeManifestation.id)) {
       // Evitar re-setar se já for a mesma
       setNearManifestation(prev => prev?.id === activeManifestation.id ? prev : activeManifestation)
     } else {
       setNearManifestation(null)
     }
-  }, [userLocation, manifestations])
+  }, [userLocation, manifestations, checkedInManifestations])
 
   // Efeitos
   useEffect(() => {
@@ -398,6 +397,27 @@ const EventMap = () => {
       }
     }
 
+  // Fix map resize issue on mobile/resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (mapRef.current) {
+        // Usar setTimeout para garantir que o container já foi redimensionado
+        setTimeout(() => {
+          mapRef.current.resize()
+        }, 200)
+      }
+    }
+    
+    // ResizeObserver para detectar mudanças no container pai
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize()
+    })
+    
+    // Observar o container do mapa (se acessível via classe ou ref)
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current)
+    }
+
     document.addEventListener('fullscreenchange', handleResize)
     window.addEventListener('orientationchange', handleResize)
     window.addEventListener('resize', handleResize)
@@ -407,15 +427,6 @@ const EventMap = () => {
       window.visualViewport.addEventListener('resize', handleResize)
     }
 
-    // ResizeObserver para detectar mudanças no container pai
-    let resizeObserver
-    if (mapContainerRef.current) {
-      resizeObserver = new ResizeObserver(() => {
-        handleResize()
-      })
-      resizeObserver.observe(mapContainerRef.current)
-    }
-
     return () => {
       document.removeEventListener('fullscreenchange', handleResize)
       window.removeEventListener('orientationchange', handleResize)
@@ -423,9 +434,7 @@ const EventMap = () => {
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', handleResize)
       }
-      if (resizeObserver) {
-        resizeObserver.disconnect()
-      }
+      resizeObserver.disconnect()
     }
   }, [])
 
