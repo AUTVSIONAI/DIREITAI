@@ -4,10 +4,12 @@ import { apiClient } from '../../../lib/api'
 import { StoreService } from '../../../services/store'
 import { getMyAffiliateProfile, recordAffiliateClick } from '../../../services/affiliates'
 import { useAuth } from '../../../contexts/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
+import SEO from '../../common/SEO'
 
 const Store = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)

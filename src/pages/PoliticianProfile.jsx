@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import SEO from '../components/common/SEO';
 import { apiClient } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { PoliticiansService } from '../services/politicians';

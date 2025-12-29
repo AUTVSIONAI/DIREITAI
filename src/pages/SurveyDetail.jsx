@@ -4,6 +4,7 @@ import { ArrowLeft, BarChart3, Users, Clock, MessageCircle, ThumbsUp, Flag, Vote
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/api'
 import { supabase } from '../lib/supabase'
+import SEO from '../components/common/SEO'
 
 const SurveyDetail = () => {
   const { id } = useParams()
