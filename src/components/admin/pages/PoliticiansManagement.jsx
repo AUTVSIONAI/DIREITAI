@@ -7,6 +7,7 @@ import { getPoliticianPhotoUrl } from '../../../utils/imageUtils'
 import { agentGenerationService } from '../../../services/agentGeneration'
 import { useAuth } from '../../../contexts/AuthContext'
 import { supabase } from '../../../lib/supabase'
+import toast from 'react-hot-toast'
 
 const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null, isPoliticianView = false }) => {
   const { userProfile } = useAuth()
@@ -951,7 +952,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
                                       const file = e.target.files[0];
                                       if (!file) return;
                                       
-                                      if (!selectedPolitician?.id) {
+                                      if (!editingPolitician?.id) {
                                         alert('Salve o político primeiro antes de clonar a voz.');
                                         return;
                                       }
@@ -960,12 +961,12 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
                                         try {
                                           const uploadData = new FormData();
                                           uploadData.append('file', file);
-                                          uploadData.append('politician_id', selectedPolitician.id);
+                                          uploadData.append('politician_id', editingPolitician.id);
                                           
                                           // Usar toast de loading
                                           const loadingToast = toast.loading('Clonando voz... Isso pode levar alguns segundos.');
                                           
-                                          const res = await api.post('/voice/clone', uploadData);
+                                          const res = await apiClient.post('/voice/clone', uploadData);
                                           
                                           toast.dismiss(loadingToast);
                                           toast.success('Voz clonada com sucesso!');
@@ -980,6 +981,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
                                           }));
                                         } catch (error) {
                                           console.error(error);
+                                          toast.dismiss();
                                           toast.error('Erro ao clonar voz: ' + (error.response?.data?.error || error.message));
                                         }
                                       }
@@ -1007,7 +1009,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
                                         
                                         try {
                                           const loadingToast = toast.loading('Gerando áudio...');
-                                          const res = await api.post('/voice/tts', {
+                                          const res = await apiClient.post('/voice/tts', {
                                             text,
                                             voice_id: formData.voice_config.voice_id
                                           }, { responseType: 'blob' });
@@ -1018,6 +1020,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
                                           audio.play();
                                         } catch (error) {
                                           console.error(error);
+                                          toast.dismiss(loadingToast);
                                           toast.error('Erro ao gerar áudio');
                                         }
                                       }}
