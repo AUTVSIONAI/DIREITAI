@@ -114,6 +114,11 @@ const Store = () => {
 
   const isAffiliateActive = affiliateProfile?.status === 'active'
 
+  // SEO Logic for Shared Product
+  const searchParams = new URLSearchParams(location.search);
+  const sharedProductId = searchParams.get('product');
+  const sharedProduct = products.find(p => p.id === sharedProductId);
+
   const getCommissionValue = (product) => {
     if (!product.affiliate_enabled) return 0
     const rate = product.affiliate_rate_percent || 0
