@@ -42,7 +42,7 @@ const VoiceControls = forwardRef(({
   // Buscar vozes locais
   useEffect(() => {
     if (voiceProvider === 'local') {
-      const voiceServiceUrl = import.meta.env.VITE_VOICE_SERVICE_URL || 'http://localhost:8005';
+      const voiceServiceUrl = import.meta.env.VITE_VOICE_SERVICE_URL || '/api/voice';
       fetch(`${voiceServiceUrl}/voices`)
         .then(res => res.json())
         .then(data => {

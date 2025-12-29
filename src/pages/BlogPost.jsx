@@ -7,6 +7,7 @@ import {
 import { apiClient } from '../lib/api';
 import { API_CONFIG } from '../lib/api';
 import { resolveImageUrl } from '../utils/imageUtils';
+import SEO from '../components/common/SEO';
 
 // Função util para obter origem do backend a partir da BASE_URL
 const API_ORIGIN = (API_CONFIG?.BASE_URL || '').replace(/\/(api)\/?$/, '');

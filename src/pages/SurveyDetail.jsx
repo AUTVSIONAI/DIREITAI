@@ -273,6 +273,12 @@ const SurveyDetail = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100">
+      <SEO 
+        title={survey.titulo}
+        description={survey.descricao || 'Participe desta pesquisa no DireitaAI'}
+        image={survey.imagem_url}
+        type="article"
+      />
       {/* Header */}
       <div className="bg-white border-b border-gray-200 shadow-soft">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

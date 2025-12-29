@@ -94,13 +94,22 @@ const Store = () => {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0)
   }
 
-  const handleCheckout = () => {
-    const message = cart
-      .map(item => `${item.quantity}x ${item.name}`)
-      .join('\n')
-    const total = getTotalPrice().toFixed(2)
-    const text = `Olá! Gostaria de finalizar meu pedido:\n\n${message}\n\nTotal: R$ ${total}`
-    window.open(`https://wa.me/5511999999999?text=${encodeURIComponent(text)}`, '_blank')
+  const handleCheckout = async () => {
+    try {
+      setProcessingCheckout(true)
+      const response = await StoreService.createProductCheckout(cart)
+      
+      if (response && response.url) {
+        window.location.href = response.url
+      } else {
+        alert('Erro ao iniciar checkout. Tente novamente.')
+      }
+    } catch (err) {
+      console.error('Erro no checkout:', err)
+      alert('Não foi possível processar o pagamento. ' + (err.response?.data?.error || err.message))
+    } finally {
+      setProcessingCheckout(false)
+    }
   }
 
   const isAffiliateActive = affiliateProfile?.status === 'active'
@@ -168,6 +177,12 @@ const Store = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12">
+      <SEO 
+        title={sharedProduct ? sharedProduct.name : 'Loja Patriota - DireitaAI'}
+        description={sharedProduct ? sharedProduct.description : 'Produtos exclusivos para quem ama o Brasil. Vista a camisa e mostre seu orgulho.'}
+        image={sharedProduct ? sharedProduct.image_url : undefined}
+        type={sharedProduct ? 'product' : 'website'}
+      />
       {/* Hero Section */}
       <div className="bg-gradient-to-r from-blue-900 to-blue-800 text-white py-16 px-4 sm:px-6 lg:px-8 mb-8 shadow-lg">
         <div className="max-w-7xl mx-auto">

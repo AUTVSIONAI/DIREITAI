@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { getPoliticianPhotoUrl } from '../utils/imageUtils';
 import { supabase } from '../lib/supabase';
+import SEO from '../components/common/SEO';
 
 // Função para formatar datas
 const formatDate = (dateString) => {
@@ -549,8 +550,18 @@ const PoliticianProfile = () => {
     );
   }
 
+  const title = `${politician.nome_urna || politician.name || 'Político'} - ${politician.cargo || politician.position || 'Político'} (${politician.partido || politician.party || ''})`;
+  const description = politician.biografia || politician.short_bio || `Acompanhe o perfil de ${politician.nome_urna || politician.name} no DireitaAI.`;
+  const image = getPoliticianPhotoUrl(politician.photo_url || politician.url_foto);
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO 
+        title={title}
+        description={description}
+        image={image}
+        type="profile"
+      />
       {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-4">

@@ -161,10 +161,31 @@ const ArenaLobby = () => {
                       </div>
 
                       <button 
-                        onClick={() => navigate(`/arena/${arena.id}`)}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors"
+                        onClick={() => {
+                          // Allow navigation if live or if it's just details/preview
+                          // But if it's "scheduled" and past time, we still let them see details (which shows "Encerrado")
+                          // The user requirement: "se a data ja venceu tem que automaticamente nãio da pra entrar mais , e aparecer somente os detalhes"
+                          // So we still navigate, but the label changes.
+                          navigate(`/arena/${arena.id}`)
+                        }}
+                        disabled={arena.status !== 'live' && new Date(arena.scheduled_at) < new Date() && arena.status !== 'ended'} 
+                        // Note: If status is 'ended', we probably want to show details/recording if available. 
+                        // But if it's scheduled and expired, we block entry? 
+                        // Actually, looking at ArenaLive, it handles "Encerrado" state.
+                        // So we just update the button appearance.
+                        className={`w-full font-bold py-2 px-4 rounded transition-colors ${
+                          arena.status === 'live' 
+                            ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' 
+                            : (new Date(arena.scheduled_at) < new Date() && arena.status !== 'ended')
+                              ? 'bg-gray-400 cursor-not-allowed text-white'
+                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
                       >
-                        {arena.status === 'live' ? 'Entrar na Arena' : 'Ver Detalhes'}
+                        {arena.status === 'live' 
+                          ? 'Entrar na Arena' 
+                          : (new Date(arena.scheduled_at) < new Date() && arena.status !== 'ended')
+                            ? 'Expirado'
+                            : 'Ver Detalhes'}
                       </button>
                     </div>
                   </div>

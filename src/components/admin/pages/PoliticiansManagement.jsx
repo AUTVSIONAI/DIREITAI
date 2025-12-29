@@ -1018,7 +1018,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
                             <div className="flex gap-2 mt-1">
                                 <input
                                   type="text"
-                                  placeholder={import.meta.env.VITE_VOICE_SERVICE_URL || 'http://localhost:8005'}
+                                  placeholder={import.meta.env.VITE_VOICE_SERVICE_URL || '/api/voice'}
                                   value={formData.voice_config?.api_url || ''}
                                   onChange={(e) => setFormData(prev => ({
                                     ...prev,
@@ -1028,7 +1028,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
                                 />
                             </div>
                             <p className="text-xs text-blue-600 mt-1">
-                                Endereço onde o backend Python (RVC/Coqui) está rodando.
+                                Endereço do serviço de voz. Use <code>/api/voice</code> para usar o proxy do backend (recomendado) ou a URL completa.
                                 <br/>
                                 <span className="font-mono bg-blue-100 px-1 rounded">docker run -p 8005:8005 voice-cloning-service</span>
                             </p>

@@ -771,7 +771,7 @@ export class StoreService {
   /**
    * Criar sessão de checkout do Stripe para produtos
    */
-  static async createProductCheckout(): Promise<{
+  static async createProductCheckout(items?: any[]): Promise<{
     sessionId: string;
     url: string;
   }> {
@@ -780,6 +780,7 @@ export class StoreService {
     })()
     const payload: any = {}
 
+    if (items) payload.items = items
     if (affiliateCode) payload.affiliate_code = affiliateCode
     const response = await apiClient.post('/store/checkout', payload);
 

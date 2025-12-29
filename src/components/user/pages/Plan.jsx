@@ -30,6 +30,7 @@ const Plan = () => {
   const fallbackPlans = [
     {
       id: 'gratuito',
+      checkoutPlanId: 'gratuito',
       name: 'Patriota Gratuito',
       monthlyPrice: 0,
       yearlyPrice: 0,
@@ -106,6 +107,7 @@ const Plan = () => {
     },
     {
       id: 'pro',
+      checkoutPlanId: 'pro',
       name: 'Patriota Pro',
       monthlyPrice: 69.90,
       yearlyPrice: 699.00,
@@ -291,12 +293,14 @@ const Plan = () => {
     try {
       setProcessingPayment(true)
       
-      if (!selectedUpgrade.checkoutPlanId) {
+      const planId = selectedUpgrade.checkoutPlanId || selectedUpgrade.id
+      if (!planId) {
         alert('Plano indisponível para checkout no momento.')
+        setProcessingPayment(false)
         return
       }
       // Usar serviço de pagamentos com plano alinhado ao checkout
-      const session = await paymentsService.createCheckoutSession(selectedUpgrade.checkoutPlanId)
+      const session = await paymentsService.createCheckoutSession(planId)
       if (session?.url) {
         window.location.href = session.url
       } else {

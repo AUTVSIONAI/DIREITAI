@@ -128,6 +128,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       </div>
 
       {/* Mobile Sidebar */}
+      {isOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
       <div className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white/95 backdrop-blur-sm transform ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
       } transition-transform duration-300 ease-in-out`}>

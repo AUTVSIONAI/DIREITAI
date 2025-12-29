@@ -1284,8 +1284,9 @@ const ArenaLive = () => {
                       // 2. Not showing Stats (Anchor Panel) - ONLY if Host
                       // 3. User is Host OR Participant OR has a participant entry OR has permission
                       // 4. Also ensure that if they have permission (canStream), we show it!
-                      // 5. DEBUG: Force show for any logged-in user who is not host, to ensure "Raise Hand" is visible
-                      const shouldShow = !showGreenRoom && (!isHost || !showStats) && (isHost || !!participant || isAccepted || canStream || (!!user && !isHost));
+                      // 5. RESTRICTION: Only show for Host, Invited/Accepted Participants, or those with explicit permissions.
+                      // Regular users (viewers) should NOT see controls.
+                      const shouldShow = !showGreenRoom && (!isHost || !showStats) && (isHost || !!participant || isAccepted || canStream);
                       
                       // DOUBLE CHECK: Ensure we don't show if user is Host and Dashboard is active (Redundant check but safe)
                       if (isHost && showStats) return null;

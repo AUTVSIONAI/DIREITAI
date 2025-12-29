@@ -109,7 +109,7 @@ const VoiceChat = ({ politicianName, politicianVoiceRefUrl, onUserMessage }) => 
       formData.append('language', 'pt');
 
       // Chamada para o serviço local Docker
-      const voiceServiceUrl = import.meta.env.VITE_VOICE_SERVICE_URL || 'http://localhost:8005';
+      const voiceServiceUrl = import.meta.env.VITE_VOICE_SERVICE_URL || '/api/voice';
       const response = await fetch(`${voiceServiceUrl}/clone-speech`, {
         method: 'POST',
         body: formData,
