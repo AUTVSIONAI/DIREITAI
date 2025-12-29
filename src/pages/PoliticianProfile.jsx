@@ -29,7 +29,6 @@ import {
 } from 'lucide-react';
 import { getPoliticianPhotoUrl } from '../utils/imageUtils';
 import { supabase } from '../lib/supabase';
-import SEO from '../components/common/SEO';
 
 // Função para formatar datas
 const formatDate = (dateString) => {
