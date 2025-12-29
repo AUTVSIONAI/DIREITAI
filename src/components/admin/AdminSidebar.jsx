@@ -220,12 +220,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
       href: '/admin/settings',
       icon: Settings,
       current: location.pathname === '/admin/settings'
-    },
-    {
-      name: 'Infraestrutura de Voz',
-      href: '/admin/voice-service',
-      icon: Server,
-      current: location.pathname === '/admin/voice-service'
     }
   ]
 
@@ -252,7 +246,6 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
     if (href.includes('/admin/announcements')) return 'announcements'
     if (href.includes('/admin/notifications')) return 'notifications'
     if (href.includes('/admin/settings')) return 'settings'
-    if (href.includes('/admin/voice-service')) return 'voice-service'
     return ''
   }
 

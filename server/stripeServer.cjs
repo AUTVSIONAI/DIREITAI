@@ -107,85 +107,8 @@ const requireStripe = (req, res, next) => {
 }
 
 // --- Docker Control Endpoints ---
+// REMOVED: Local voice service infrastructure deleted.
 
-const DOCKER_CONTAINER_NAME = 'direitaai-voice'
-
-const runDockerCommand = (command, cwd = null) => {
-  return new Promise((resolve, reject) => {
-    exec(command, { cwd }, (error, stdout, stderr) => {
-      if (error) {
-        console.warn(`Docker command error: ${error.message}`)
-        resolve({ success: false, error: error.message, output: stderr || error.message })
-      } else {
-        resolve({ success: true, output: stdout })
-      }
-    })
-  })
-}
-
-app.get('/api/admin/docker/status', async (req, res) => {
-  // Check if container is running
-  const { success, output } = await runDockerCommand(`docker inspect -f "{{.State.Running}}" ${DOCKER_CONTAINER_NAME}`)
-  
-  // If inspect fails, container might not exist or docker is down
-  if (!success) {
-    return res.json({ 
-      success: true, 
-      status: 'stopped', 
-      details: 'Container not found or Docker not running',
-      raw: output
-    })
-  }
-  
-  const isRunning = output.trim() === 'true'
-  res.json({ 
-    success: true, 
-    status: isRunning ? 'running' : 'stopped',
-    details: isRunning ? 'Service is active' : 'Service is stopped'
-  })
-})
-
-app.post('/api/admin/docker/start', async (req, res) => {
-  // First try to start existing container
-  let result = await runDockerCommand(`docker start ${DOCKER_CONTAINER_NAME}`)
-  
-  if (result.success) {
-    return res.json({ success: true, message: 'Container started' })
-  }
-  
-  // If failed because it doesn't exist, try docker-compose up
-  if (result.output && result.output.includes('No such container')) {
-    console.log('Container not found, attempting docker-compose up...')
-    const voiceServicePath = path.join(__dirname, '../ai-voice-service')
-    
-    // Check if another build/up is running might be good, but difficult.
-    // We'll just try to run it.
-    const composeResult = await runDockerCommand('docker-compose up -d', voiceServicePath)
-    
-    if (composeResult.success) {
-      return res.json({ success: true, message: 'Container created and started via Docker Compose' })
-    } else {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Failed to start container (Compose failed)', 
-        details: composeResult.output 
-      })
-    }
-  }
-
-  // Other error
-  res.status(500).json({ success: false, error: 'Failed to start container', details: result.output })
-})
-
-app.post('/api/admin/docker/stop', async (req, res) => {
-  const { success, output } = await runDockerCommand(`docker stop ${DOCKER_CONTAINER_NAME}`)
-  res.json({ success, message: success ? 'Container stopped' : 'Failed to stop', details: output })
-})
-
-app.post('/api/admin/docker/restart', async (req, res) => {
-  const { success, output } = await runDockerCommand(`docker restart ${DOCKER_CONTAINER_NAME}`)
-  res.json({ success, message: success ? 'Container restarted' : 'Failed to restart', details: output })
-})
 
 // --- Endpoints ---
 
