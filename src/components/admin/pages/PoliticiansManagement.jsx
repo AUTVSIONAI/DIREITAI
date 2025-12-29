@@ -390,7 +390,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
       },
       voice_config: {
         enabled: false,
-        provider: 'local',
+        provider: 'minimax',
         voice_id: '',
         api_url: 'http://localhost:8005',
         settings: {
@@ -406,7 +406,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
     setActiveTab('general')
   }
 
-  const startEdit = (politician) => {
+  const startEdit = (politician, tab = 'general') => {
     setFormData({
       name: politician.name || '',
       party: politician.party || '',
@@ -424,7 +424,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
       },
       voice_config: {
         enabled: politician.voice_config?.enabled || false,
-        provider: politician.voice_config?.provider || 'local',
+        provider: politician.voice_config?.provider || 'minimax',
         voice_id: politician.voice_config?.voice_id || '',
         api_url: (politician.voice_config?.api_url && politician.voice_config.api_url.includes('8000')) 
           ? 'http://localhost:8005' 
@@ -438,7 +438,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
     setPhotoPreview(politician.photo_url || '')
     setEditingPolitician(politician)
     setShowAddModal(true)
-    setActiveTab('general')
+    setActiveTab(tab)
   }
 
   const filteredPoliticians = Array.isArray(politicians) ? politicians.filter(politician => {
@@ -627,6 +627,13 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
+                      <button
+                        onClick={() => startEdit(politician, 'voice')}
+                        className="text-purple-600 hover:text-purple-900"
+                        title="Configurar Voz & IA"
+                      >
+                        <Mic className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => startEdit(politician)}
                         className="text-blue-600 hover:text-blue-900"
