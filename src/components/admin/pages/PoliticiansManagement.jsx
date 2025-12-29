@@ -109,9 +109,8 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
     },
     voice_config: {
       enabled: false,
-      provider: 'local', // 'local' | 'elevenlabs'
+      provider: 'minimax', // 'minimax' | 'elevenlabs'
       voice_id: '',
-      api_url: 'http://localhost:8005',
       settings: {
         stability: 0.5,
         similarity_boost: 0.75
@@ -119,9 +118,6 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
     }
   })
   const [activeTab, setActiveTab] = useState('general') // 'general', 'social', 'voice'
-  const [testVoiceText, setTestVoiceText] = useState('Olá, eu sou o seu representante político. Como posso ajudar?')
-  const [isPlayingTest, setIsPlayingTest] = useState(false)
-  const [isTrainingVoice, setIsTrainingVoice] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
@@ -225,94 +221,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
     }
   }
 
-  const handleTestVoice = async () => {
-    if (!formData.voice_config.api_url && formData.voice_config.provider === 'local') {
-        alert('Configure a URL da API de Voz Local primeiro.');
-        return;
-    }
-    setIsPlayingTest(true);
-    try {
-        if (formData.voice_config.provider === 'local') {
-            const formDataBody = new FormData();
-            formDataBody.append('text', testVoiceText);
-            formDataBody.append('voice_id', formData.voice_config.voice_id);
-            formDataBody.append('language', 'pt');
 
-            const response = await fetch(`${formData.voice_config.api_url}/tts`, {
-                method: 'POST',
-                body: formDataBody
-            });
-
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.detail || 'Falha na API Local');
-            }
-            
-            const blob = await response.blob();
-            const audio = new Audio(URL.createObjectURL(blob));
-            audio.play();
-            audio.onended = () => setIsPlayingTest(false);
-        } else {
-             alert('Provedor não implementado para teste neste momento.');
-             setIsPlayingTest(false);
-        }
-    } catch (error) {
-        console.error('Erro no teste de voz:', error);
-        alert(`Erro ao conectar com API de Voz Local: ${error.message}. Verifique se o servidor Python está rodando.`);
-        setIsPlayingTest(false);
-    }
-  }
-
-  const handleVoiceUpload = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      
-      if (!formData.voice_config.api_url && formData.voice_config.provider === 'local') {
-          alert('Configure a URL da API de Voz Local primeiro.');
-          return;
-      }
-
-      setIsTrainingVoice(true);
-      try {
-          if (formData.voice_config.provider === 'local') {
-              const uploadData = new FormData();
-              uploadData.append('file', file);
-              uploadData.append('name', formData.name || 'Unknown Politician');
-
-              const response = await fetch(`${formData.voice_config.api_url}/voices`, {
-                  method: 'POST',
-                  body: uploadData
-              });
-
-              if (!response.ok) {
-                   const err = await response.json();
-                   throw new Error(err.detail || 'Falha no upload para API Local');
-              }
-
-              const data = await response.json();
-              
-              setFormData(prev => ({
-                  ...prev,
-                  voice_config: {
-                      ...prev.voice_config,
-                      voice_id: data.voice_id,
-                      enabled: true
-                  }
-              }));
-              alert('Voz clonada com sucesso! ID: ' + data.voice_id);
-          } else {
-              alert('Upload apenas para sistema local por enquanto.');
-          }
-      } catch (error) {
-          console.error('Erro no treino:', error);
-          const msg = error.message === 'Failed to fetch' 
-            ? 'O serviço de voz não está respondendo na porta 8005. Verifique se ele está com status "OPERACIONAL" na página de Infraestrutura de Voz.'
-            : error.message;
-          alert(`Erro ao treinar voz: ${msg}`);
-      } finally {
-          setIsTrainingVoice(false);
-      }
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -1006,80 +915,115 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
                             }))}
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm sm:text-sm"
                           >
-                            <option value="local">Sistema Próprio (Local/Docker)</option>
+                            <option value="minimax">MiniMax (Clonagem de Voz)</option>
                             <option value="elevenlabs">ElevenLabs (API)</option>
                             <option value="openai">OpenAI (TTS)</option>
                           </select>
                         </div>
 
-                        {formData.voice_config?.provider === 'local' && (
-                          <div className="bg-blue-50 p-3 rounded border border-blue-100">
-                            <label className="block text-sm font-medium text-blue-900">URL da API Local</label>
-                            <div className="flex gap-2 mt-1">
-                                <input
-                                  type="text"
-                                  placeholder={import.meta.env.VITE_VOICE_SERVICE_URL || '/api/voice'}
-                                  value={formData.voice_config?.api_url || ''}
-                                  onChange={(e) => setFormData(prev => ({
-                                    ...prev,
-                                    voice_config: { ...prev.voice_config, api_url: e.target.value }
-                                  }))}
-                                  className="flex-1 block w-full px-3 py-2 border border-blue-200 rounded-md shadow-sm sm:text-sm"
-                                />
-                            </div>
-                            <p className="text-xs text-blue-600 mt-1">
-                                Endereço do serviço de voz. Use <code>/api/voice</code> para usar o proxy do backend (recomendado) ou a URL completa.
-                                <br/>
-                                <span className="font-mono bg-blue-100 px-1 rounded">docker run -p 8005:8005 voice-cloning-service</span>
-                            </p>
-                          </div>
-                        )}
-
-                        <div className="border-t border-gray-200 pt-4 mt-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Treinamento / Clonagem</label>
-                          <div className="flex gap-4 items-start bg-white p-3 rounded border border-gray-200 border-dashed">
-                             <div className="flex-1">
-                               <label className="block text-xs text-gray-500 mb-1 font-medium">Upload de Áudio de Referência (.wav, 1-5min)</label>
-                               <input 
-                                  type="file" 
-                                  accept=".wav,.mp3,.m4a"
-                                  onChange={handleVoiceUpload}
-                                  disabled={isTrainingVoice}
-                                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                               />
-                               <p className="text-[10px] text-gray-400 mt-1">O áudio será enviado para o servidor local para treinar o modelo de voz.</p>
-                             </div>
-                             {isTrainingVoice && (
-                                <div className="flex items-center text-blue-600 text-sm animate-pulse bg-blue-50 px-3 py-2 rounded">
-                                  <Settings className="w-4 h-4 mr-2 animate-spin" />
-                                  Treinando...
-                                </div>
-                             )}
-                          </div>
-                        </div>
-
-                        {formData.voice_config?.voice_id && (
-                           <div className="border-t border-gray-200 pt-4 mt-4">
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Testar Voz Gerada</label>
-                              <div className="flex gap-2">
-                                <input 
-                                  type="text" 
-                                  value={testVoiceText}
-                                  onChange={(e) => setTestVoiceText(e.target.value)}
-                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={handleTestVoice}
-                                  disabled={isPlayingTest}
-                                  className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 flex items-center gap-2 min-w-[100px] justify-center"
-                                >
-                                  {isPlayingTest ? <Volume2 className="w-4 h-4 animate-pulse" /> : <Play className="w-4 h-4" />}
-                                  {isPlayingTest ? 'Falando...' : 'Ouvir'}
-                                </button>
+                        {formData.voice_config?.provider === 'minimax' && (
+                           <div className="bg-purple-50 p-4 rounded-lg border border-purple-100 space-y-4">
+                              <h4 className="font-semibold text-purple-900 flex items-center gap-2">
+                                <Mic className="w-5 h-5" />
+                                Clonagem de Voz (MiniMax)
+                              </h4>
+                              
+                              <div className="text-sm text-purple-800 bg-purple-100 p-3 rounded">
+                                <p>Custo estimado: <strong>$0.01 / 1000 caracteres</strong> (Verificar tabela oficial)</p>
+                                <p className="mt-1">Faça upload de um áudio limpo (10s a 5min) do político para clonar a voz.</p>
                               </div>
+
+                              <div className="border-t border-purple-200 pt-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Arquivo de Voz Original</label>
+                                <div className="flex gap-2">
+                                  <input 
+                                    type="file" 
+                                    accept="audio/*"
+                                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                                    onChange={async (e) => {
+                                      const file = e.target.files[0];
+                                      if (!file) return;
+                                      
+                                      if (!selectedPolitician?.id) {
+                                        alert('Salve o político primeiro antes de clonar a voz.');
+                                        return;
+                                      }
+
+                                      if (confirm('Deseja enviar este áudio para clonagem agora?')) {
+                                        try {
+                                          const uploadData = new FormData();
+                                          uploadData.append('file', file);
+                                          uploadData.append('politician_id', selectedPolitician.id);
+                                          
+                                          // Usar toast de loading
+                                          const loadingToast = toast.loading('Clonando voz... Isso pode levar alguns segundos.');
+                                          
+                                          const res = await api.post('/voice/clone', uploadData);
+                                          
+                                          toast.dismiss(loadingToast);
+                                          toast.success('Voz clonada com sucesso!');
+                                          
+                                          setFormData(prev => ({
+                                            ...prev,
+                                            voice_config: {
+                                              ...prev.voice_config,
+                                              provider: 'minimax',
+                                              voice_id: res.data.voice_id
+                                            }
+                                          }));
+                                        } catch (error) {
+                                          console.error(error);
+                                          toast.error('Erro ao clonar voz: ' + (error.response?.data?.error || error.message));
+                                        }
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              {formData.voice_config?.voice_id && (
+                                <div className="border-t border-purple-200 pt-4">
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">Testar Voz</label>
+                                  <div className="flex gap-2">
+                                    <input 
+                                      type="text" 
+                                      placeholder="Digite um texto para o político falar..." 
+                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                                      id="test-tts-input"
+                                    />
+                                    <button
+                                      type="button"
+                                      className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center gap-2"
+                                      onClick={async () => {
+                                        const text = document.getElementById('test-tts-input').value;
+                                        if (!text) return toast.error('Digite um texto');
+                                        
+                                        try {
+                                          const loadingToast = toast.loading('Gerando áudio...');
+                                          const res = await api.post('/voice/tts', {
+                                            text,
+                                            voice_id: formData.voice_config.voice_id
+                                          }, { responseType: 'blob' });
+                                          
+                                          toast.dismiss(loadingToast);
+                                          const audioUrl = URL.createObjectURL(res.data);
+                                          const audio = new Audio(audioUrl);
+                                          audio.play();
+                                        } catch (error) {
+                                          console.error(error);
+                                          toast.error('Erro ao gerar áudio');
+                                        }
+                                      }}
+                                    >
+                                      <Play className="w-4 h-4" /> Falar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                            </div>
                         )}
+
+
                       </div>
                     )}
                   </div>
