@@ -424,7 +424,7 @@ const PoliticiansManagement = ({ limitToPoliticianId = null, limitToParty = null
       },
       voice_config: {
         enabled: politician.voice_config?.enabled || false,
-        provider: politician.voice_config?.provider || 'minimax',
+        provider: (politician.voice_config?.provider && politician.voice_config.provider !== 'local') ? politician.voice_config.provider : 'minimax',
         voice_id: politician.voice_config?.voice_id || '',
         api_url: (politician.voice_config?.api_url && politician.voice_config.api_url.includes('8000')) 
           ? 'http://localhost:8005' 
