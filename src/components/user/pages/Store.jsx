@@ -7,6 +7,8 @@ import { useAuth } from '../../../contexts/AuthContext'
 import { useNavigate, useLocation } from 'react-router-dom'
 import SEO from '../../common/SEO'
 
+import { getAbsoluteImageUrl } from '../../../utils/imageUtils'
+
 const Store = () => {
   const navigate = useNavigate()
   const location = useLocation()

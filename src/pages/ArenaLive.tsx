@@ -25,12 +25,15 @@ const StreamVideoPlayer = React.memo(({
 
     useEffect(() => {
         if (videoRef.current && stream) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.play().catch(e => {
-                // Ignore AbortError which happens when pausing/playing rapidly
-                if (e.name !== 'AbortError') console.error("Error playing video:", e);
-            });
-        } else if (videoRef.current) {
+            // Only update if stream ID changed or srcObject is null
+            const currentStream = videoRef.current.srcObject as MediaStream;
+            if (!currentStream || currentStream.id !== stream.id) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.play().catch(e => {
+                    if (e.name !== 'AbortError') console.error("Error playing video:", e);
+                });
+            }
+        } else if (videoRef.current && !stream) {
             videoRef.current.srcObject = null;
         }
     }, [stream]);
@@ -98,9 +101,17 @@ const CenterStage = React.memo(({
         // Remote Target
         if (targetId && remoteStreams.has(targetId)) {
             videoStream = remoteStreams.get(targetId)!;
-        } else if (isTargetHost && hostId && remoteStreams.has(hostId)) {
+        } else if (isTargetHost) {
             // Fallback: If target is Host, grab Host stream explicitly
-            videoStream = remoteStreams.get(hostId)!;
+            if (hostId && remoteStreams.has(hostId)) {
+                videoStream = remoteStreams.get(hostId)!;
+            } else {
+                // Extra Fallback: Find any participant that is a politician
+                const politicianId = participants.find(p => p.role === 'politician')?.user_id;
+                if (politicianId && remoteStreams.has(politicianId)) {
+                    videoStream = remoteStreams.get(politicianId)!;
+                }
+            }
         }
     }
 
@@ -242,6 +253,7 @@ const ArenaLive = () => {
   const [questions, setQuestions] = useState<ArenaQuestion[]>([]);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [participants, setParticipants] = useState<any[]>([]);
+  const participantsRef = useRef<any[]>([]); // Ref to access participants in event handlers without dependency cycles
   const [loading, setLoading] = useState(true);
   
   // Invitation State
@@ -316,6 +328,11 @@ const ArenaLive = () => {
   useEffect(() => {
     // Kept empty for structure or future debugging
   }, [userProfile, participants, isHost, isParticipant, canStream, spotlightId, remoteStreams]);
+
+  // Sync participants to ref
+  useEffect(() => {
+      participantsRef.current = participants;
+  }, [participants]);
 
   useEffect(() => {
     if (id) {
@@ -394,7 +411,31 @@ const ArenaLive = () => {
                 }));
             } else if (payload.eventType === 'DELETE') {
                 // For deletes, we can remove directly
+                const removedUserId = payload.old.user_id; // Note: Payload.old usually only has ID unless REPLICA IDENTITY FULL
+                
+                // Use Ref to find user in current list (state might be stale in closure)
+                const currentParticipants = participantsRef.current;
+                const participantToRemove = currentParticipants.find(p => p.id === payload.old.id);
+                const userIdToRemove = removedUserId || participantToRemove?.user_id;
+
                 setParticipants(prev => prev.filter(p => p.id !== payload.old.id));
+                
+                if (userIdToRemove) {
+                    console.log(`[Realtime] Participant ${userIdToRemove} removed. Cleaning up stream.`);
+                    setRemoteStreams(prev => {
+                        const newMap = new Map(prev);
+                        if (newMap.delete(userIdToRemove)) {
+                             return newMap;
+                        }
+                        return prev;
+                    });
+                    if (peerConnections.current.has(userIdToRemove)) {
+                        try {
+                            peerConnections.current.get(userIdToRemove)?.close();
+                            peerConnections.current.delete(userIdToRemove);
+                        } catch (e) { console.warn("Error closing PC:", e); }
+                    }
+                }
             } else {
                 // For INSERT, we need to fetch user data, so we reload
                 loadParticipants(id);
@@ -1158,6 +1199,12 @@ const ArenaLive = () => {
 
   return (
     <div className="flex flex-col md:flex-row h-screen h-[100dvh] bg-gray-900 text-white overflow-hidden">
+      <SEO 
+        title={`${arena.title} | Arena do Povo`}
+        description={arena.description || 'Participe desta live interativa no DireitaAI'}
+        image={getAbsoluteImageUrl(arena.politicians?.photo_url)}
+        type="video.live"
+      />
       
       {/* Main Content - Video & Participants */}
       <div className="flex-1 flex flex-col relative overflow-hidden">
@@ -1884,7 +1931,7 @@ const ArenaLive = () => {
                 </div>
 
                 {/* Other Participants */}
-                {sortedParticipants.map(p => {
+                {sortedParticipants.filter(p => p.user_id !== arena.politician_id).map(p => {
                    const pUser = getUserData(p.users);
                    const isSelf = p.user_id === userProfile?.id;
                    const stream = isSelf && streamRef.current ? streamRef.current : remoteStreams.get(p.user_id) || null;

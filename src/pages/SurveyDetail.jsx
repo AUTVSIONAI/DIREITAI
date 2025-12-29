@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import SEO from '../components/common/SEO'
+import { getAbsoluteImageUrl } from '../utils/imageUtils'
 
 const SurveyDetail = () => {
   const { id } = useParams()
