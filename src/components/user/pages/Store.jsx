@@ -16,6 +16,7 @@ const Store = () => {
   const [error, setError] = useState(null)
   const [cart, setCart] = useState([])
   const [showCart, setShowCart] = useState(false)
+  const [processingCheckout, setProcessingCheckout] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [copiedProductId, setCopiedProductId] = useState(null)
