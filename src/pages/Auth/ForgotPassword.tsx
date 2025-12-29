@@ -15,8 +15,10 @@ const ForgotPassword: React.FC = () => {
     setMessage(null);
     setError(null);
 
+    const emailToSubmit = email.trim();
+
     try {
-      const result = await AuthService.requestPasswordReset({ email });
+      const result = await AuthService.requestPasswordReset({ email: emailToSubmit });
       if (result.success) {
         setMessage('Se o email existir, enviamos um link para redefinir sua senha. Verifique sua caixa de entrada.');
       } else {

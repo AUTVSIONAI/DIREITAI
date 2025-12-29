@@ -26,8 +26,10 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    const trimmedEmail = email.trim()
 
-    if (!email || !password) {
+    if (!trimmedEmail || !password) {
       setError('Por favor, preencha todos os campos')
       return
     }
@@ -43,7 +45,7 @@ const Login = () => {
     try {
       if (isLogin) {
         const signInPromise = supabase.auth.signInWithPassword({
-          email,
+          email: trimmedEmail,
           password,
         })
 
@@ -72,7 +74,7 @@ const Login = () => {
       } else {
         // Cadastro de usuário via AuthService para garantir auto-login se possível
         const result = await AuthService.register({
-            email,
+            email: trimmedEmail,
             password,
             username,
             full_name: username
