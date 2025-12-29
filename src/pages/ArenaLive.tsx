@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 import { Video, Mic, MicOff, VideoOff, Play, Square, Settings, Users, UserPlus, Check, X, Search, ThumbsUp, Share2, Eye, BarChart2, Hand, Trash2, RefreshCw, ArrowLeft } from 'lucide-react';
 import { apiClient as api } from '../lib/api';
 import SEO from '../components/common/SEO';
+import { getAbsoluteImageUrl } from '../utils/imageUtils';
 
 // Internal component for stable video rendering (Local & Remote)
 const StreamVideoPlayer = React.memo(({ 
