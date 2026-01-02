@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import SEO from '../components/common/SEO';
 import { 
   Flag, 
   Shield, 
@@ -101,6 +102,11 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen bg-transparent">
+      <SEO 
+        title="Home" 
+        description="A Central do Patriota com IA política avançada, verificação de fake news, comunidade conservadora e eventos exclusivos."
+        image="/logo.png"
+      />
       {/* Header */}
       <header className="bg-white/90 backdrop-blur-md shadow-lg border-b border-gray-100/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
