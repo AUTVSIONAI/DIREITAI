@@ -138,8 +138,42 @@ const Store = () => {
     // O proxy backend (store.js) aceita ?ref=...
     
     const apiBase = apiClient.defaults.baseURL || 'https://direitai-backend.vercel.app/api';
-    const origin = apiBase.replace(/\/api\/?$/, '');
-    let socialUrl = `${origin}/api/store/social/${product.id}`;
+    let origin = '';
+    
+    // Garantir que a origem seja absoluta
+    if (apiBase.startsWith('http')) {
+      // Se apiBase for absoluta (http...), extraímos a origem
+      try {
+        const url = new URL(apiBase);
+        origin = url.origin;
+      } catch (e) {
+        // Fallback se URL for inválida
+        origin = window.location.origin;
+      }
+    } else {
+      // Se apiBase for relativa (ex: /api), usamos a origem da janela atual
+      origin = window.location.origin;
+    }
+
+    // Construir a URL absoluta para o proxy
+    // Se apiBase for relativa (/api), concatenamos com a origem
+    // Se apiBase for absoluta, já temos a origem correta
+    
+    let socialUrl;
+    if (apiBase.startsWith('http')) {
+        // Se a base já é absoluta, usamos ela diretamente (ajustando para remover /api duplicado se necessário)
+        const baseUrl = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
+        // O endpoint é /store/social/:id, mas precisamos garantir que estamos usando o caminho da API corretamente
+        // Se apiBase é https://backend.com/api, então queremos https://backend.com/api/store/social/:id
+        socialUrl = `${baseUrl}/store/social/${product.id}`;
+    } else {
+        // Se apiBase é relativa (/api), concatenamos com window.location.origin
+        // window.location.origin = https://direitai.com
+        // apiBase = /api
+        // Result: https://direitai.com/api/store/social/:id
+        const cleanApiBase = apiBase.startsWith('/') ? apiBase : '/' + apiBase;
+        socialUrl = `${origin}${cleanApiBase}/store/social/${product.id}`;
+    }
     
     if (isAffiliateActive && affiliateCode) {
       socialUrl += `?ref=${affiliateCode}`;
@@ -209,7 +243,8 @@ const Store = () => {
       <SEO 
         title={sharedProduct ? sharedProduct.name : 'Loja Patriota - DireitaAI'}
         description={sharedProduct ? sharedProduct.description : 'Produtos exclusivos para quem ama o Brasil. Vista a camisa e mostre seu orgulho.'}
-        image={sharedProduct ? sharedProduct.image_url : undefined}
+        image={sharedProduct ? (sharedProduct.image || sharedProduct.image_url) : undefined}
+        url={sharedProduct ? `/store?product=${sharedProduct.id}` : '/store'}
         type={sharedProduct ? 'product' : 'website'}
       />
       {/* Hero Section */}
