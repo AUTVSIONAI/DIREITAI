@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { apiClient } from '../lib/api';
+import GamificationService from './gamification';
 import type {
   UserProfile,
   LoginCredentials,
@@ -28,6 +29,18 @@ export class AuthService {
 
       if (error) {
         throw new Error(error.message);
+      }
+
+      // Atribuir pontos de login diário
+      if (data.user) {
+        GamificationService.addPoints(data.user.id, {
+          amount: 10,
+          reason: 'Login Diário',
+          category: 'daily_login'
+        }).catch(err => console.error('Erro ao atribuir pontos de login:', err));
+
+        // Atualizar último login
+        AuthService.updateLastLogin(data.user.id);
       }
 
       return {
@@ -107,7 +120,7 @@ export class AuthService {
           username: userData.username,
           full_name: userData.full_name || userData.username,
           plan: 'gratuito', // Backend usa 'gratuito'
-          points: 0,
+          points: 50, // Pontos iniciais de cadastro
           created_at: now
         };
         
@@ -119,6 +132,13 @@ export class AuthService {
         if (profileError) {
              console.error('Erro ao criar perfil localmente:', profileError);
              // Não lançar erro aqui para não impedir o login, mas logar
+        } else {
+             // Registrar transação de pontos de boas-vindas
+             GamificationService.addPoints(data.user.id, {
+               amount: 50,
+               reason: 'Bônus de Boas-vindas',
+               category: 'system'
+             }).catch(err => console.error('Erro ao registrar pontos de cadastro:', err));
         }
       }
 

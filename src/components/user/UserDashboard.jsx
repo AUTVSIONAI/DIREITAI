@@ -28,6 +28,7 @@ const Affiliates = lazy(() => import('./pages/Affiliates'))
 const RoleAdmin = lazy(() => import('./pages/RoleAdmin'))
 const PoliticianArenas = lazy(() => import('./pages/PoliticianArenas'))
 const SuggestionsManagement = lazy(() => import('../admin/pages/SuggestionsManagement'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 
 const UserDashboard = () => {
@@ -67,6 +68,7 @@ const UserDashboard = () => {
             <Route path="/affiliates" element={<Affiliates />} />
             <Route path="/admin-role" element={<RoleAdmin />} />
             <Route path="/suggestions" element={<SuggestionsManagement />} />
+            <Route path="/settings" element={<Settings />} />
 
             </Routes>
           </Suspense>

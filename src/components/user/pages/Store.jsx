@@ -130,6 +130,25 @@ const Store = () => {
     return (product.price * rate) / 100
   }
 
+  const shareProduct = (product) => {
+    const affiliateCode = affiliateProfile?.code || affiliateProfile?.referral_code;
+    
+    // URL otimizada para bots (backend proxy)
+    // Se tiver código de afiliado, adiciona como query param, mas a URL base é a do proxy
+    // O proxy backend (store.js) aceita ?ref=...
+    
+    const apiBase = apiClient.defaults.baseURL || 'https://direitai-backend.vercel.app/api';
+    const origin = apiBase.replace(/\/api\/?$/, '');
+    let socialUrl = `${origin}/api/store/social/${product.id}`;
+    
+    if (isAffiliateActive && affiliateCode) {
+      socialUrl += `?ref=${affiliateCode}`;
+    }
+
+    const text = `Confira este produto na Loja Patriota: ${product.name}\n${socialUrl}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+  };
+
   const copyAffiliateLink = async (product) => {
     console.log('Tentando copiar link...', { isAffiliateActive, affiliateProfile, product })
     
@@ -387,6 +406,16 @@ const Store = () => {
                             )}
                           </button>
                         )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            shareProduct(product)
+                          }}
+                          className="bg-white text-gray-900 p-2 rounded-full hover:bg-green-600 hover:text-white transition-all shadow-lg flex items-center justify-center transform hover:scale-105 active:scale-95"
+                          title="Compartilhar no WhatsApp"
+                        >
+                          <Share2 className="h-5 w-5" />
+                        </button>
                       </div>
                     </div>
 

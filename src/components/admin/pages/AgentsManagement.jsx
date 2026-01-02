@@ -721,6 +721,8 @@ const AgentsManagement = () => {
                       const selected = Array.isArray(politicians)
                         ? politicians.find(p => String(p.id) === String(pid))
                         : null
+                      
+                      // Gerar prompt padrão
                       const defaultPrompt = (!formData.trained_prompt && selected)
                         ? agentGenerationService.generateDefaultPrompt({
                             id: selected.id,
@@ -731,7 +733,20 @@ const AgentsManagement = () => {
                             city: selected.city
                           })
                         : formData.trained_prompt
-                      setFormData({ ...formData, politician_id: pid, trained_prompt: defaultPrompt })
+
+                      // Auto-selecionar voz clonada se existir
+                      let voiceIdToSet = formData.voice_id;
+                      if (selected && selected.voice_config && selected.voice_config.voice_id) {
+                        voiceIdToSet = selected.voice_config.voice_id;
+                        console.log('Voz clonada encontrada e aplicada:', voiceIdToSet);
+                      }
+
+                      setFormData({ 
+                        ...formData, 
+                        politician_id: pid, 
+                        trained_prompt: defaultPrompt,
+                        voice_id: voiceIdToSet 
+                      })
                     }}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   >
@@ -762,6 +777,9 @@ const AgentsManagement = () => {
                     placeholder="ID da voz (opcional)"
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Se o político tiver voz clonada, este campo será preenchido automaticamente.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Configuração de Personalidade (JSON)</label>

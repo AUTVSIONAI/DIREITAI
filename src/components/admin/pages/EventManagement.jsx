@@ -79,7 +79,7 @@ const EventManagement = () => {// Estados
   // Função para carregar manifestações
   const loadManifestations = async () => {
     try {
-      const response = await apiClient.get('/manifestations')
+      const response = await apiClient.get('/manifestations/admin')
       if (response.data && response.data.data) {
         setManifestations(Array.isArray(response.data.data) ? response.data.data : [])
       }
@@ -133,7 +133,7 @@ const EventManagement = () => {// Estados
         date: manifestation.start_date,
         endDate: manifestation.end_date,
         maxCapacity: manifestation.max_participants,
-        checkins: manifestation.current_participants || 0
+        checkins: manifestation.checkin_count || manifestation.current_participants || 0
       }))]
     }
     

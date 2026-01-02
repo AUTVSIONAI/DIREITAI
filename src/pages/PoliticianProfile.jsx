@@ -37,9 +37,41 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString('pt-BR');
 };
 
+// Helper para buscar usuários manualmente caso o join falhe
+const enrichRatingsWithUsers = async (list) => {
+  if (!list || list.length === 0) return list;
+  
+  const userIdsToFetch = new Set();
+  list.forEach(r => {
+      // Se não tem users ou se users não tem nome (join falhou ou incompleto)
+      if (r.user_id && (!r.users || (!r.users.full_name && !r.users.name && !r.users.username))) {
+          userIdsToFetch.add(r.user_id);
+      }
+  });
+
+  if (userIdsToFetch.size > 0) {
+      const { data: usersData } = await supabase
+       .from('users')
+       .select('id, full_name, username, email, avatar_url')
+       .in('id', Array.from(userIdsToFetch));
+      
+      if (usersData) {
+          const usersById = Object.fromEntries(usersData.map(u => [u.id, u]));
+          return list.map(r => {
+              if (usersById[r.user_id]) {
+                  // Mescla o que já tinha com o que buscou
+                  return { ...r, users: { ...(r.users || {}), ...usersById[r.user_id] } };
+              }
+              return r;
+          });
+      }
+  }
+  return list;
+};
+
 const PoliticianProfile = () => {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const [politician, setPolitician] = useState(null);
   const [ratings, setRatings] = useState([]);
   const [userRating, setUserRating] = useState(null);
@@ -98,12 +130,37 @@ const PoliticianProfile = () => {
       // Usando supabase diretamente pois não temos endpoint de sugestão ainda
       // Tentar tabela 'politician_suggestions'
       try {
-        const { count } = await supabase
+        // Resolver ID correto do usuário
+        let resolvedUserId = userProfile?.id || user?.id; // Tenta userProfile, fallback para auth id
+
+        if (!resolvedUserId) {
+             throw new Error("Usuário não identificado corretamente.");
+        }
+
+        // Tenta buscar ID na tabela users se for UUID do Auth
+        if (user?.id && resolvedUserId === user.id) {
+           const { data: userRow } = await supabase
+             .from('users')
+             .select('id')
+             .eq('auth_id', user.id)
+             .maybeSingle();
+           
+           if (userRow) {
+             resolvedUserId = userRow.id;
+           }
+        }
+        
+        // Verifica duplicidade
+        const { count, error: countError } = await supabase
           .from('politician_suggestions')
           .select('*', { count: 'exact', head: true })
           .eq('politician_id', id)
-          .eq('user_id', user.id)
+          .eq('user_id', resolvedUserId)
           .gte('created_at', startOfMonth.toISOString());
+          
+        if (countError && countError.code !== '42P01') { // Ignora erro de tabela não existe para tentar criar/avisar
+            console.error("Erro ao verificar duplicidade:", countError);
+        }
 
         if (count > 0) {
           alert('Você já enviou uma sugestão para este político este mês. Tente novamente no próximo mês.');
@@ -114,16 +171,18 @@ const PoliticianProfile = () => {
           .from('politician_suggestions')
           .insert({
             politician_id: id,
-            user_id: user.id,
+            user_id: resolvedUserId,
             content: suggestionText,
             created_at: new Date().toISOString()
           });
 
         if (error) {
+           console.error('Erro detalhado ao inserir sugestão:', error);
            // Se a tabela não existir, criar tabela via SQL (se possível) ou alertar
            if (error.code === '42P01') {
-             alert('Sistema de sugestões temporariamente indisponível (tabela não encontrada).');
-             console.error('Faltando tabela politician_suggestions');
+             alert('Sistema de sugestões temporariamente indisponível (tabela não encontrada). Por favor, contate o suporte.');
+           } else if (error.code === '42501') {
+             alert('Permissão negada. Tente fazer logout e login novamente.');
            } else {
              throw error;
            }
@@ -134,7 +193,7 @@ const PoliticianProfile = () => {
         }
       } catch (err) {
         console.error('Erro ao enviar sugestão:', err);
-        alert('Erro ao enviar sugestão.');
+        alert(`Erro ao enviar sugestão: ${err.message || 'Tente novamente mais tarde.'}`);
       }
     } finally {
       setSubmittingSuggestion(false);
@@ -180,63 +239,69 @@ const PoliticianProfile = () => {
   const fetchRatings = async () => {
     setRatingsLoading(true)
     try {
+      // Tenta buscar via API primeiro
       const response = await apiClient.get(`/politicians/${id}/ratings`, {
         params: { page: ratingsPage, sort: ratingsSort }
       })
-      const ratingsList = response?.data?.data || []
+      
+      let ratingsList = response?.data?.data || []
+      
+      // Se a API retornar vazio ou falhar, ou se precisarmos enriquecer
+      // Vamos verificar e enriquecer os dados
+      
       let enriched = Array.isArray(ratingsList) ? [...ratingsList] : []
-      if (!enriched.some(r => r && r.users)) {
-        const userIds = [...new Set(enriched.map(r => r?.user_id).filter(Boolean))]
-        if (userIds.length > 0) {
-          const { data: usersData } = await supabase
-            .from('users')
-            .select('id, full_name, name, username, email, avatar_url')
-            .in('id', userIds)
-          const usersById = Object.fromEntries((usersData || []).map(u => [u.id, u]))
-          enriched = enriched.map(r => ({ ...r, users: usersById[r?.user_id] || r.users || null }))
-        }
-      }
+      
+      // Enriquecimento robusto (API ou Supabase)
+      enriched = await enrichRatingsWithUsers(enriched);
+
       setRatings(enriched)
+      
       // Atualiza estatísticas de avaliação
       const total = enriched.length
       const sum = enriched.reduce((acc, r) => acc + (Number(r.rating) || 0), 0)
       const avg = total > 0 ? Number((sum / total).toFixed(1)) : 0
       const distribution = { 5:0, 4:0, 3:0, 2:0, 1:0 }
       enriched.forEach(r => {
-        const s = Number(r.rating) || 0
+        const s = Math.round(Number(r.rating)) || 0
         if (distribution[s] !== undefined) distribution[s] += 1
       })
       setRatingStats({ total, distribution, average_rating: avg })
-      // Paginação do backend se disponível
       setRatingsPagination(response?.data?.pagination || null)
-      setRatingsLoading(false)
+      
     } catch (error) {
-      console.warn('Falha ao buscar ratings via API, tentando Supabase:', error)
+      console.warn('Falha ao buscar ratings via API, tentando Supabase direto:', error)
       try {
+        // Busca ratings já com join de usuários
         const { data, error: sbError } = await supabase
           .from('politician_ratings')
-          .select('*')
+          .select(`
+            *,
+            users (
+              id,
+              full_name,
+              username,
+              email,
+              avatar_url
+            )
+          `)
           .eq('politician_id', id)
           .order('created_at', { ascending: false })
+          
         if (sbError) throw sbError
-        let list = Array.isArray(data) ? data : []
-        const userIds = [...new Set(list.map(r => r?.user_id).filter(Boolean))]
-        if (userIds.length > 0) {
-          const { data: usersData } = await supabase
-            .from('users')
-            .select('id, full_name, name, username, email, avatar_url')
-            .in('id', userIds)
-          const usersById = Object.fromEntries((usersData || []).map(u => [u.id, u]))
-          list = list.map(r => ({ ...r, users: usersById[r?.user_id] || null }))
-        }
-        setRatings(list)
+        
+        const list = Array.isArray(data) ? data : []
+        
+        // Enriquecer também no fallback
+        const enrichedList = await enrichRatingsWithUsers(list)
+        setRatings(enrichedList)
+        
         // Estatísticas calculadas localmente
-        const total = list.length
-        const sum = list.reduce((acc, r) => acc + (Number(r.rating) || 0), 0)
+        const total = enrichedList.length
+        const sum = enrichedList.reduce((acc, r) => acc + (Number(r.rating) || 0), 0)
         const avg = total > 0 ? Number((sum / total).toFixed(1)) : 0
         const distribution = { 5:0, 4:0, 3:0, 2:0, 1:0 }
         list.forEach(r => {
-          const s = Number(r.rating) || 0
+          const s = Math.round(Number(r.rating)) || 0
           if (distribution[s] !== undefined) distribution[s] += 1
         })
         setRatingStats({ total, distribution, average_rating: avg })
@@ -245,10 +310,9 @@ const PoliticianProfile = () => {
         console.error('Erro ao buscar ratings no Supabase:', sbErr)
         setRatings([])
         setRatingStats({ total: 0, distribution: {5:0,4:0,3:0,2:0,1:0}, average_rating: 0 })
-        setRatingsPagination(null)
-      } finally {
+      } 
+    } finally {
         setRatingsLoading(false)
-      }
     }
   }
 
@@ -379,12 +443,78 @@ const PoliticianProfile = () => {
       currency: 'BRL'
     }).format(value || 0);
   };
+ 
+   const ensureUserSynced = async (currentUser) => {
+    if (!currentUser) return null;
+    
+    try {
+      // 1. Tenta achar por auth_id (mais confiável)
+      const { data: byAuth } = await supabase.from('users').select('id').eq('auth_id', currentUser.id).maybeSingle();
+      
+      if (byAuth) {
+        // Atualiza dados
+        await supabase.from('users').update({
+          full_name: userProfile?.full_name || currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : null),
+          avatar_url: userProfile?.avatar_url || currentUser.user_metadata?.avatar_url,
+          email: currentUser.email,
+          updated_at: new Date()
+        }).eq('id', byAuth.id);
+        return byAuth.id;
+      }
+      
+      // 2. Tenta achar por ID (caso auth_id esteja null)
+      const { data: byId } = await supabase.from('users').select('id').eq('id', currentUser.id).maybeSingle();
+      
+      if (byId) {
+        await supabase.from('users').update({
+          auth_id: currentUser.id, // Vincula auth_id
+          full_name: userProfile?.full_name || currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : null),
+          avatar_url: userProfile?.avatar_url || currentUser.user_metadata?.avatar_url,
+          email: currentUser.email,
+          updated_at: new Date()
+        }).eq('id', byId.id);
+        return byId.id;
+      }
+      
+      // 3. Cria novo
+      const { error } = await supabase.from('users').insert({
+        id: currentUser.id,
+        auth_id: currentUser.id,
+        email: currentUser.email,
+        full_name: userProfile?.full_name || currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : null),
+        avatar_url: userProfile?.avatar_url || currentUser.user_metadata?.avatar_url,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+      
+      if (error) {
+        // Se der erro 409 aqui, tenta buscar de novo (race condition)
+        const { data: retry } = await supabase.from('users').select('id').eq('auth_id', currentUser.id).maybeSingle();
+        return retry?.id || currentUser.id;
+      }
+      
+      return currentUser.id;
+    } catch (err) {
+      console.error('Erro ao sincronizar usuário:', err);
+      return currentUser?.id;
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      ensureUserSynced(user);
+    }
+  }, [user]);
 
   const submitRating = async () => {
     if (!user || newRating === 0) return;
 
     try {
       setSubmittingRating(true);
+      
+      // Sincronizar antes de enviar
+      await ensureUserSynced(user);
+
       const token = localStorage.getItem('token');
       
       const method = userRating ? 'put' : 'post';
@@ -408,27 +538,34 @@ const PoliticianProfile = () => {
       try {
         const { data: { user: sbUser } } = await supabase.auth.getUser();
         if (!sbUser) throw new Error('Usuário não autenticado no Supabase');
-        // Buscar existente
-        const { data: existing, error: findErr } = await supabase
+        
+        const userId = await ensureUserSynced(sbUser);
+        
+        // Usar upsert para evitar conflitos (409)
+        const { error: upsertErr } = await supabase
           .from('politician_ratings')
-          .select('id')
-          .eq('politician_id', id)
-          .eq('user_id', sbUser.id)
-          .limit(1)
-          .maybeSingle();
-        if (findErr && findErr.code !== 'PGRST116') throw findErr;
-        if (existing && existing.id) {
-          const { error: updErr } = await supabase
-            .from('politician_ratings')
-            .update({ rating: newRating, comment: newComment || null })
-            .eq('id', existing.id);
-          if (updErr) throw updErr;
-        } else {
-          const { error: insErr } = await supabase
-            .from('politician_ratings')
-            .insert({ politician_id: id, user_id: sbUser.id, rating: newRating, comment: newComment || null });
-          if (insErr) throw insErr;
+          .upsert({ 
+            politician_id: id, 
+            user_id: userId, 
+            rating: newRating, 
+            comment: newComment || null,
+            updated_at: new Date()
+          }, { onConflict: 'politician_id,user_id' }); // Assume unique constraint
+
+        if (upsertErr) {
+             // Se falhar o upsert, tentar update manual se for 409
+             if (upsertErr.code === '23505' || upsertErr.code === '409') {
+                 const { error: updErr } = await supabase
+                    .from('politician_ratings')
+                    .update({ rating: newRating, comment: newComment || null })
+                    .eq('politician_id', id)
+                    .eq('user_id', userId);
+                 if (updErr) throw updErr;
+             } else {
+                 throw upsertErr;
+             }
         }
+
         setShowRatingModal(false);
         setNewRating(0);
         setNewComment('');
@@ -437,6 +574,7 @@ const PoliticianProfile = () => {
         fetchPolitician();
       } catch (sbErr) {
         console.error('Fallback Supabase falhou ao enviar avaliação:', sbErr);
+        alert('Erro ao enviar avaliação. Tente novamente.');
       }
     } finally {
       setSubmittingRating(false);
@@ -506,7 +644,7 @@ const PoliticianProfile = () => {
   // Helpers de exibição para nome de usuário em avaliações
   const getUserDisplayName = (user) => {
     if (!user) return null
-    return user.full_name || user.name || user.username || (user.email ? user.email.split('@')[0] : null)
+    return user.full_name || user.username || (user.email ? user.email.split('@')[0] : null)
   }
   const getRatingUserName = (rating) => {
     return getUserDisplayName(rating.users) || 'Usuário anônimo'

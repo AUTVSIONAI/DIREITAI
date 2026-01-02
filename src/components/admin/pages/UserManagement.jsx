@@ -19,9 +19,11 @@ import {
   Loader2,
   Zap,
   Trophy,
-  Star
+  Star,
+  Package
 } from 'lucide-react';
 import { AdminService } from '../../../services/admin';
+import GamificationService from '../../../services/gamification';
 import { useSearchParams } from 'react-router-dom'
 
 const UserManagement = () => {
@@ -56,6 +58,22 @@ const UserManagement = () => {
   const [totalPages, setTotalPages] = useState(1)
   const [syncing, setSyncing] = useState(false)
   const [syncSummary, setSyncSummary] = useState(null)
+  const [plans, setPlans] = useState([])
+
+  // Buscar planos do sistema
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const fetchedPlans = await AdminService.getPlans();
+        if (Array.isArray(fetchedPlans)) {
+          setPlans(fetchedPlans);
+        }
+      } catch (e) {
+        console.error("Erro ao buscar planos:", e);
+      }
+    };
+    fetchPlans();
+  }, []);
 
   // Função para carregar usuários
   const loadUsers = async () => {
@@ -87,6 +105,7 @@ const UserManagement = () => {
       }
       setAllUsers(accumulated)
       setUsers(accumulated)
+      console.log('Admin Users Loaded:', accumulated.length, accumulated[0]); // Debug Log
       const filteredCount = accumulated.filter(user => {
         const matchesSearch = (user.full_name?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
                               (user.email?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
@@ -131,7 +150,7 @@ const UserManagement = () => {
       }
     }
     const qpPlan = params.get('plan');
-    const validPlans = ['all', 'gratuito', 'patriota', 'cidadao', 'engajado', 'lider', 'elite'];
+    const validPlans = ['all', 'gratuito', 'patriota', 'cidadao', 'engajado', 'lider', 'elite', 'premium', 'pro', 'vip'];
     if (qpPlan) {
       if (validPlans.includes(qpPlan)) {
         if (qpPlan !== selectedPlan) setSelectedPlan(qpPlan);
@@ -186,13 +205,43 @@ const UserManagement = () => {
 
 
   const getPlanBadge = (plan) => {
+    // Tentar encontrar nos planos dinâmicos
+    if (plans.length > 0) {
+      const dbPlan = plans.find(p => p.slug === plan);
+      if (dbPlan) {
+        const colorMap = {
+          gray: 'bg-gray-100 text-gray-800',
+          blue: 'bg-blue-100 text-blue-800',
+          green: 'bg-green-100 text-green-800',
+          purple: 'bg-purple-100 text-purple-800',
+          yellow: 'bg-yellow-100 text-yellow-800',
+          red: 'bg-red-100 text-red-800',
+          amber: 'bg-amber-100 text-amber-800',
+          emerald: 'bg-emerald-100 text-emerald-800',
+          rose: 'bg-rose-100 text-rose-800'
+        };
+        const iconMap = {
+          User, Star, Shield, Crown, Trophy, Zap, Package
+        };
+        return {
+          color: colorMap[dbPlan.color] || colorMap.blue,
+          icon: iconMap[dbPlan.icon] || Package,
+          label: dbPlan.name
+        };
+      }
+    }
+
     const badges = {
       gratuito: { color: 'bg-gray-100 text-gray-800', icon: User, label: 'Gratuito' },
       patriota: { color: 'bg-blue-100 text-blue-800', icon: Star, label: 'Patriota' },
       cidadao: { color: 'bg-blue-200 text-blue-900', icon: Star, label: 'Cidadão' },
       engajado: { color: 'bg-indigo-100 text-indigo-800', icon: Shield, label: 'Engajado' },
       lider: { color: 'bg-purple-100 text-purple-800', icon: Crown, label: 'Líder' },
-      elite: { color: 'bg-yellow-100 text-yellow-800', icon: Trophy, label: 'Elite' }
+      elite: { color: 'bg-yellow-100 text-yellow-800', icon: Trophy, label: 'Elite' },
+            'patriota-elite': { color: 'bg-yellow-100 text-yellow-800', icon: Trophy, label: 'Patriota Elite' },
+            premium: { color: 'bg-amber-100 text-amber-800', icon: Crown, label: 'Premium' },
+      pro: { color: 'bg-emerald-100 text-emerald-800', icon: Zap, label: 'Pro' },
+      vip: { color: 'bg-rose-100 text-rose-800', icon: Trophy, label: 'VIP' }
     }
     return badges[plan] || badges.gratuito
   }
@@ -230,7 +279,9 @@ const UserManagement = () => {
       email: user.email || '',
       plan: user.plan || 'gratuito',
       city: user.city || '',
-      state: user.state || ''
+      state: user.state || '',
+      points: user.points || 0,
+      pointsAdjustment: 0
     })
     setShowEditModal(true)
     setShowActions(null)
@@ -247,25 +298,49 @@ const UserManagement = () => {
     try {
       setIsUpdating(true)
       
+      // Processar ajuste de pontos se houver
+      if (editingUser.pointsAdjustment && Number(editingUser.pointsAdjustment) !== 0) {
+        try {
+          await GamificationService.addPoints(editingUser.id, {
+            amount: Number(editingUser.pointsAdjustment),
+            reason: 'Ajuste Manual Admin',
+            category: 'admin_adjustment'
+          });
+        } catch (pointErr) {
+          console.error('Erro ao ajustar pontos:', pointErr);
+          alert('Aviso: Não foi possível ajustar os pontos. O restante da atualização continuará.');
+        }
+      }
+
       // Chamar o backend para atualizar o usuário
-      await AdminService.updateUser(editingUser.id, {
+      
+      const updateData = {
         full_name: editingUser.full_name,
-        username: editingUser.username,
         email: editingUser.email,
-        city: editingUser.city,
-        state: editingUser.state,
         plan: editingUser.plan
-      })
+      };
+
+      if (editingUser.username) updateData.username = editingUser.username;
+      if (editingUser.city) updateData.city = editingUser.city;
+      if (editingUser.state) updateData.state = editingUser.state;
+
+      const response = await AdminService.updateUser(editingUser.id, updateData);
+
+      // Se a resposta incluir o usuário atualizado, atualizar localmente imediatamente
+      if (response && response.plan) {
+         setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, ...response } : u));
+      }
       
       // Atualizar a lista de usuários
       await loadUsers()
       
       setShowEditModal(false)
       setEditingUser(null)
-      alert('Usuário atualizado com sucesso!')
+      alert(`Usuário atualizado com sucesso! Novo plano: ${editingUser.plan}`)
     } catch (err) {
       console.error('Erro ao atualizar usuário:', err)
-      alert('Erro ao atualizar usuário')
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Erro desconhecido';
+      alert(`Erro ao atualizar usuário: ${errorMessage}`)
     } finally {
       setIsUpdating(false)
     }
@@ -406,6 +481,28 @@ const UserManagement = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
+              <p className="text-sm font-medium text-gray-600">Total de Pontos</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {users.reduce((acc, user) => acc + (Number(user.points) || 0), 0).toLocaleString()}
+              </p>
+            </div>
+            <Trophy className="h-8 w-8 text-yellow-500" />
+          </div>
+        </div>
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Check-ins</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {users.reduce((acc, user) => acc + (Number(user.stats?.checkins) || 0), 0).toLocaleString()}
+              </p>
+            </div>
+            <MapPin className="h-8 w-8 text-blue-500" />
+          </div>
+        </div>
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
               <p className="text-sm font-medium text-gray-600">Usuários Premium</p>
               <p className="text-2xl font-bold text-gray-900">
                 {users.filter(u => u.plan === 'premium').length}
@@ -464,12 +561,25 @@ const UserManagement = () => {
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="all">Todos os Planos</option>
-              <option value="gratuito">Gratuito</option>
-              <option value="patriota">Patriota</option>
-              <option value="cidadao">Cidadão</option>
-              <option value="engajado">Engajado</option>
-              <option value="lider">Líder</option>
-              <option value="elite">Elite</option>
+              {plans.length > 0 ? (
+                <>
+                  {plans.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || (a.price_monthly || 0) - (b.price_monthly || 0)).map(p => (
+                    <option key={p.id} value={p.slug}>{p.name}</option>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <option value="gratuito">Gratuito</option>
+                  <option value="patriota">Patriota</option>
+                  <option value="cidadao">Cidadão</option>
+                  <option value="engajado">Engajado</option>
+                  <option value="lider">Líder</option>
+                  <option value="premium">Premium</option>
+               <option value="pro">Pro</option>
+                  <option value="elite">Elite</option>
+                  <option value="vip">VIP</option>
+                </>
+              )}
             </select>
 
             <select
@@ -735,7 +845,7 @@ const UserManagement = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Check-ins</label>
-                  <p className="text-sm text-gray-900">{selectedUser.checkins || 0}</p>
+                  <p className="text-sm text-gray-900">{selectedUser.stats?.checkins || 0}</p>
                 </div>
               </div>
             </div>
@@ -851,9 +961,11 @@ const UserManagement = () => {
                     <option value="patriota">Patriota</option>
                     <option value="cidadao">Cidadão</option>
                     <option value="engajado">Engajado</option>
+                    <option value="lider">Líder</option>
                     <option value="premium">Premium</option>
                     <option value="pro">Pro</option>
                     <option value="elite">Elite</option>
+                    <option value="vip">VIP</option>
                   </select>
                 </div>
                 <div>
@@ -964,6 +1076,29 @@ const UserManagement = () => {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Pontos Atuais</label>
+                  <input
+                    type="number"
+                    value={editingUser.points}
+                    disabled
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-500 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Ajustar Pontos (+/-)</label>
+                  <input
+                    type="number"
+                    value={editingUser.pointsAdjustment}
+                    onChange={(e) => handleEditInputChange('pointsAdjustment', e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Ex: 10 ou -10"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Digite um valor positivo para adicionar ou negativo para remover.</p>
+                </div>
+              </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700">Plano</label>
@@ -972,13 +1107,25 @@ const UserManagement = () => {
                   onChange={(e) => handleEditInputChange('plan', e.target.value)}
                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
-                  <option value="gratuito">Gratuito</option>
-                  <option value="patriota">Patriota</option>
-                  <option value="cidadao">Cidadão</option>
-                  <option value="engajado">Engajado (Legado)</option>
-                  <option value="premium">Premium</option>
-                  <option value="pro">Pro</option>
-                  <option value="elite">Elite</option>
+                  {plans.length > 0 ? (
+                    <>
+                      {plans.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || (a.price_monthly || 0) - (b.price_monthly || 0)).map(p => (
+                        <option key={p.id} value={p.slug}>{p.name}</option>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <option value="gratuito">Gratuito</option>
+                      <option value="patriota">Patriota</option>
+                      <option value="cidadao">Cidadão</option>
+                      <option value="engajado">Engajado (Legado)</option>
+                      <option value="lider">Líder</option>
+                      <option value="elite">Elite</option>
+                      <option value="premium">Premium</option>
+                      <option value="pro">Pro</option>
+                      <option value="vip">VIP</option>
+                    </>
+                  )}
                 </select>
               </div>
               

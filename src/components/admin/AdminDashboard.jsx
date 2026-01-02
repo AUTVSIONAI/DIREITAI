@@ -27,6 +27,7 @@ const BlogManagement = React.lazy(() => import('./pages/BlogManagement'))
 const RatingsManagement = React.lazy(() => import('./pages/RatingsManagement'))
 const SurveysManagement = React.lazy(() => import('./pages/SurveysManagement'))
 const AffiliatesAdmin = React.lazy(() => import('./pages/AffiliatesAdmin'))
+const VoiceAdmin = React.lazy(() => import('./pages/VoiceAdmin'))
 
 // Loading component for Suspense fallback
 const PageLoader = () => (
@@ -133,6 +134,7 @@ const AdminDashboard = () => {
               <Route path="/store" element={can('store') ? <StoreManagement /> : <NoAccess />} />
               <Route path="/reports" element={can('reports') ? <FinancialReports /> : <NoAccess />} />
              <Route path="/affiliates" element={can('affiliates') ? <AffiliatesAdmin /> : <NoAccess />} />
+              <Route path="/voice" element={can('voice') ? <VoiceAdmin /> : <NoAccess />} />
               <Route path="/settings" element={can('settings') ? <SystemSettings /> : <NoAccess />} />
               <Route path="/logs" element={can('logs') ? <ApiLogs /> : <NoAccess />} />
               <Route path="/announcements" element={can('announcements') ? <Announcements /> : <NoAccess />} />

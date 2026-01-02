@@ -22,7 +22,8 @@ import {
   Map,
   Activity,
   Star,
-  Video
+  Video,
+  Settings
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -52,7 +53,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { path: '/dashboard/store', icon: ShoppingBag, label: 'Loja' },
     { path: '/dashboard/achievements', icon: Award, label: 'Conquistas' },
     { path: '/dashboard/plan', icon: Crown, label: 'Plano' },
-    { path: '/dashboard/affiliates', icon: Activity, label: 'Afiliados' }
+    { path: '/dashboard/affiliates', icon: Activity, label: 'Afiliados' },
+    { path: '/dashboard/settings', icon: Settings, label: 'Configurações' }
   ]
 
   const politicianMenu = [

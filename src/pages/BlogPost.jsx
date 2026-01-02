@@ -4,9 +4,11 @@ import {
   ArrowLeft, Calendar, User, Eye, Tag, Share2, Facebook, Twitter, Linkedin, 
   MessageCircle, Heart, ExternalLink, Send, ThumbsUp, TrendingUp, Clock
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/api';
 import { API_CONFIG } from '../lib/api';
 import { resolveImageUrl } from '../utils/imageUtils';
+import { supabase } from '../lib/supabase';
 import SEO from '../components/common/SEO';
 
 // Função util para obter origem do backend a partir da BASE_URL
@@ -49,6 +51,7 @@ const processImageUrls = (content) => {
 const BlogPost = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const { user, userProfile } = useAuth();
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -71,24 +74,69 @@ const BlogPost = () => {
     if (post?.id) {
       registerView();
       checkLikeStatus();
+      refreshLikesCount();
       fetchComments();
     }
-  }, [post?.id]);
+  }, [post?.id, user?.id]);
+
+  // Garante que o usuário existe na tabela public.users
+  const ensureUserSynced = async (sbUser) => {
+    if (!sbUser) return null;
+    try {
+      // Tenta buscar ID na tabela users
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', sbUser.id)
+        .maybeSingle();
+
+      if (userRow) return userRow.id;
+
+      // Se não existe, tenta criar/sincronizar
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .upsert({
+          auth_id: sbUser.id,
+          email: sbUser.email,
+          full_name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0],
+          username: sbUser.user_metadata?.username || sbUser.email?.split('@')[0],
+          avatar_url: sbUser.user_metadata?.avatar_url
+        }, { onConflict: 'auth_id' })
+        .select('id')
+        .single();
+
+      if (insertError) {
+        console.error('Erro ao sincronizar usuário:', insertError);
+        return null;
+      }
+      return newUser?.id;
+    } catch (e) {
+      console.error('Erro em ensureUserSynced:', e);
+      return null;
+    }
+  };
+
+  const refreshLikesCount = async () => {
+    if (!post?.id) return;
+    try {
+      const { count, error } = await supabase
+        .from('blog_post_likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_id', post.id);
+
+      if (error) throw error;
+      if (count !== null) setLikesCount(count);
+    } catch (error) {
+      console.warn('Erro ao atualizar contagem de likes:', error);
+    }
+  };
 
   const fetchPost = async () => {
     try {
       setLoading(true);
       const response = await apiClient.get(`/blog/posts/${slug}`);
-      
       const data = response.data;
-      console.log('📝 Dados do post carregados:', data);
-      console.log('🖼️ URL da imagem:', data.cover_image_url || data.featured_image_url);
-      setPost(data);
-      setLikesCount(data.likes_count || 0);
-      setCommentsCount(data.comments_count || 0);
-      setSharesCount(data.shares_count || 0);
-      
-    } catch (err) {
+
       setError(err.message);
     } finally {
       setLoading(false);
@@ -119,10 +167,30 @@ const BlogPost = () => {
   const checkLikeStatus = async () => {
     if (!post?.id) return;
     try {
-      const response = await apiClient.get(`/blog/${post.id}/like-status`);
-      setIsLiked(response.data.liked);
+      // Consulta contagem total
+      await refreshLikesCount();
+      // Se tiver usuário logado, verifica se já curtiu
+      if (user) {
+        try {
+          // Tenta endpoint do backend
+          const response = await apiClient.get(`/blog/${post.id}/like-status`);
+          setIsLiked(response.data.liked);
+        } catch {
+          // Fallback no Supabase
+          const resolvedUserId = await resolveUserId();
+          if (resolvedUserId) {
+            const { data } = await supabase
+              .from('blog_post_likes')
+              .select('id')
+              .eq('post_id', post.id)
+              .eq('user_id', resolvedUserId)
+              .maybeSingle();
+            setIsLiked(!!data);
+          }
+        }
+      }
     } catch (error) {
-      console.error('Erro ao verificar status de curtida:', error);
+      console.warn('Falha ao verificar status de curtida:', error);
     }
   };
 
@@ -133,34 +201,99 @@ const BlogPost = () => {
       setComments(response.data.comments || []);
       setCommentsCount(response.data.comments?.length || 0);
     } catch (error) {
-      console.error('Erro ao buscar comentários:', error);
-      // Manter comentários simulados como fallback
-      setComments([
-        {
-          id: 1,
-          content: 'Excelente análise! Muito esclarecedor.',
-          created_at: new Date().toISOString(),
-          likes_count: 5,
-          users: { name: 'João Silva' }
-        },
-        {
-          id: 2,
-          content: 'Concordo plenamente com os pontos levantados.',
-          created_at: new Date().toISOString(),
-          likes_count: 3,
-          users: { name: 'Maria Santos' }
-        }
-      ]);
+      console.warn('API de comentários falhou, tentando Supabase:', error);
+      try {
+          const { data, error: sbError } = await supabase
+            .from('blog_post_comments')
+            .select(`
+                *,
+                users:user_id (
+                    full_name,
+                    username,
+                    avatar_url,
+                    email
+                )
+            `)
+            .eq('post_id', post.id)
+            .order('created_at', { ascending: false });
+            
+          if (sbError) throw sbError;
+          
+          setComments(data || []);
+          setCommentsCount(data?.length || 0);
+      } catch (sbError) {
+          console.error('Erro ao buscar comentários (Supabase):', sbError);
+          // Fallback vazio para não mostrar dados falsos
+          setComments([]);
+      }
     }
   };
 
   const handleLike = async () => {
+    if (!user) {
+      alert('Você precisa estar logado para curtir.');
+      return;
+    }
+    
+    // Optimistic UI update
+    const previousLiked = isLiked;
+    const previousCount = likesCount;
+    
+    setIsLiked(!previousLiked);
+    setLikesCount(prev => previousLiked ? prev - 1 : prev + 1);
+
     try {
-      const response = await apiClient.post(`/blog/${post.id}/like`);
-      setIsLiked(response.data.liked);
-      setLikesCount(prev => response.data.liked ? prev + 1 : prev - 1);
+      // Tenta API primeiro
+      await apiClient.post(`/blog/${post.id}/like`);
+      await refreshLikesCount();
     } catch (error) {
-      console.error('Erro ao curtir post:', error);
+      console.warn('API de like falhou, tentando Supabase direto:', error);
+      // Fallback para Supabase direto
+      try {
+        const { data: { user: sbUser } } = await supabase.auth.getUser();
+        if (!sbUser) throw new Error('Usuário não autenticado');
+        
+        const resolvedUserId = await ensureUserSynced(sbUser);
+        if (!resolvedUserId) throw new Error('Usuário não identificado para registrar curtida');
+
+        if (previousLiked) {
+            // Remover like
+            const { error: deleteError } = await supabase
+                .from('blog_post_likes')
+                .delete()
+                .eq('post_id', post.id)
+                .eq('user_id', resolvedUserId);
+            if (deleteError) throw deleteError;
+        } else {
+            // Adicionar like (com verificação manual para evitar duplicatas se constraint faltar)
+            // Verificar se já existe
+            const { data: existingLike } = await supabase
+                .from('blog_post_likes')
+                .select('id')
+                .eq('post_id', post.id)
+                .eq('user_id', resolvedUserId)
+                .maybeSingle();
+
+            if (!existingLike) {
+                const { error: insertError } = await supabase
+                    .from('blog_post_likes')
+                    .insert({
+                        post_id: post.id,
+                        user_id: resolvedUserId
+                    });
+                
+                // Se der erro de duplicidade (pode acontecer em race condition), ignoramos
+                if (insertError && insertError.code !== '23505') throw insertError;
+            }
+        }
+        await refreshLikesCount();
+      } catch (sbError) {
+          console.error('Erro ao processar like no Supabase:', sbError);
+          // Reverte
+          setIsLiked(previousLiked);
+          setLikesCount(previousCount);
+          alert('Erro ao registrar curtida.');
+      }
     }
   };
 
@@ -186,24 +319,27 @@ const BlogPost = () => {
   };
 
   const sharePost = (platform) => {
-    const url = window.location.href;
+    // Usar URL do proxy para redes sociais para garantir o preview correto
+    // Para copiar, usamos o link direto
+    const proxyUrl = `${API_CONFIG.BASE_URL}/blog/social/${post.id}`;
+    const directUrl = window.location.href;
     const title = post?.title || '';
     
     switch (platform) {
       case 'facebook':
-        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`);
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(proxyUrl)}`);
         break;
       case 'twitter':
-        window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`);
+        window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(proxyUrl)}&text=${encodeURIComponent(title)}`);
         break;
       case 'linkedin':
-        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`);
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(proxyUrl)}`);
         break;
       case 'whatsapp':
-        window.open(`https://wa.me/?text=${encodeURIComponent(title + ' ' + url)}`);
+        window.open(`https://wa.me/?text=${encodeURIComponent(title + ' ' + proxyUrl)}`);
         break;
       case 'copy':
-        navigator.clipboard.writeText(url);
+        navigator.clipboard.writeText(directUrl);
         alert('Link copiado!');
         break;
     }
@@ -232,7 +368,7 @@ const BlogPost = () => {
   // Helper para obter nome amigável do autor do comentário
   const getUserDisplayName = (user) => {
     if (!user) return null;
-    return user.full_name || user.name || user.username || (user.email ? user.email.split('@')[0] : null);
+    return user.full_name || user.username || (user.email ? user.email.split('@')[0] : null);
   };
   const getCommentDisplayName = (comment) => {
     return getUserDisplayName(comment.users) || comment.author || 'Usuário';
@@ -622,9 +758,17 @@ const BlogPost = () => {
                 {/* Formulário para Adicionar Comentário */}
                 <form onSubmit={handleAddComment} className="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
                   <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
-                      U
-                    </div>
+                    {userProfile?.avatar_url ? (
+                      <img 
+                        src={resolveImageUrl(userProfile.avatar_url)} 
+                        alt="Seu avatar"
+                        className="w-10 h-10 rounded-full object-cover border border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                        {userProfile?.full_name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                    )}
                     <div className="flex-1">
                       <textarea
                         value={newComment}
@@ -655,7 +799,19 @@ const BlogPost = () => {
                   {comments.length > 0 ? (
                     comments.map((comment) => (
                       <div key={comment.id} className="flex gap-4 p-4 bg-gray-50 rounded-lg">
-                        <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                        {comment.users?.avatar_url ? (
+                          <img 
+                            src={resolveImageUrl(comment.users.avatar_url)} 
+                            alt={getCommentDisplayName(comment)}
+                            className="w-10 h-10 rounded-full object-cover border border-gray-200"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              // Mostra o fallback (próximo elemento irmão)
+                              if (e.target.nextSibling) e.target.nextSibling.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <div className={`w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm ${comment.users?.avatar_url ? 'hidden' : ''}`}>
                           {getCommentInitial(comment)}
                         </div>
                         <div className="flex-1">
@@ -665,11 +821,11 @@ const BlogPost = () => {
                               {formatDate(comment.created_at)}
                             </span>
                           </div>
-                          <p className="text-gray-700 mb-3">{comment.content}</p>
-                          <div className="flex items-center gap-4">
+                          <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{comment.content}</p>
+                          <div className="flex items-center gap-4 mt-3">
                             <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 transition-colors">
                               <ThumbsUp className="w-4 h-4" />
-                              {comment.likes_count || comment.likes || 0}
+                              <span>{comment.likes_count || 0}</span>
                             </button>
                             <button className="text-sm text-gray-500 hover:text-blue-600 transition-colors">
                               Responder
@@ -679,14 +835,10 @@ const BlogPost = () => {
                       </div>
                     ))
                   ) : (
-                    <div className="text-center py-12">
-                      <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                      <h4 className="text-lg font-medium text-gray-900 mb-2">
-                        Nenhum comentário ainda
-                      </h4>
-                      <p className="text-gray-500">
-                        Seja o primeiro a comentar sobre este post!
-                      </p>
+                    <div className="text-center py-12 bg-gray-50 rounded-xl">
+                      <MessageCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600 font-medium">Nenhum comentário ainda</p>
+                      <p className="text-sm text-gray-500">Seja o primeiro a comentar!</p>
                     </div>
                   )}
                 </div>

@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { getPoliticianPhotoUrl } from '../utils/imageUtils';
 
+import { supabase } from '../lib/supabase';
+
 const Politicians = () => {
   const [politicians, setPoliticians] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +32,7 @@ const Politicians = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
-  const [useRealData, setUseRealData] = useState(false);
+  const [useRealData, setUseRealData] = useState(true);
 
   // Debounce search term para evitar muitas requisições
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -93,29 +95,55 @@ const Politicians = () => {
       
       if (response.data.success) {
         let list = response.data.data || [];
-        // Enriquecer com ratings quando vierem de dados oficiais (Câmara)
-        if (response.data.source === 'camara_oficial' && Array.isArray(list) && list.length > 0) {
+        
+        // Enriquecer com ratings do Supabase para todos os políticos listados
+        if (Array.isArray(list) && list.length > 0) {
           try {
-            const enriched = await Promise.all(
-              list.map(async (p) => {
-                try {
-                  const statsRes = await apiClient.get(`/ratings/stats/${p.id}`);
-                  const stats = statsRes?.data?.data;
-                  return {
-                    ...p,
-                    average_rating: stats?.average_rating || 0,
-                    total_votes: stats?.total_votes || 0,
-                  };
-                } catch {
-                  return { ...p, average_rating: 0, total_votes: 0 };
-                }
-              })
-            );
-            list = enriched;
+             // 1. Tenta buscar estatísticas já calculadas se houver tabela/view de stats (opcional)
+             // 2. Busca ratings brutos e agrega (funciona para volumes pequenos/médios por página)
+             // Converter IDs para string para garantir compatibilidade com Supabase (se politician_id for text)
+             const politicianIds = list.map(p => String(p.id));
+             
+             const { data: ratingsData, error: ratingsError } = await supabase
+                .from('politician_ratings')
+                .select('politician_id, rating')
+                .in('politician_id', politicianIds);
+                
+             if (!ratingsError && ratingsData) {
+                 const statsMap = {};
+                 ratingsData.forEach(r => {
+                     // Converter para string para garantir match
+                     const pid = String(r.politician_id);
+                     if (!statsMap[pid]) {
+                         statsMap[pid] = { sum: 0, count: 0 };
+                     }
+                     statsMap[pid].sum += Number(r.rating) || 0;
+                     statsMap[pid].count += 1;
+                 });
+                 
+                 list = list.map(p => {
+                     const pid = String(p.id);
+                     const stats = statsMap[pid];
+                     if (stats) {
+                         const avg = stats.count > 0 ? stats.sum / stats.count : 0;
+                         return {
+                             ...p,
+                             average_rating: avg,
+                             total_votes: stats.count
+                         };
+                     }
+                     return {
+                         ...p,
+                         average_rating: p.average_rating || 0, // Mantém se já vier da API
+                         total_votes: p.total_votes || 0
+                     };
+                 });
+             }
           } catch (e) {
-            console.warn('Falha ao enriquecer ratings para dados oficiais:', e);
+            console.warn('Falha ao enriquecer ratings:', e);
           }
         }
+        
         setPoliticians(list);
         setTotalPages(response.data.pagination.pages);
       }

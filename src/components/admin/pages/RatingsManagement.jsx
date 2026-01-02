@@ -174,7 +174,7 @@ const RatingsManagement = ({ limitToPoliticianId = null, limitToParty = null, is
         try {
           const { data: usersData } = await supabase
             .from('users')
-            .select('id, full_name, name, username, email, avatar_url')
+            .select('id, full_name, username, email, avatar_url')
             .in('id', userIds)
           const usersById = Object.fromEntries((usersData || []).map(u => [u.id, u]))
           ratingsList = ratingsList.map(r => ({

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext';
 import { useGamification } from '../../hooks/useGamification'
 import { signOut } from '../../lib/supabase'
@@ -6,6 +7,7 @@ import { Menu, LogOut, Settings, User } from 'lucide-react'
 import NotificationBell from '../common/NotificationBell'
 
 const Header = ({ setSidebarOpen }) => {
+  const navigate = useNavigate()
   const { user, userProfile } = useAuth()
   const { userPoints } = useGamification()
   
@@ -100,7 +102,10 @@ const Header = ({ setSidebarOpen }) => {
                   </p>
                 </div>
                 
-                <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                <button 
+                  onClick={() => navigate('/dashboard/settings')}
+                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
                   <Settings className="h-4 w-4 mr-2" />
                   Configurações
                 </button>

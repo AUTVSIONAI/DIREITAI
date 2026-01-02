@@ -23,7 +23,8 @@ import {
   X,
   CheckCircle,
   Server,
-  Video
+  Video,
+  Mic
 } from 'lucide-react'
 
 const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
@@ -138,6 +139,12 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
       current: location.pathname === '/admin/agents'
     },
     {
+      name: 'Voz e Custos',
+      href: '/admin/voice',
+      icon: Mic,
+      current: location.pathname === '/admin/voice'
+    },
+    {
       name: 'Blog Patriota',
       href: '/admin/blog',
       icon: BookOpen,
@@ -242,6 +249,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen }) => {
     if (href.includes('/admin/plans')) return 'plans'
     if (href.includes('/admin/reports')) return 'reports'
     if (href.includes('/admin/affiliates')) return 'affiliates'
+    if (href.includes('/admin/voice')) return 'voice'
     if (href.includes('/admin/logs')) return 'logs'
     if (href.includes('/admin/announcements')) return 'announcements'
     if (href.includes('/admin/notifications')) return 'notifications'

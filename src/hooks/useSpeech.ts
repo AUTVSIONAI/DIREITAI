@@ -359,6 +359,83 @@ export const useSpeech = () => {
         }
     }
 
+    // Suporte para MiniMax via Backend Oficial
+    if (options?.provider === 'minimax' || (voiceType && voiceType.startsWith('voice_'))) {
+      try {
+        console.log('🎤 Usando MiniMax via Backend para voz:', voiceType);
+        setExternalSpeaking(true);
+
+        // Obter token de autenticação (assumindo localStorage padrão do supabase ou app)
+        const sessionStr = localStorage.getItem('sb-yivkxsimnchkHq...-auth-token'); // Ajustar chave se necessário ou usar hook de auth fora
+        // Como estamos num hook puro, pode ser difícil pegar o token atualizado sem passar como argumento.
+        // Tentar usar o endpoint que deve estar protegido.
+        // O ideal é o componente passar o token ou usar apiClient configurado.
+        // Vou assumir que o fetch funcionará com credenciais se for same-origin ou que o client lida com isso.
+        // Mas o backend exige autenticação.
+        
+        // Melhor abordagem: Usar apiClient se disponível, ou pedir que o componente passe a função de fetch.
+        // Simplificação: Fazer fetch para a URL da API, assumindo que o navegador envia cookies ou headers se configurado.
+        // Se falhar, vamos precisar injetar o token.
+        
+        // Tentar recuperar token do localStorage de forma genérica se possível
+        let token = null;
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+            const item = JSON.parse(localStorage.getItem(key) || '{}');
+            token = item.access_token;
+            break;
+          }
+        }
+
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // URL do backend (ajustar conforme ambiente)
+        const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'; // Ajuste conforme necessário
+
+        const response = await fetch(`${backendUrl}/voice/tts`, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            text: text,
+            voice_id: voiceType
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erro na API MiniMax: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+
+        audio.onended = () => {
+          setSpeaking(false);
+          setExternalSpeaking(false);
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        audio.onerror = () => {
+          setSpeaking(false);
+          setExternalSpeaking(false);
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        await audio.play();
+        return;
+      } catch (error) {
+        console.error('Erro ao usar MiniMax, caindo para voz nativa:', error);
+        setExternalSpeaking(false);
+        // Fallback continua
+      }
+    }
+
     // Suporte para Serviço de Voz Local (XTTS v2)
     if (options?.provider === 'local' && options?.apiUrl) {
       try {

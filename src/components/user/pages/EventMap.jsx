@@ -31,6 +31,7 @@ const EventMap = () => {
   const [events, setEvents] = useState([])
   const [manifestations, setManifestations] = useState([])
   const [avatarError, setAvatarError] = useState(false)
+  const [isSelectingLocation, setIsSelectingLocation] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
   const [nearbyEvents, setNearbyEvents] = useState([])
   const [nearbyManifestations, setNearbyManifestations] = useState([])
@@ -66,74 +67,105 @@ const EventMap = () => {
   const mapRef = useRef(null)
   const mapContainerRef = useRef(null)
 
+  const hasCenteredMap = useRef(false)
+
+  // Handle map click for manual location selection
+  const handleMapClick = (event) => {
+    if (isSelectingLocation) {
+      const { lng, lat } = event.lngLat
+      setUserLocation({
+        latitude: lat,
+        longitude: lng
+      })
+      setIsSelectingLocation(false)
+      setLocationError(null)
+      
+      // Fly to new location
+      mapRef.current?.flyTo({
+        center: [lng, lat],
+        zoom: 14,
+        duration: 1000
+      })
+    } else {
+        // Existing logic for clearing selection if needed
+        if (selectedEvent) setSelectedEvent(null)
+        if (selectedManifestation) setSelectedManifestation(null)
+    }
+  }
+
   // Obter localização do usuário
   const getUserLocation = useCallback(() => {
+    setLocationError(null) // Limpar erro anterior ao tentar novamente
+
     if (!navigator.geolocation) {
       setLocationError('Geolocalização não é suportada pelo seu navegador')
       return
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const location = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        }
-        setUserLocation(location)
-        
-        // Mover o mapa suavemente
+    const handleSuccess = (position) => {
+      const location = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      }
+      setUserLocation(location)
+      
+      // Mover o mapa suavemente apenas se for a primeira vez
+      if (!hasCenteredMap.current) {
         mapRef.current?.flyTo({
           center: [location.longitude, location.latitude],
-          zoom: 10,
+          zoom: 14,
           duration: 2000
         })
+        hasCenteredMap.current = true
+      }
 
-        setLocationError(null)
-      },
-      async (error) => {
-        console.error('Erro ao obter localização:', error)
+      setLocationError(null)
+    }
+
+    const handleError = async (error) => {
+      console.error('Erro ao obter localização (Alta Precisão):', error)
+      
+      // Tentar novamente com baixa precisão se falhar
+      if (error.code === 3 || error.code === 2) { // Timeout ou Unavailable
+        console.log('Tentando com baixa precisão...')
+        navigator.geolocation.getCurrentPosition(
+          handleSuccess,
+          async (finalError) => {
+             handleFinalError(finalError)
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 20000,
+            maximumAge: Infinity
+          }
+        )
+        return
+      }
+
+      handleFinalError(error)
+    }
+
+    const handleFinalError = async (error) => {
+        console.error('Erro final de localização:', error)
         // Mensagem amigável por código
         const friendly = error?.code === 1
-          ? 'Permissão de localização negada. Autorize o acesso ao GPS para check-in.'
+          ? 'Permissão de localização negada. Autorize o acesso ao GPS.'
           : error?.code === 2
             ? 'A posição não pôde ser determinada. Verifique sua conexão.'
             : error?.code === 3
-              ? 'Tempo excedido para obter localização.'
-              : 'Não foi possível obter sua localização. Verifique as permissões.'
+              ? 'Tempo excedido. Tente novamente ou verifique o GPS.'
+              : 'Não foi possível obter sua localização.'
         
         setLocationError(friendly)
-        
-        // Se for desktop e negado, mostrar alerta explicativo
-        if (error?.code === 1) {
-             alert('Para visualizar sua posição e fazer check-ins, é necessário permitir o acesso à localização nas configurações do seu navegador (ícone de cadeado ou permissões na barra de endereço).')
-        }
+    }
 
-        // Fallback por IP: tenta obter lat/long aproximado
-        try {
-          const resp = await fetch('https://ipapi.co/json/')
-          if (resp.ok) {
-            const json = await resp.json()
-            if (json && typeof json.latitude === 'number' && typeof json.longitude === 'number') {
-              const approx = { latitude: json.latitude, longitude: json.longitude }
-              setUserLocation(approx)
-              setViewport(prev => ({
-                ...prev,
-                latitude: approx.latitude,
-                longitude: approx.longitude,
-                zoom: 8
-              }))
-              // Atualiza mensagem para indicar localização aproximada
-              setLocationError('Usando localização aproximada por IP. Para check-in preciso, habilite o GPS.')
-            }
-          }
-        } catch (e) {
-          console.warn('Falha no fallback de IP para localização:', e)
-        }
-      },
+    navigator.geolocation.getCurrentPosition(
+      handleSuccess,
+      handleError,
       {
         enableHighAccuracy: true,
-        timeout: 20000, // Aumentado para 20s
-        maximumAge: 0 // Forçar nova leitura
+        timeout: 10000,
+        maximumAge: 0
       }
     )
   }, [])
@@ -330,7 +362,9 @@ const EventMap = () => {
       loadManifestations() // Atualizar contadores
     } catch (error) {
       console.error('Erro no check-in da manifestação:', error)
-      const errMsg = error.response?.data?.error || error.response?.data?.message || 'Erro ao fazer check-in. Tente novamente.'
+      const errMsg = error.response?.data?.details 
+        ? `${error.response?.data?.error}: ${error.response?.data?.details}`
+        : error.response?.data?.error || error.response?.data?.message || 'Erro ao fazer check-in. Tente novamente.'
       alert(errMsg)
     } finally {
       setCheckingIn(null)
@@ -485,7 +519,16 @@ const EventMap = () => {
               <span>Atualizar</span>
             </button>
             <button
-              onClick={getUserLocation}
+              onClick={() => {
+                getUserLocation()
+                if (userLocation && mapRef.current) {
+                  mapRef.current.flyTo({
+                    center: [userLocation.longitude, userLocation.latitude],
+                    zoom: 14,
+                    duration: 1500
+                  })
+                }
+              }}
               className="bg-purple-600 text-white px-3 sm:px-4 py-2 rounded-md hover:bg-purple-700 flex items-center justify-center space-x-2 text-sm sm:text-base"
             >
               <Target className="h-4 w-4" />
@@ -565,12 +608,43 @@ const EventMap = () => {
       {/* Alertas */}
       {locationError && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-          <div className="flex">
-            <AlertCircle className="h-5 w-5 text-yellow-400" />
-            <div className="ml-3">
-              <p className="text-sm text-yellow-700">{locationError}</p>
+          <div className="flex items-start justify-between">
+            <div className="flex">
+              <AlertCircle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700">{locationError}</p>
+                {locationError.includes('Permissão') && (
+                    <p className="text-xs text-yellow-600 mt-1">
+                        Verifique o ícone de cadeado na barra de endereço para liberar.
+                    </p>
+                )}
+              </div>
             </div>
+            <button 
+                onClick={getUserLocation}
+                className="ml-4 bg-yellow-100 text-yellow-700 px-3 py-1 rounded text-xs font-medium hover:bg-yellow-200 transition-colors whitespace-nowrap"
+            >
+                Tentar Novamente
+            </button>
+            <button 
+                onClick={() => setIsSelectingLocation(true)}
+                className="ml-2 bg-blue-100 text-blue-700 px-3 py-1 rounded text-xs font-medium hover:bg-blue-200 transition-colors whitespace-nowrap"
+            >
+                Definir Manualmente
+            </button>
           </div>
+        </div>
+      )}
+
+      {isSelectingLocation && (
+        <div className="bg-blue-600 text-white p-2 text-center text-sm font-medium animate-pulse">
+            Clique no mapa para definir sua localização atual
+            <button 
+                onClick={() => setIsSelectingLocation(false)} 
+                className="ml-3 underline text-white hover:text-blue-100"
+            >
+                Cancelar
+            </button>
         </div>
       )}
 
@@ -596,11 +670,13 @@ const EventMap = () => {
           </div>
         )}
 
-        <LazyMap
+          <LazyMap
           ref={mapRef}
           initialViewState={initialViewState}
           style={{ width: '100%', height: '100%' }}
           mapStyle="mapbox://styles/mapbox/streets-v12"
+          onClick={handleMapClick}
+          cursor={isSelectingLocation ? 'crosshair' : 'auto'}
         >
           <LazyNavigationControl position="top-right" />
           <LazyScaleControl position="bottom-left" />
@@ -647,7 +723,10 @@ const EventMap = () => {
                 key={event.id}
                 latitude={event.latitude}
                 longitude={event.longitude}
-                onClick={() => setSelectedEvent(event)}
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation()
+                  setSelectedEvent(event)
+                }}
               >
                 <div className={`${getEventStatusColor(event)} rounded-full p-2 cursor-pointer hover:scale-110 transition-transform border-2 border-white shadow-lg`}>
                   <Calendar className="h-4 w-4 text-white" />
@@ -669,7 +748,10 @@ const EventMap = () => {
                 key={`manifestation-${manifestation.id}`}
                 latitude={manifestation.latitude}
                 longitude={manifestation.longitude}
-                onClick={() => setSelectedManifestation(manifestation)}
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation()
+                  setSelectedManifestation(manifestation)
+                }}
               >
                 <div className="bg-purple-600 rounded-full p-2 cursor-pointer hover:scale-110 transition-transform border-2 border-white shadow-lg">
                   <Users className="h-4 w-4 text-white" />
@@ -787,7 +869,7 @@ const EventMap = () => {
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center text-xs sm:text-sm text-gray-600">
                     <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-2 flex-shrink-0" />
-                    <span>Manifestação</span>
+                    <span>{selectedManifestation.checkin_count || 0} participantes</span>
                   </div>
                   <div className="flex items-center text-xs sm:text-sm text-gray-600">
                     <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-2 flex-shrink-0" />
@@ -812,6 +894,24 @@ const EventMap = () => {
                     type="manifestation"
                     size="sm"
                   />
+                </div>
+
+                {/* Check-in Button for Manifestation */}
+                <div className="mt-2">
+                  <button
+                    onClick={() => handleManifestationCheckIn(selectedManifestation)}
+                    disabled={checkingIn === selectedManifestation.id}
+                    className="w-full bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 flex items-center justify-center space-x-2 text-sm font-medium"
+                  >
+                    {checkingIn === selectedManifestation.id ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4" />
+                        <span>Fazer Check-in</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
           </LazyPopup>

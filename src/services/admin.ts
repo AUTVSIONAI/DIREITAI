@@ -208,6 +208,17 @@ export class AdminService {
   }
 
   /**
+   * Obter todos os planos
+   */
+  static async getPlans(): Promise<any[]> {
+    const response = await apiClient.get('/plans/admin');
+    const payload = response?.data;
+    return Array.isArray(payload)
+      ? payload
+      : (payload?.data && Array.isArray(payload.data) ? payload.data : []);
+  }
+
+  /**
    * Atualizar usuário
    */
   static async updateUser(
@@ -313,7 +324,8 @@ export class AdminService {
   }> {
     const params = new URLSearchParams({
       page: page.toString(),
-      limit: limit.toString()
+      limit: limit.toString(),
+      offset: ((page - 1) * limit).toString()
     });
 
     if (filters) {
@@ -492,7 +504,8 @@ export class AdminService {
   }> {
     const params = new URLSearchParams({
       page: page.toString(),
-      limit: limit.toString()
+      limit: limit.toString(),
+      offset: ((page - 1) * limit).toString()
     });
 
     if (userId) params.append('userId', userId);
@@ -519,7 +532,8 @@ export class AdminService {
   }> {
     const params = new URLSearchParams({
       page: page.toString(),
-      limit: limit.toString()
+      limit: limit.toString(),
+      offset: ((page - 1) * limit).toString()
     });
 
     if (type) params.append('type', type);
@@ -622,7 +636,8 @@ export class AdminService {
   }> {
     const params = new URLSearchParams({
       page: page.toString(),
-      limit: limit.toString()
+      limit: limit.toString(),
+      offset: ((page - 1) * limit).toString()
     });
 
     if (read !== undefined) params.append('read', read.toString());

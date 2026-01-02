@@ -88,6 +88,27 @@ const SuggestionsManagement = () => {
     }
   }
 
+  const handleMarkAsApplied = async (suggestionId) => {
+    try {
+      const { error } = await supabase
+        .from('politician_suggestions')
+        .update({ is_applied: true })
+        .eq('id', suggestionId)
+
+      if (error) throw error
+
+      setSuggestions(suggestions.map(s => 
+        s.id === suggestionId ? { ...s, is_applied: true } : s
+      ))
+      
+      // Mostrar feedback visual simples (poderia usar toast se disponível)
+      alert('Sugestão marcada como aplicada com sucesso!')
+    } catch (error) {
+      console.error('Erro ao marcar como aplicada:', error)
+      alert('Erro ao marcar sugestão como aplicada. Verifique suas permissões.')
+    }
+  }
+
   const filteredSuggestions = suggestions.filter(s => 
     s.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.user?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -162,6 +183,22 @@ const SuggestionsManagement = () => {
               </div>
               <div className="bg-gray-50 p-4 rounded-md">
                 <p className="text-gray-800 whitespace-pre-wrap">{suggestion.content}</p>
+              </div>
+              
+              <div className="mt-4 flex justify-end">
+                {suggestion.is_applied ? (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Aplicada
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleMarkAsApplied(suggestion.id)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    Marcar como Aplicada
+                  </button>
+                )}
               </div>
             </div>
           ))

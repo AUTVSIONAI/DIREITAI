@@ -16,7 +16,8 @@ export const useGamification = () => {
   const [userStats, setUserStats] = useState({
     badges: 0,
     checkins: 0,
-    conversations: 0
+    conversations: 0,
+    ranking: 0
   })
   const [userGoals, setUserGoals] = useState({
     monthlyGoal: null,
@@ -63,12 +64,14 @@ export const useGamification = () => {
 
       // Buscar estatísticas do usuário
       const statsResponse = await apiClient.get(`/gamification/users/${userId}/stats`)
+      const statsData = statsResponse.data || statsResponse
       
-      if (statsResponse) {
+      if (statsData) {
         setUserStats({
-          badges: statsResponse.badges || 0,
-          checkins: statsResponse.checkins || 0,
-          conversations: statsResponse.conversations || 0
+          badges: statsData.badges || 0,
+          checkins: statsData.checkins || 0,
+          conversations: statsData.conversations || 0,
+          ranking: statsData.ranking || 0
         })
       }
 

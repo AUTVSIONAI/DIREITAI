@@ -18,6 +18,7 @@ import {
   Target,
   BarChart3,
   Archive,
+  ArchiveRestore,
   Megaphone
 } from 'lucide-react'
 import { AdminService } from '../../../services/admin'
@@ -201,8 +202,25 @@ const NotificationsManagement = () => {
         }
       } else if (activeTab === 'analytics') {
         try {
-          const response = await AdminService.getAnalytics('month')
-          setAnalytics(response)
+          const response = await NotificationsService.getNotificationStats('month')
+          
+          // Mapear resposta do backend para estrutura esperada pelo frontend
+          const mappedAnalytics = {
+            notifications: {
+              total: response.totalSent || 0,
+              read: response.totalRead || 0,
+              readRate: response.readRate || 0,
+              clickRate: response.clickRate || 0,
+              byType: response.byType || {}
+            },
+            campaigns: {
+              totalSent: 0, // Backend ainda não retorna stats de campanhas
+              deliveryRate: 0,
+              openRate: 0
+            }
+          }
+          
+          setAnalytics(mappedAnalytics)
         } catch (error) {
           console.error('Error loading analytics:', error)
           setAnalytics(null)
@@ -221,7 +239,21 @@ const NotificationsManagement = () => {
 
   const handleSendBroadcast = async (data) => {
     try {
-      await AdminService.sendBroadcastNotification(data)
+      // Map target_audience to targetRoles
+      let targetRoles = undefined;
+      if (data.target_audience === 'lawyers') targetRoles = ['lawyer'];
+      else if (data.target_audience === 'clients') targetRoles = ['client', 'user'];
+      else if (data.target_audience === 'admins') targetRoles = ['admin'];
+      
+      const payload = {
+        ...data,
+        targetRoles
+      };
+      
+      // Remove target_audience from payload sent to API as it expects targetRoles
+      delete payload.target_audience;
+
+      await AdminService.sendBroadcastNotification(payload)
       loadData()
       setShowCreateModal(false)
     } catch (error) {
@@ -231,7 +263,13 @@ const NotificationsManagement = () => {
 
   const handleSaveAnnouncement = async (data) => {
     try {
-      await NotificationsService.createAdminAnnouncement(data)
+      const payload = {
+        ...data,
+        target_audience: typeof data.target_audience === 'string' 
+          ? { type: data.target_audience } 
+          : data.target_audience
+      }
+      await NotificationsService.createAdminAnnouncement(payload)
       loadData()
       setShowCreateAnnouncementModal(false)
     } catch (error) {
@@ -279,9 +317,11 @@ const NotificationsManagement = () => {
       title: '',
       message: '',
       type: 'info',
+      category: 'system',
       priority: 'medium',
       channels: ['in_app'],
       targetUsers: [],
+      target_audience: 'all',
       scheduledFor: ''
     })
 
@@ -346,6 +386,28 @@ const NotificationsManagement = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Categoria
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({...formData, category: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="system">Sistema</option>
+                  <option value="event">Eventos</option>
+                  <option value="store">Loja</option>
+                  <option value="ai">IA</option>
+                  <option value="gamification">Gamificação</option>
+                  <option value="social">Social</option>
+                  <option value="security">Segurança</option>
+                  <option value="marketing">Marketing</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Prioridade
                 </label>
                 <select
@@ -356,7 +418,22 @@ const NotificationsManagement = () => {
                   <option value="low">Baixa</option>
                   <option value="medium">Média</option>
                   <option value="high">Alta</option>
-                  <option value="critical">Crítica</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Público Alvo
+                </label>
+                <select
+                  value={formData.target_audience}
+                  onChange={(e) => setFormData({...formData, target_audience: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">Todos os Usuários</option>
+                  <option value="lawyers">Advogados</option>
+                  <option value="clients">Clientes</option>
+                  <option value="admins">Administradores</option>
                 </select>
               </div>
             </div>
@@ -696,15 +773,16 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
         if (type === 'template') {
           await NotificationsService.updateNotificationTemplate(item.id, formData)
         } else if (type === 'campaign') {
-          // Implementar atualização de campanha quando a API estiver disponível
-          console.log('Atualizando campanha:', item.id, formData)
+          await NotificationsService.updateEmailCampaign(item.id, formData)
         } else if (type === 'announcement') {
           await NotificationsService.updateAdminAnnouncement(item.id, {
             title: formData.title,
             message: formData.message,
             type: formData.type,
             priority: formData.priority,
-            target_audience: formData.target_audience,
+            target_audience: typeof formData.target_audience === 'string' 
+              ? { type: formData.target_audience } 
+              : formData.target_audience,
             start_date: formData.start_date,
             end_date: formData.end_date,
             active: formData.active,
@@ -1026,6 +1104,18 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
 
   // Modal de Visualização
   const ViewModal = ({ isOpen, onClose, item, type }) => {
+    const [detailedStats, setDetailedStats] = useState(null);
+
+    useEffect(() => {
+      if (isOpen && item && type === 'announcement') {
+        NotificationsService.getAnnouncementBannerStats(item.id)
+          .then(stats => setDetailedStats(stats))
+          .catch(err => console.error('Error fetching stats:', err));
+      } else {
+        setDetailedStats(null);
+      }
+    }, [isOpen, item, type]);
+
     if (!isOpen || !item) return null
 
     const renderContent = () => {
@@ -1144,6 +1234,13 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
             </div>
           )
         case 'announcement':
+          const viewCount = detailedStats ? detailedStats.views : (item.view_count || 0);
+          const clickCount = detailedStats ? detailedStats.clicks : (item.click_count || 0);
+          const dismissCount = detailedStats ? detailedStats.dismissals : (item.dismiss_count || 0);
+          // Backend já retorna percentual (0-100), não multiplicar novamente
+          const clickRate = detailedStats ? Number(detailedStats.clickRate || detailedStats.ctr || detailedStats.click_rate || 0).toFixed(2) : '0.00';
+          const dismissalRate = detailedStats ? Number(detailedStats.dismissalRate || detailedStats.dismiss_rate || 0).toFixed(2) : '0.00';
+          
           return (
             <div className="space-y-4">
               <div>
@@ -1192,15 +1289,15 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
               <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
                 <div className="text-center">
                   <p className="text-xs text-gray-500">Visualizações</p>
-                  <p className="font-semibold">{item.view_count || 0}</p>
+                  <p className="font-semibold">{viewCount}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-xs text-gray-500">Cliques</p>
-                  <p className="font-semibold">{item.click_count || 0}</p>
+                  <p className="text-xs text-gray-500">Clicks</p>
+                  <p className="font-semibold">{clickCount} ({clickRate}%)</p>
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-gray-500">Dispensados</p>
-                  <p className="font-semibold">{item.dismiss_count || 0}</p>
+                  <p className="font-semibold">{dismissCount} ({dismissalRate}%)</p>
                 </div>
               </div>
             </div>
@@ -1570,7 +1667,7 @@ const EditModal = ({ isOpen, onClose, item, type }) => {
                             className="text-blue-600 hover:text-blue-900"
                             title="Desarquivar"
                           >
-                            <Archive className="h-4 w-4" />
+                            <ArchiveRestore className="h-4 w-4" />
                           </button>
                         ) : (
                           <button 

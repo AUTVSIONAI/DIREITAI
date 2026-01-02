@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { MapPin, Clock, Users, Award, AlertCircle, CheckCircle } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 import { apiClient } from '../../../lib/api'
 import RSVPButton from '../../common/RSVPButton'
 
+import { supabase } from '../../../lib/supabase'
+
 const CheckIn = () => {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [location, setLocation] = useState(null)
   const [loading, setLoading] = useState(false)
   const [secretCode, setSecretCode] = useState('')
@@ -15,12 +19,27 @@ const CheckIn = () => {
   const [manifestations, setManifestations] = useState([])
   const [loadingManifestations, setLoadingManifestations] = useState(true)
   const [activeTab, setActiveTab] = useState('events')
+  const [userCheckins, setUserCheckins] = useState([])
 
   useEffect(() => {
     getCurrentLocation()
     fetchEvents()
     fetchManifestations()
+    fetchUserCheckins()
   }, [])
+
+  const fetchUserCheckins = async () => {
+    if (!user) return
+    try {
+      const response = await apiClient.get('/manifestations/my-checkins')
+      if (response.data && response.data.data) {
+        const checkinIds = response.data.data.map(c => c.manifestation_id)
+        setUserCheckins(checkinIds)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar check-ins do usuário:', error)
+    }
+  }
 
   const fetchEvents = async () => {
     try {
@@ -78,7 +97,7 @@ const CheckIn = () => {
         location: `${manifestation.city || ''}, ${manifestation.state || ''}`,
         date: manifestation.start_date ? new Date(manifestation.start_date).toLocaleDateString('pt-BR') : 'Data não definida',
         time: manifestation.start_date ? new Date(manifestation.start_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Hora não definida',
-        participants: manifestation.current_participants || 0,
+        participants: manifestation.checkin_count || manifestation.current_participants || 0,
         points: 150, // Pontos padrão por check-in em manifestação
         status: manifestation.status,
         description: manifestation.description || ''
@@ -134,11 +153,16 @@ const CheckIn = () => {
     setLoading(true)
     
     try {
-      const response = await apiClient.post('/checkins', {
-        event_id: eventId,
+      const payload = {
         secret_code: secretCode,
         location: location
-      })
+      }
+      
+      if (eventId) {
+        payload.event_id = eventId
+      }
+
+      const response = await apiClient.post('/checkins', payload)
       
       const data = response.data
       
@@ -280,14 +304,8 @@ const CheckIn = () => {
           </div>
           
           <button
-            onClick={() => {
-              if (nearbyEvents.length > 0) {
-                handleCheckIn(nearbyEvents[0].id)
-              } else {
-                alert('Nenhum evento disponível para check-in')
-              }
-            }}
-            disabled={loading || !secretCode.trim() || nearbyEvents.length === 0}
+            onClick={() => handleCheckIn()}
+            disabled={loading || !secretCode.trim()}
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Verificando...' : 'Fazer Check-in'}
@@ -430,9 +448,19 @@ const CheckIn = () => {
                         />
                         
                         {manifestation.status === 'active' && (
-                          <button className="btn-primary text-sm px-3 py-1 w-full">
-                            Confirmar Presença
-                          </button>
+                          userCheckins.includes(manifestation.id) ? (
+                            <div className="w-full bg-green-100 text-green-700 px-3 py-1 rounded text-center text-sm font-medium border border-green-200 flex items-center justify-center space-x-1">
+                              <CheckCircle className="h-3 w-3" />
+                              <span>Check-in Feito</span>
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={() => navigate('/dashboard/events')}
+                              className="btn-primary text-sm px-3 py-1 w-full"
+                            >
+                              Fazer Check-in no Mapa
+                            </button>
+                          )
                         )}
                       </div>
                     </div>

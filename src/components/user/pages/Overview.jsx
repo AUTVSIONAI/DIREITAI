@@ -52,7 +52,7 @@ const Overview = () => {
 
   // Atualizar stats quando os dados de gamificação chegarem
   useEffect(() => {
-    if (userStats && userPoints && !gamificationLoading) {
+    if (userStats && userPoints) {
       const monthlyGoalValue = userGoals?.monthlyGoal?.target_value || Math.max(500, (userPoints.level || 1) * 100)
       
       setStats(prev => {
@@ -61,20 +61,24 @@ const Overview = () => {
           totalCheckins: userStats.checkins || 0,
           chatMessages: userStats.conversations || 0,
           weeklyPoints: userPoints.weeklyPoints || 0,
-          monthlyGoal: monthlyGoalValue
+          monthlyGoal: monthlyGoalValue,
+          rankingPosition: userStats.ranking || prev.rankingPosition || 0,
+          achievementsUnlocked: userStats.badges || 0
         }
         
         if (prev.totalCheckins === newStats.totalCheckins &&
             prev.chatMessages === newStats.chatMessages &&
             prev.weeklyPoints === newStats.weeklyPoints &&
-            prev.monthlyGoal === newStats.monthlyGoal) {
+            prev.monthlyGoal === newStats.monthlyGoal &&
+            prev.rankingPosition === newStats.rankingPosition &&
+            prev.achievementsUnlocked === newStats.achievementsUnlocked) {
           return prev
         }
         
         return newStats
       })
     }
-  }, [gamificationLoading])
+  }, [gamificationLoading, userStats, userPoints])
 
   // Obter o user_id diretamente do perfil (mapeado via AuthProvider)
   const getUserId = async () => {
@@ -95,6 +99,12 @@ const Overview = () => {
         return
       }
       
+      // Use data from useGamification hook which is more robust
+      // and unified with the gamification system
+      setLoading(false)
+      
+      // Legacy code commented out to prevent overwriting correct data with zeros
+      /*
       const [usageResponse, achievementsResponse, rankingResponse] = await Promise.allSettled([
         apiClient.get('/users/usage-stats'),
         apiClient.get(`/gamification/users/${userId}/achievements?status=unlocked`),
@@ -117,7 +127,7 @@ const Overview = () => {
         rankingPosition: userPosition,
         achievementsUnlocked: achievements
       }))
-       
+      */
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error)
     } finally {

@@ -250,6 +250,20 @@ const SurveyDetail = () => {
     }
   }
 
+  const shareSurvey = () => {
+    const originalUrl = window.location.href;
+    const title = survey?.titulo || '';
+    
+    // URL otimizada para bots (backend proxy)
+    const apiBase = API_CONFIG?.BASE_URL || 'https://direitai-backend.vercel.app/api';
+    const origin = apiBase.replace(/\/api\/?$/, '');
+    const socialUrl = `${origin}/api/surveys/social/${id}`;
+
+    // Para WhatsApp, usar a URL social
+    const text = `Participe desta pesquisa: ${title}\n${socialUrl}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-green-700 flex items-center justify-center">
@@ -297,6 +311,15 @@ const SurveyDetail = () => {
                 <h1 className="text-2xl font-bold text-gray-900">Detalhes da Pesquisa</h1>
                 <p className="text-gray-600">Participe e veja os resultados em tempo real</p>
               </div>
+            </div>
+            <div className="ml-auto">
+              <button
+                onClick={shareSurvey}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+              >
+                <MessageCircle className="h-5 w-5" />
+                <span className="hidden sm:inline">Compartilhar no WhatsApp</span>
+              </button>
             </div>
           </div>
         </div>

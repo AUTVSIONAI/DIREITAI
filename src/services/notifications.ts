@@ -24,36 +24,6 @@ import type {
  */
 export class NotificationsService {
   /**
-   * Obter banners de anúncio ativos
-   */
-  static async getAnnouncementBanners(): Promise<AnnouncementBanner[]> {
-    // Busca notificações do tipo anúncio/sistema que devem aparecer como banner
-    const response = await apiClient.get('/notifications', {
-      params: {
-        type: 'announcement',
-        is_active: true,
-        limit: 5
-      }
-    });
-    
-    // Mapeia notificações para formato de banner se necessário
-    // Assumindo que o backend retorna Notification[] e precisamos converter
-    const notifications = response.data.notifications || [];
-    
-    return notifications.map((n: any) => ({
-      id: n.id,
-      title: n.title,
-      message: n.message || n.content,
-      type: n.category === 'warning' ? 'warning' : n.category === 'error' ? 'error' : 'info',
-      link: n.action_url,
-      linkText: n.action_label || 'Saiba mais',
-      dismissible: true, // Por padrão
-      startDate: n.created_at,
-      endDate: n.expires_at
-    }));
-  }
-
-  /**
    * Obter notificações do usuário
    */
   static async getUserNotifications(
@@ -667,6 +637,22 @@ export class NotificationsService {
   }
 
   /**
+   * Obter estatísticas do anúncio (banner)
+   */
+  static async getAnnouncementBannerStats(announcementId: string): Promise<{
+    views: number;
+    clicks: number;
+    dismissals: number;
+    ctr: number;
+    dismissalRate: number;
+  }> {
+    const response = await apiClient.get(
+      `/announcements/${announcementId}/stats`
+    );
+    return response.data;
+  }
+
+  /**
    * Obter webhooks configurados
    */
   static async getWebhookEndpoints(): Promise<WebhookEndpoint[]> {
@@ -895,30 +881,8 @@ export class NotificationsService {
 
   /**
    * Obter estatísticas do banner
+   * (Método duplicado removido)
    */
-  static async getAnnouncementBannerStats(
-    bannerId: string
-  ): Promise<{
-    views: number;
-    clicks: number;
-    dismissals: number;
-    clickRate: number;
-    dismissalRate: number;
-  }> {
-    const response = await apiClient.get(`/announcements/admin/${bannerId}/stats`);
-    const a = response.data || {};
-    const views = Number(a.view_count || 0);
-    const clicks = Number(a.click_count || 0);
-    const dismissals = Number(a.dismiss_count || 0);
-    const safeDiv = (num: number, den: number) => (den > 0 ? num / den : 0);
-    return {
-      views,
-      clicks,
-      dismissals,
-      clickRate: safeDiv(clicks, views),
-      dismissalRate: safeDiv(dismissals, views)
-    };
-  }
 
   static async toggleAdminAnnouncementActive(
     bannerId: string,

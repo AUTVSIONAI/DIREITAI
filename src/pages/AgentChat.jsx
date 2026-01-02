@@ -392,6 +392,8 @@ const AgentChat = () => {
                 onTranscript={handleVoiceTranscript}
                 autoSpeak={true}
                 lastMessage={lastBotMessage}
+                // Priorizar voz clonada do político se existir (pedido do usuário)
+                voiceId={agent?.politicians?.voice_config?.voice_id || agent?.voice_id}
                 className="flex items-center gap-2"
               />
             </div>

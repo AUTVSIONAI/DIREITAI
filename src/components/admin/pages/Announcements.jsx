@@ -298,13 +298,26 @@ const Announcements = () => {
             <h3 className="text-lg leading-6 font-medium text-gray-900">
               Gerenciar Anúncios
             </h3>
-            <button
-              onClick={() => setShowModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <PlusIcon className="h-4 w-4 mr-2" />
-              Novo Anúncio
-            </button>
+            <div className="flex space-x-2">
+                <button
+                onClick={() => setFilters({ ...filters, status: 'archived' })}
+                className={`inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md shadow-sm focus:outline-none ${
+                    filters.status === 'archived' 
+                    ? 'bg-purple-100 text-purple-700 border-purple-200 ring-2 ring-purple-500'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+                >
+                <ArchiveBoxIcon className="h-4 w-4 mr-2" />
+                Ver Arquivados
+                </button>
+                <button
+                onClick={() => setShowModal(true)}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Novo Anúncio
+                </button>
+            </div>
           </div>
 
           {/* Filtros */}
@@ -426,8 +439,8 @@ const Announcements = () => {
                               <div><span className="text-gray-500">Views:</span> {statsById[announcement.id]?.views ?? '-'}</div>
                               <div><span className="text-gray-500">Cliques:</span> {statsById[announcement.id]?.clicks ?? '-'}</div>
                               <div><span className="text-gray-500">Dispensas:</span> {statsById[announcement.id]?.dismissals ?? '-'}</div>
-                              <div><span className="text-gray-500">CTR:</span> {statsById[announcement.id]?.clickRate != null ? `${(statsById[announcement.id]?.clickRate * 100).toFixed(2)}%` : '-'}</div>
-                              <div><span className="text-gray-500">Taxa de dispensa:</span> {statsById[announcement.id]?.dismissalRate != null ? `${(statsById[announcement.id]?.dismissalRate * 100).toFixed(2)}%` : '-'}</div>
+                              <div><span className="text-gray-500">CTR:</span> {statsById[announcement.id]?.clickRate != null ? `${Number(statsById[announcement.id]?.clickRate).toFixed(2)}%` : '-'}</div>
+                              <div><span className="text-gray-500">Taxa de dispensa:</span> {statsById[announcement.id]?.dismissalRate != null ? `${Number(statsById[announcement.id]?.dismissalRate).toFixed(2)}%` : '-'}</div>
                             </div>
                           )}
                         </div>

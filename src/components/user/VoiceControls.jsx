@@ -13,7 +13,9 @@ const VoiceControls = forwardRef(({
   onTranscript, 
   autoSpeak = true, 
   lastMessage = '',
-  className = '' 
+  className = '',
+  voiceId = null, // Novo prop para ID de voz específico (MiniMax/Clonada)
+  voiceProvider: propVoiceProvider = null // Novo prop para forçar provider
 }, ref) => {
   const {
     speakWithVoice,
@@ -31,13 +33,23 @@ const VoiceControls = forwardRef(({
 
   const [isMobile] = useState(isMobileDevice());
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false); // Agora vamos usar isso
   const [speechRate, setSpeechRate] = useState(isMobile ? 0.8 : 0.9);
   const [speechVolume, setSpeechVolume] = useState(isMobile ? 0.8 : 1);
-  const [voiceProvider, setVoiceProvider] = useState('native'); // 'native', 'local', 'elevenlabs'
+  // Se voiceId for passado, o provider default deve ser 'minimax' (ou o que o sistema usar para cloned voices)
+  const [voiceProvider, setVoiceProvider] = useState(propVoiceProvider || (voiceId ? 'minimax' : 'native')); 
   const [localVoices, setLocalVoices] = useState([]);
   const [selectedVoiceType, setSelectedVoiceType] = useState('female');
   const [availableVoices, setAvailableVoices] = useState({ female: null, male: null });
+
+  // Atualizar provider se props mudarem
+  useEffect(() => {
+    if (voiceId) {
+      setVoiceProvider('minimax');
+    } else if (propVoiceProvider) {
+      setVoiceProvider(propVoiceProvider);
+    }
+  }, [voiceId, propVoiceProvider]);
 
   // Buscar vozes locais
   useEffect(() => {
@@ -72,7 +84,13 @@ const VoiceControls = forwardRef(({
         const voiceServiceUrl = import.meta.env.VITE_VOICE_SERVICE_URL || 'http://localhost:8005';
         if (cleanText) {
           console.log('🎤 Falando mensagem via VoiceControls:', cleanText.substring(0, 50) + '...');
-          speakWithVoice(cleanText, selectedVoiceType, {
+          
+          // Determine the correct voice ID to use
+          // If provider is minimax/cloned, use the specific voiceId prop if available
+          // Otherwise fall back to selectedVoiceType (female/male)
+          const actualVoiceId = (voiceProvider === 'minimax' && voiceId) ? voiceId : selectedVoiceType;
+
+          speakWithVoice(cleanText, actualVoiceId, {
             rate: speechRate,
             volume: speechVolume,
             provider: voiceProvider,
@@ -116,13 +134,19 @@ const VoiceControls = forwardRef(({
 
       if (cleanText) {
         console.log('🎤 Auto-falando resposta da IA:', cleanText.substring(0, 50) + '...');
-        speakWithVoice(cleanText, selectedVoiceType, {
+        
+        // Mesma lógica de prioridade para auto-speak
+        const targetVoice = voiceId || selectedVoiceType;
+        const targetProvider = voiceId ? 'minimax' : voiceProvider;
+
+        speakWithVoice(cleanText, targetVoice, {
           rate: speechRate,
-          volume: speechVolume
+          volume: speechVolume,
+          provider: targetProvider
         });
       }
     }
-  }, [lastMessage, autoSpeak, voiceEnabled, speechSupported, speakWithVoice, selectedVoiceType, speechRate, speechVolume]);
+  }, [lastMessage, autoSpeak, voiceEnabled, speechSupported, speakWithVoice, selectedVoiceType, speechRate, speechVolume, voiceId, voiceProvider]);
 
   // Processar transcrição
   useEffect(() => {
@@ -210,10 +234,26 @@ const VoiceControls = forwardRef(({
           </button>
 
           {showSettings && (
-            <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-50">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">
-                Configurações de Voz
-              </h3>
+            <div 
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+              onClick={() => setShowSettings(false)}
+            >
+              <div 
+                className="bg-white rounded-lg shadow-xl border border-gray-200 p-4 w-72 max-w-[90vw]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-sm font-medium text-gray-900">
+                    Configurações de Voz
+                  </h3>
+                  <button 
+                    onClick={() => setShowSettings(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <span className="sr-only">Fechar</span>
+                    ×
+                  </button>
+                </div>
               
               {/* Provedor de Voz */}
               <div className="mb-3">
@@ -233,6 +273,7 @@ const VoiceControls = forwardRef(({
                   <option value="native">Nativo (Browser)</option>
                   <option value="local">Local (XTTS v2)</option>
                   <option value="elevenlabs">ElevenLabs</option>
+                  <option value="minimax">Voz Clonada (Oficial)</option>
                 </select>
               </div>
 
@@ -274,6 +315,12 @@ const VoiceControls = forwardRef(({
                             </option>
                         ))}
                     </select>
+                )}
+
+                {voiceProvider === 'minimax' && (
+                    <div className="text-xs text-gray-500 italic p-1 bg-gray-50 border rounded">
+                        {voiceId ? 'Usando voz clonada do agente' : 'ID da voz será usado automaticamente'}
+                    </div>
                 )}
 
                 {voiceProvider === 'elevenlabs' && (
@@ -329,6 +376,7 @@ const VoiceControls = forwardRef(({
               >
                 Testar Voz
               </button>
+</div>
             </div>
           )}
         </div>

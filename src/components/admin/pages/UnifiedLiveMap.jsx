@@ -127,6 +127,8 @@ const UnifiedLiveMap = () => {
   const [addressSearch, setAddressSearch] = useState('')
   const [addressSuggestions, setAddressSuggestions] = useState([])
   const [showAddressSuggestions, setShowAddressSuggestions] = useState(false)
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false)
+  const [addressSearchError, setAddressSearchError] = useState(null)
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -336,6 +338,7 @@ const UnifiedLiveMap = () => {
 
   // Função para buscar endereços usando Mapbox Geocoding
   const searchAddresses = async (query) => {
+    setAddressSearchError(null)
     if (!query || query.length < 3) {
       setAddressSuggestions([])
       setShowAddressSuggestions(false)
@@ -344,16 +347,29 @@ const UnifiedLiveMap = () => {
 
     if (!MAPBOX_TOKEN) {
       console.warn('VITE_MAPBOX_TOKEN ausente. Autocomplete de endereço desabilitado.')
+      setAddressSearchError('Configuração de mapa ausente')
       setAddressSuggestions([])
       setShowAddressSuggestions(false)
       return
     }
 
     try {
+      setIsSearchingAddress(true)
+      console.log('Searching address:', query)
+      
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&country=BR&types=place,locality,neighborhood,address&language=pt&limit=5`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&country=BR&language=pt&limit=5&types=address,poi`
       )
+      
+      if (!response.ok) {
+         console.error('Mapbox API Error:', response.status, response.statusText)
+         setAddressSearchError('Erro na busca de endereço')
+         setIsSearchingAddress(false)
+         return
+      }
+
       const data = await response.json()
+      console.log('Mapbox Results:', data.features?.length)
       
       if (data.features) {
         const suggestions = data.features.map(feature => ({
@@ -365,9 +381,14 @@ const UnifiedLiveMap = () => {
         }))
         setAddressSuggestions(suggestions)
         setShowAddressSuggestions(true)
+      } else {
+        setAddressSuggestions([])
       }
     } catch (error) {
       console.error('Erro ao buscar endereços:', error)
+      setAddressSearchError('Erro de conexão')
+    } finally {
+      setIsSearchingAddress(false)
     }
   }
 
@@ -1395,10 +1416,32 @@ const UnifiedLiveMap = () => {
                   placeholder="Digite o endereço, cidade ou rua..."
                 />
                 
-                {/* Lista de sugestões */}
-                {showAddressSuggestions && addressSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    {addressSuggestions.map((suggestion) => (
+                {/* Lista de sugestões e Status */}
+                {(showAddressSuggestions || isSearchingAddress || addressSearchError) && (
+                  <div 
+                    className="absolute w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                    style={{ zIndex: 9999 }}
+                  >
+                    {isSearchingAddress && (
+                      <div className="px-3 py-2 text-sm text-gray-500 flex items-center">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-2"></div>
+                        Buscando endereço...
+                      </div>
+                    )}
+
+                    {addressSearchError && (
+                      <div className="px-3 py-2 text-sm text-red-500">
+                        {addressSearchError}
+                      </div>
+                    )}
+
+                    {!isSearchingAddress && !addressSearchError && addressSuggestions.length === 0 && showAddressSuggestions && (
+                      <div className="px-3 py-2 text-sm text-gray-500">
+                        Nenhum endereço encontrado.
+                      </div>
+                    )}
+
+                    {!isSearchingAddress && addressSuggestions.map((suggestion) => (
                       <button
                         key={suggestion.id}
                         type="button"
