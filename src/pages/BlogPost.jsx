@@ -134,10 +134,12 @@ const BlogPost = () => {
   const fetchPost = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await apiClient.get(`/blog/posts/${slug}`);
-      const data = response.data;
-
-      setError(err.message);
+      setPost(response.data);
+    } catch (err) {
+      console.error('Erro ao buscar post:', err);
+      setError(err.message || 'Erro ao carregar o post.');
     } finally {
       setLoading(false);
     }
