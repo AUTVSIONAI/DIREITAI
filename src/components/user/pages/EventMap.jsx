@@ -898,20 +898,27 @@ const EventMap = () => {
 
                 {/* Check-in Button for Manifestation */}
                 <div className="mt-2">
-                  <button
-                    onClick={() => handleManifestationCheckIn(selectedManifestation)}
-                    disabled={checkingIn === selectedManifestation.id}
-                    className="w-full bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 flex items-center justify-center space-x-2 text-sm font-medium"
-                  >
-                    {checkingIn === selectedManifestation.id ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4" />
-                        <span>Fazer Check-in</span>
-                      </>
-                    )}
-                  </button>
+                  {!checkedInManifestations.some(id => String(id) === String(selectedManifestation.id)) ? (
+                    <button
+                      onClick={() => handleManifestationCheckIn(selectedManifestation)}
+                      disabled={checkingIn === selectedManifestation.id}
+                      className="w-full bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 flex items-center justify-center space-x-2 text-sm font-medium"
+                    >
+                      {checkingIn === selectedManifestation.id ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Fazer Check-in</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="w-full bg-green-100 text-green-700 px-3 py-2 rounded-md flex items-center justify-center space-x-2 text-sm font-medium border border-green-200">
+                      <CheckCircle className="h-4 w-4" />
+                      <span>Check-in realizado</span>
+                    </div>
+                  )}
                 </div>
               </div>
           </LazyPopup>

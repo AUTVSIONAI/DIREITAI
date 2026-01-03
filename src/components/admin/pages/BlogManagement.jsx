@@ -85,8 +85,8 @@ const BlogManagement = ({ onlyMyPosts = false }) => {
       const formData = new FormData()
       formData.append('image', imageFile)
       
-      console.log('📤 Enviando requisição para /upload/image')
-      const response = await apiClient.post('/upload/image', formData, {
+      console.log('📤 Enviando requisição para /upload/blog-image')
+      const response = await apiClient.post('/upload/blog-image', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
