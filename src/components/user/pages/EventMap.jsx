@@ -821,7 +821,7 @@ const EventMap = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                  {!checkedInEvents.includes(selectedEvent.id) && userLocation && (
+                  {!checkedInEvents.some(id => String(id) === String(selectedEvent.id)) && userLocation && (
                     <button
                       onClick={() => handleCheckIn(selectedEvent)}
                       disabled={checkingIn === selectedEvent.id}
@@ -835,7 +835,7 @@ const EventMap = () => {
                     </button>
                   )}
                   
-                  {checkedInEvents.includes(selectedEvent.id) && (
+                  {checkedInEvents.some(id => String(id) === String(selectedEvent.id)) && (
                     <div className="flex-1 px-3 py-2 text-xs sm:text-sm font-medium text-green-700 bg-green-100 rounded-md text-center">
                       <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 inline mr-1" />
                       Check-in realizado
