@@ -16,7 +16,7 @@ const API_ORIGIN = (API_CONFIG?.BASE_URL || '').replace(/\/(api)\/?$/, '');
 
 // Função para processar URLs de imagens no conteúdo HTML
 const processImageUrls = (content) => {
-  if (!content) return content;
+  if (!content || typeof content !== 'string') return content || '';
   const origin = API_ORIGIN || 'https://direitai-backend.vercel.app';
   
   // Processar imagens com URLs relativas
@@ -348,21 +348,37 @@ const BlogPost = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      return date.toLocaleDateString('pt-BR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch (e) {
+      console.error('Erro ao formatar data:', e);
+      return '';
+    }
   };
 
   const formatFullDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      return date.toLocaleDateString('pt-BR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      console.error('Erro ao formatar data completa:', e);
+      return '';
+    }
   };
 
   // Helper para obter nome amigável do autor do comentário

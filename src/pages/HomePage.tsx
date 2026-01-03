@@ -105,7 +105,7 @@ const HomePage = () => {
       <SEO 
         title="Home" 
         description="A Central do Patriota com IA política avançada, verificação de fake news, comunidade conservadora e eventos exclusivos."
-        image="/logo.png"
+        image="/logo.png?v=4"
       />
       {/* Header */}
       <header className="bg-white/90 backdrop-blur-md shadow-lg border-b border-gray-100/50 sticky top-0 z-50">
