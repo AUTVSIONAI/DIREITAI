@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ShoppingCart, Search, Star, Truck, Shield, Loader2, X, Link as LinkIcon, CheckCircle, ArrowLeft, ShoppingBag } from 'lucide-react'
+import { ShoppingCart, Search, Star, Truck, Shield, Loader2, X, Link as LinkIcon, CheckCircle, ArrowLeft, ShoppingBag, Share2 } from 'lucide-react'
 import { apiClient } from '../../../lib/api'
 import { StoreService } from '../../../services/store'
 import { getMyAffiliateProfile, recordAffiliateClick } from '../../../services/affiliates'
